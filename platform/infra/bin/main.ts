@@ -12,7 +12,7 @@ const props: cdk.StackProps = {
         region: 'us-west-2'
     }
 }
-const vpcStack = new VpcStack(app, "appmod-vpc-stack", props);
+
 
 HybridCluster.build(app);
 PipelineStack.build(app, props);
