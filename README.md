@@ -1,6 +1,5 @@
-## My Project
+## Application Blueprints 
 
-TODO: Fill this README out!
 
 Be sure to:
 
