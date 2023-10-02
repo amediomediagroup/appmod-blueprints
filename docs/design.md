@@ -77,7 +77,7 @@ Prereqs
     - Create apps and app of apps for one app with k8s descriptors (e.g java)
     - Deploy app of apps
 
-## Module 3 Kubevela 
+## Module 3 OAM 
     - introduce OAM
     - deploy kubevela through ArgoCD UI - e.g. create an app that points to the Kubevela chart in deployment/addons/kubevela
     - create OAM for the node app and deploy with Kubevela (CLI)
