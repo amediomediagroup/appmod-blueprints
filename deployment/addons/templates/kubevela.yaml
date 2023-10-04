@@ -12,8 +12,8 @@ spec:
   project: default
   source:
     path: deployment/addons/vela-core
-    repoURL: {{ .Values.spec.source.repoURL }}
-    targetRevision: {{ .Values.spec.source.targetRevision }}
+    repoURL: {{ .Values.repoUrl }}
+    targetRevision: {{ .Values.targetRevision }}
   syncPolicy:
     automated:
       prune: true
