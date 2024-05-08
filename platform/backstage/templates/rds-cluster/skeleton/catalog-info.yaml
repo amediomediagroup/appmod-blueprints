@@ -27,4 +27,4 @@ spec:
   lifecycle: experimental
   type: service
   dependsOn:
-    - resource:default/${{values.name}}-db-cluster
+    - resource:default/${{values.name}}-rds-cluster
