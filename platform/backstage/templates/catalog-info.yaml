@@ -1,0 +1,8 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: app-mod-backstage-templates
+  description: App Mod Backstage Templates
+spec:
+  targets:
+    - ./rds-cluster/template.yaml
