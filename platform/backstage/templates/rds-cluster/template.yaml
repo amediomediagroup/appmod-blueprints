@@ -120,7 +120,6 @@ spec:
         appNamespace: default
         argoInstance: in-cluster
         projectName: default
-        # necessary until we generate our own cert
         repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.name}}
         path: "kustomize/base"
     - id: register
