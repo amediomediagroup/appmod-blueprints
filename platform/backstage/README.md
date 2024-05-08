@@ -65,7 +65,7 @@ EOF
 kubectl apply -f ./aws-secrets-eobs.yaml
 
 # Postgres credentials for RDS Database
-cat << EOF > ./postgres-secrets.yaml
+cat << EOF > ./postgres-secret.yaml
 ---
 apiVersion: v1
 kind: Secret
@@ -75,7 +75,7 @@ metadata:
 data:
   password: bXlzZWNyZXRQYXNzd29yZDEh # mysecretPassword1!
 EOF
-kubectl apply -f ./postgres-secrets.yaml
+kubectl apply -f ./postgres-secret.yaml
 ```
 
 6. Next, in the `idpbuilder` folder, navigate to `./examples/ref-implementation/backstage/manifests/install.yaml` and add the following lines for catalog location at line 171 in backstage config to deploy crossplane backstage templates to backstage:
