@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/aws-samples/appmod-blueprints
     targetRevision: HEAD
-    path: "platform/crossplane/compositions"
+    path: "./platform/crossplane/compositions"
     directory:
       recurse: true
   destination:
