@@ -114,7 +114,7 @@ spec:
               name: postgres-root-user-password
               namespace: crossplane-system
             engine: postgres
-            engineVersion: "14.10"
+            engineVersion: "14.11"
             skipFinalSnapshot: true
             storageEncrypted: true
             storageType: gp2
