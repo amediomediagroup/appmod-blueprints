@@ -6,7 +6,7 @@ metadata:
   annotations:
     argocd/app-name: ${{values.name | dump}}
 spec:
-  type: db-cluster
+  type: rds-cluster
   owner: guest
 ---
 apiVersion: backstage.io/v1alpha1
