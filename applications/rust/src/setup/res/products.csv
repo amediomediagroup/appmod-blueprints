@@ -1,0 +1,59 @@
+category,product,name,variant,image_number,file
+baby,cap,Baby Cap,black,1,baby-cap-black.png
+baby,cap,Baby Cap,gray,1,baby-cap-gray.png
+baby,cap,Baby Cap,white,1,baby-cap-white.png
+baby,onesie,Baby Onesie,white,1,baby-onesie-white-1.png
+baby,onesie,Baby Onesie,white,2,baby-onesie-white-2.png
+baby,onesie,Baby Onesie,black,1,baby-onesie-black-1.png
+baby,onesie,Baby Onesie,black,2,baby-onesie-black-2.png
+baby,onesie,Baby Onesie,beige,1,baby-onesie-beige-1.png
+baby,onesie,Baby Onesie,beige,2,baby-onesie-beige-2.png
+bags,bag,Bag,black,1,bag-black.png
+bags,bag,Bag,white,1,bag-white.png
+clothing,bomber-jacket,Bomber Jacket,black,1,bomber-jacket-black.png
+clothing,bomber-jacket,Bomber Jacket,army,1,bomber-jacket-army.png
+clothing,cowboy-hat,Cowboy Hat,black,1,cowboy-hat-black-1.png
+clothing,cowboy-hat,Cowboy Hat,black,2,cowboy-hat-black-2.png
+clothing,cowboy-hat,Cowboy Hat,black,3,cowboy-hat-black-3.png
+clothing,cowboy-hat,Cowboy Hat,black,4,cowboy-hat-black-4.png
+clothing,cowboy-hat,Cowboy Hat,black,5,cowboy-hat-black-5.png
+clothing,cowboy-hat,Cowboy Hat,black,6,cowboy-hat-black-6.png
+clothing,cowboy-hat,Cowboy Hat,tan,1,cowboy-hat-tan-1.png
+clothing,cowboy-hat,Cowboy Hat,tan,2,cowboy-hat-tan-2.png
+clothing,cowboy-hat,Cowboy Hat,tan,3,cowboy-hat-tan-3.png
+clothing,cowboy-hat,Cowboy Hat,tan,4,cowboy-hat-tan-4.png
+clothing,cowboy-hat,Cowboy Hat,tan,5,cowboy-hat-tan-5.png
+clothing,cowboy-hat,Cowboy Hat,tan,6,cowboy-hat-tan-6.png
+clothing,hat,Hat,1,1,hat-1.png
+clothing,hat,Hat,1,2,hat-2.png
+clothing,hat,Hat,1,3,hat-3.png
+clothing,hoodie,Hoodie,1,1,hoodie-1.png
+clothing,hoodie,Hoodie,1,2,hoodie-2.png
+clothing,t-shirt,T-Shirt,color-black,1,t-shirt-color-black.png
+clothing,t-shirt,T-Shirt,color-white,1,t-shirt-color-white.png
+clothing,t-shirt,T-Shirt,color-pink,1,t-shirt-color-pink.png
+clothing,t-shirt,T-Shirt,color-blue,1,t-shirt-color-blue.png
+clothing,t-shirt,T-Shirt,color-gray,1,t-shirt-color-gray.png
+clothing,t-shirt,T-Shirt,circles-black,1,t-shirt-circles-black.png
+clothing,t-shirt,T-Shirt,circles-blue,1,t-shirt-circles-blue.png
+clothing,t-shirt,T-Shirt,circles-white,1,t-shirt-circles-white.png
+clothing,t-shirt,Spiral T-Shirt,spiral,1,t-shirt-spiral-1.png
+clothing,t-shirt,Spiral T-Shirt,spiral,2,t-shirt-spiral-2.png
+clothing,t-shirt,Spiral T-Shirt,spiral,3,t-shirt-spiral-3.png
+clothing,t-shirt,Spiral T-Shirt,spiral,4,t-shirt-spiral-4.png
+home,cup,Cup,black,1,cup-black.png
+home,cup,Cup,white,1,cup-white.png
+home,mug,Mug,1,1,mug-1.png
+home,mug,Mug,1,2,mug-2.png
+pet,dog-sweater,Dog Sweater,1,1,dog-sweater-1.png
+pet,dog-sweater,Dog Sweater,1,2,dog-sweater-2.png
+technology,keyboard,Keyboard,1,1,keyboard.png
+technology,shoes,Shoes,1,1,shoes-1.png
+technology,shoes,Shoes,1,2,shoes-2.png
+technology,shoes,Shoes,1,3,shoes-3.png
+technology,shoes,Shoes,1,4,shoes-4.png
+technology,webcam-cover,Webcam Cover,1,1,webcam-cover.png
+other,pacifier,Pacifier,1,1,pacifier-1.png
+other,pacifier,Pacifier,1,2,pacifier-2.png
+other,sticker,Sticker,1,1,sticker.png
+other,sticker,Sticker Rainbow,1,1,sticker-rainbow.png

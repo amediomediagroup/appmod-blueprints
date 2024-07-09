@@ -1,11 +1,13 @@
-use std::collections::HashMap;
-use crate::types::{Menu, Page, Category, Product, UIResponder};
-use rocket::{error, get, post, Responder, State};
-use aws_sdk_dynamodb as ddb;
-use aws_sdk_dynamodb::types::AttributeValue;
 use rand::Rng;
+use aws_sdk_dynamodb as ddb;
+use std::collections::HashMap;
 use rocket::serde::json::Json;
+use aws_sdk_dynamodb::types::AttributeValue;
+use rocket::{error, get, post, Responder, State};
 use crate::services::product::reconstruct_product;
+use crate::types::{Menu, Page, Category, Product, UIResponder};
+use aws_sdk_dynamodb::operation::query::{QueryError, QueryOutput};
+use serde_dynamo::{from_item, from_items};
 
 #[get("/menu/<menu_id>")]
 pub async fn get_menu(menu_id: &str, db: &State<ddb::Client>) -> UIResponder<Vec<Menu>> {
@@ -132,19 +134,25 @@ pub async fn get_category_products(
         .send()
         .await;
 
-    let results = results.unwrap().items;
+    let results = match results {
+        Ok(res) => { res.items.unwrap() }
+        Err(err) => {
+            println!("{:?}", err);
+            return UIResponder::Err(error!("Something went wrong"))
+        }
+    };
 
     let mut products: Vec<Product> = Vec::new();
 
     // assemble variants and variant images
 
-    for item in results.unwrap() {
+    for item in results {
         products.push(
             reconstruct_product(
                 item.get("id").unwrap().as_s().unwrap().as_str(),
                 db.inner(),
                 table_name
-            )
+            ).await
         );
         println!("{:?}", item);
     }
@@ -190,34 +198,39 @@ pub async fn get_categories(
 pub async fn get_collection(
     collection_handle: &str,
     db: &State<ddb::Client>,
-    table_name: &State<&str>
+    table_name: &State<String>
 ) -> UIResponder<Vec<Product>> {
-    let table_name = table_name.inner();
-
     let results = db
         .query()
-        .table_name(table_name)
+        .table_name(table_name.to_string())
         .key_condition_expression("partition_key = :pk_val AND sort_key = :sk_val")
         .expression_attribute_values(":pk_val", AttributeValue::S("COLLECTION".to_string()))
         .expression_attribute_values(":sk_val", AttributeValue::S(collection_handle.to_string()))
         .send()
         .await;
 
-    let results = results.unwrap().items;
+    let collections = match results {
+        Ok(res) => { res.items().to_vec() }
+        Err(err) => {
+            println!("{:?}", err);
+            return UIResponder::Err(error!("Something went wrong"))
+        }
+    };
 
     // if there's more than one result throw error
     // because something is wrong
-
-    match results {
-        Some(items) => {
-            // ensure that items only has one item in it
-            if items.len() > 1 {
-                UIResponder::Err(error!("More than one collection found"))
-            } else {
-
+    // ensure that there's only one collection with this combo
+    if collections.len() > 1 {
+        UIResponder::Err(error!("More than one collection found"))
+    } else {
+        let products : Vec<Product> = match from_items(collections) {
+            Ok(res) => res,
+            Err(err) => {
+                println!("{:?}", err);
+                return UIResponder::Err(error!("Failed to convert from DDB to Front end"))
             }
+        };
 
-        },
-        None => UIResponder::Err(error!("Looks like this collection doesn't exist"))
+        UIResponder::Ok(products.into())
     }
 }

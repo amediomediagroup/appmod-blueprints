@@ -1,16 +1,14 @@
 use rocket::Responder;
-use rocket::serde::{Deserialize, Serialize};
 use rocket::serde::json::Json;
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct Menu {
     pub title: String,
     pub path: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct Page {
     pub id: String,
     pub title: String,
@@ -21,7 +19,6 @@ pub struct Page {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct Category {
     pub path: String,
     pub category_id: String,
@@ -39,21 +36,19 @@ pub struct ProductOption {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProductVariant {
     pub id: String,
-    pub title: String,
+    pub title: String,  
     pub price: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct Image {
     pub url: String,
     pub alt_text: String,
-    pub width: usize,
+    pub width: usize, 
     pub height: usize,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct Product {
     pub id: String,
     pub name: String,
@@ -66,7 +61,6 @@ pub struct Product {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct Cart {
     pub id: String,
     pub products: Vec<Product>,
@@ -79,5 +73,5 @@ pub struct Cart {
 pub  enum UIResponder<T> {
     Ok(Json<T>),
     #[response(status = 404)]
-    Err(())
+    Err(())  
 }
