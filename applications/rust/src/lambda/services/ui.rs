@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use rocket::serde::json::Json;
 use aws_sdk_dynamodb::types::AttributeValue;
 use rocket::{error, get, post, Responder, State};
-use crate::services::product::reconstruct_product;
 use crate::types::{Menu, Page, Category, Product, UIResponder};
 use aws_sdk_dynamodb::operation::query::{QueryError, QueryOutput};
 use serde_dynamo::{from_item, from_items};
@@ -102,10 +101,13 @@ pub async fn get_category(
                 println!("{:?}", item);
 
                 let category = Category {
+                    partition_key: "".to_string(),
+                    sort_key: "".to_string(),
                     path: category_handle,
                     category_id: item.get("id").unwrap().as_s().unwrap().to_string(),
                     title: item.get("name").unwrap().as_s().unwrap().to_string(),
                     description : item.get("name").unwrap().as_s().unwrap().to_string(),
+                    products: vec![],
                 };
 
                 UIResponder::Ok(category.into())
@@ -127,37 +129,41 @@ pub async fn get_category_products(
     let results = db
         .query()
         .table_name(table_name)
-        .key_condition_expression("partition_key = :prod")
-        .expression_attribute_values(":prod", AttributeValue::S("PRODUCT".to_string()))
-        .filter_expression("category = :category_name")
-        .expression_attribute_values(":category_name", AttributeValue::S(category_handle.to_string()))
+        .key_condition_expression("partition_key = :prod AND sort_key = :sk")
+        .expression_attribute_values(":prod", AttributeValue::S("CATEGORY".to_string()))
+        .expression_attribute_values(":sk", AttributeValue::S(category_handle.to_string()))
         .send()
         .await;
 
-    let results = match results {
-        Ok(res) => { res.items.unwrap() }
+
+    return match results {
+        Ok(res) => {
+            let categories: Vec<Category> = match from_items(res.items().to_vec()) {
+                Ok(res) => {
+                    // there should only be one category
+                    if res.len() > 1 {
+                        return UIResponder::Err(error!("More than one category found"))
+                    } else {
+                        res
+                    }
+                },
+                Err(err) => {
+                    println!("{:?}", err);
+                    return UIResponder::Err(error!("Failed to convert from DDB to Front end"))
+                }
+            };
+
+            let category: Category = categories.first().unwrap_or(&Category::default()).clone();
+
+            let products: Vec<Product> = category.clone().products;
+
+            UIResponder::Ok(products.into())
+        },
         Err(err) => {
             println!("{:?}", err);
-            return UIResponder::Err(error!("Something went wrong"))
+            UIResponder::Err(error!("Something went wrong"))
         }
-    };
-
-    let mut products: Vec<Product> = Vec::new();
-
-    // assemble variants and variant images
-
-    for item in results {
-        products.push(
-            reconstruct_product(
-                item.get("id").unwrap().as_s().unwrap().as_str(),
-                db.inner(),
-                table_name
-            ).await
-        );
-        println!("{:?}", item);
     }
-
-    UIResponder::Ok(products.into())
 }
 
 #[get("/categories")]
@@ -175,23 +181,23 @@ pub async fn get_categories(
         .send()
         .await;
 
-    let results = results.unwrap().items;
+    return match results {
+        Ok(res) => {
+            let categories: Vec<Category> = match from_items(res.items().to_vec()) {
+                Ok(res) => res,
+                Err(err) => {
+                    println!("{:?}", err);
+                    return UIResponder::Err(error!("Failed to convert from DDB to Front end"))
+                }
+            };
 
-    let mut categories: Vec<Category> = Vec::new();
-
-    for item in results.unwrap() {
-        let category = Category {
-            path: item.get("name").unwrap().as_s().unwrap().to_string(),
-            category_id: item.get("id").unwrap().as_s().unwrap().to_string(),
-            title: item.get("name").unwrap().as_s().unwrap().to_string(),
-            description: item.get("name").unwrap().as_s().unwrap().to_string(),
-        };
-
-        categories.push(category.into());
-        println!("{:?}", item);
+            UIResponder::Ok(categories.into())
+        },
+        Err(err) => {
+            println!("{:?}", err);
+            UIResponder::Err(error!("Something went wrong"))
+        }
     }
-
-    UIResponder::Ok(categories.into())
 }
 
 #[get("/collection/<collection_handle>")]
@@ -204,33 +210,27 @@ pub async fn get_collection(
         .query()
         .table_name(table_name.to_string())
         .key_condition_expression("partition_key = :pk_val AND sort_key = :sk_val")
-        .expression_attribute_values(":pk_val", AttributeValue::S("COLLECTION".to_string()))
+        .expression_attribute_values(":pk_val", AttributeValue::S("CATEGORY".to_string()))
         .expression_attribute_values(":sk_val", AttributeValue::S(collection_handle.to_string()))
         .send()
         .await;
 
-    let collections = match results {
-        Ok(res) => { res.items().to_vec() }
+
+    return match results {
+        Ok(res) => {
+            let products: Vec<Product> = match from_items(res.items().to_vec()) {
+                Ok(res) => res,
+                Err(err) => {
+                    println!("{:?}", err);
+                    return UIResponder::Err(error!("Failed to convert from DDB to Front end"))
+                }
+            };
+
+            UIResponder::Ok(products.into())
+        },
         Err(err) => {
             println!("{:?}", err);
-            return UIResponder::Err(error!("Something went wrong"))
+            UIResponder::Err(error!("Something went wrong"))
         }
-    };
-
-    // if there's more than one result throw error
-    // because something is wrong
-    // ensure that there's only one collection with this combo
-    if collections.len() > 1 {
-        UIResponder::Err(error!("More than one collection found"))
-    } else {
-        let products : Vec<Product> = match from_items(collections) {
-            Ok(res) => res,
-            Err(err) => {
-                println!("{:?}", err);
-                return UIResponder::Err(error!("Failed to convert from DDB to Front end"))
-            }
-        };
-
-        UIResponder::Ok(products.into())
     }
 }

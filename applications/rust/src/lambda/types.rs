@@ -20,10 +20,13 @@ pub struct Page {
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Category {
+    pub partition_key: String,
+    pub sort_key: String,
     pub path: String,
     pub category_id: String,
     pub title: String,
     pub description: String,
+    pub products: Vec<Product>
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -50,6 +53,8 @@ pub struct Image {
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Product {
+    pub partition_key: String,
+    pub sort_key: String,
     pub id: String,
     pub name: String,
     pub description: String,

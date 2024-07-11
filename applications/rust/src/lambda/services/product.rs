@@ -75,6 +75,8 @@ pub async fn get_products(
             let mut products = vec![];
             for item in items {
                 let product = Product {
+                    partition_key: "".to_string(),
+                    sort_key: "".to_string(),
                     id: item.get("id").unwrap().as_s().unwrap().to_string(),
                     name: item.get("name").unwrap().as_s().unwrap().to_string(),
                     description: item.get("name").unwrap().as_s().unwrap().to_string(),
@@ -94,86 +96,20 @@ pub async fn get_products(
     }
 }
 
-pub async fn reconstruct_product(product_id: &str, db: &ddb::Client, table_name: &str) -> Product {
-    let results = db
-        .query()
-        .table_name(table_name)
-        .key_condition_expression("partition_key = :pk_val")
-        .expression_attribute_values(":pk_val", AttributeValue::S("PRODUCT".to_string()))
-        .filter_expression("id = :product_id")
-        .expression_attribute_values(":product_id", AttributeValue::S(product_id.to_string()))
-        .send()
-        .await;
-
-    let results = match results {
-        Ok(output) => output.items().to_vec(),
-        Err(e) => todo!()
-    };
-
-    println!("{:?}", results);
-
-    match results {
-        Some(items) => {
-            // if there's more than one item, something is wrong
-            if items.len() > 1 {
-                Product::default()
-            } else {
-                let item = match items.get(0) {
-                    Some(item) => item,
-                    None => return Product::default(),
-                };
-
-                let var_ids: Vec<String> = item.get("variant_ids").unwrap().as_l().unwrap().iter().map(|ids| { ids.as_s().unwrap().to_string() }).collect();
-
-                let mut variants = vec![];
-
-                for var_id in var_ids {
-                    let var_results = db
-                        .query()
-                        .table_name(table_name)
-                        .key_condition_expression("partition_key = :pk_val")
-                        .expression_attribute_values(":pk_val", AttributeValue::S("VARIANT".to_string()))
-                        .filter_expression("id = :variant_id")
-                        .expression_attribute_values(":variant_id", AttributeValue::S(var_id))
-                        .send()
-                        .await;
-
-                    let var_results = match var_results {
-                        Ok(res) => {
-                            res.items.unwrap()
-                        }
-                        Err(_) => {
-                            error!("Expected variant not found.");
-                            vec![]
-                        }
-                    };
-
-                    // there should only be one variant with this ID
-                    let var_item = matchvar_results.get(0);
-
-                    let variant = ProductVariant {
-                        id: var_item.get("id").unwrap().as_s().unwrap().to_string(),
-                        title: var_item.get("name").unwrap().as_s().unwrap().to_string(),
-                        price: rand::thread_rng().gen_range(0..300).to_string(),
-                    };
-                    variants.push(variant);
-                }
-
-                let product = Product {
-                    id: item.get("id").unwrap().as_s().unwrap().to_string(),
-                    name: item.get("name").unwrap().as_s().unwrap().to_string(),
-                    description: item.get("name").unwrap().as_s().unwrap().to_string(),
-                    // random number
-                    inventory: rand::thread_rng().gen_range(0..100),
-                    options: vec![],
-                    variants: variants,
-                    price: rand::thread_rng().gen_range(0..300).to_string(),
-                    images: vec![],
-                };
-
-                product
-            }
-        }
-        None => Product::default()
-    }
-}
+// pub async fn reconstruct_product(product_id: &str, db: &ddb::Client, table_name: &str) -> Product {
+//     let results = db
+//         .query()
+//         .table_name(table_name)
+//         .key_condition_expression("partition_key = :pk_val")
+//         .expression_attribute_values(":pk_val", AttributeValue::S("PRODUCT".to_string()))
+//         .filter_expression("id = :product_id")
+//         .expression_attribute_values(":product_id", AttributeValue::S(product_id.to_string()))
+//         .send()
+//         .await;
+//
+//     let results = match results {
+//         Ok(output) => output.items().to_vec(),
+//         Err(e) => todo!()
+//     };
+//
+// }

@@ -25,15 +25,18 @@ path = "src/setup/main.rs"
 
 
 [dependencies]
-serde = { version= "1.0.204", features = ["derive"] }
-serde_json = { version = "1.0.120" }
+csv = "1.3.0"
+rand = "0.8.5"
+futures = "0.3"
+aws-sdk-s3 = "1.40.0"
 lambda_runtime = "0.12.0"
 aws-sdk-dynamodb = "1.37.0"
-aws-sdk-s3 = "1.40.0"
-csv = "1.3.0"
-tokio = { version = "1", features = ["macros"] }
+serde_json = { version = "1.0.120" }
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 rocket = { version = "0.5.1", features = ["json"] }
+serde = { version= "1.0.204", features = ["derive"] }
 lambda-web = { version = "0.2.0", features=["rocket05"] }
 aws-config = { version = "1.5.4", features = ["behavior-version-latest"] }
-rand = "0.8.5"
 serde_dynamo = { version = "4.2.14", features = ["aws-sdk-dynamodb+1"] }
+uuid = { version = "1.10.0", features = ["v4"] }
+image = "0.25.1"

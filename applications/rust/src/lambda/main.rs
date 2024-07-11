@@ -12,7 +12,6 @@ use aws_config::default_provider::region::DefaultRegionChain;
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use lambda_web::{is_running_on_lambda, launch_rocket_on_lambda, LambdaError};
 
-
 #[rocket::main]
 async fn main() -> Result<(), LambdaError> {
     tracing::init_default_subscriber();
@@ -30,6 +29,7 @@ async fn main() -> Result<(), LambdaError> {
         .region(region.clone())
         .build()
         .await;
+
 
     let config = aws_config::from_env().credentials_provider(creds).region(region).load().await;
     let table_name = std::env::var("TABLE_NAME").unwrap_or(String::from("q-apps-table"));
