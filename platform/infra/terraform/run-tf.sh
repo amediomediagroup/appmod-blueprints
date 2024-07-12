@@ -11,8 +11,8 @@ fi
 curr_dir=${PWD}
 
 # Default cluster names set. To override, set them as environment variables.
-export TF_VAR_dev_cluster_name="modern-engg-dev"
-export TF_VAR_prod_cluster_name="modern-engg-prod"
+export TF_VAR_dev_cluster_name="appmod-dev"
+export TF_VAR_prod_cluster_name="appmod-prod"
 
 echo "Following environment variables will be used:"
 echo "CLUSTER_REGION = "$TF_VAR_aws_region
@@ -25,7 +25,7 @@ cp -r terraform-aws-observability-accelerator/examples/managed-grafana-workspace
 
 # bootstrapping TF S3 bucket and DynamoDB locally
 echo "bootstrapping Terraform"
-terraform -chdir=bootstrap init
+terraform -chdir=bootstrap init -reconfigure
 terraform -chdir=bootstrap plan
 terraform -chdir=bootstrap apply -auto-approve
 
@@ -38,8 +38,6 @@ echo "Following bucket and dynamodb table will be used to store states for dev a
 echo "S3_BUCKET = "$TF_VAR_state_s3_bucket
 echo "DYNAMO_DB_lOCK_TABLE = "$TF_VAR_state_ddb_lock_table
 
-# aws grafana delete-workspace-api-key --key-name "grafana-operator-key"  --workspace-id $TF_VAR_managed_grafana_workspace_id
-
 # Create API key for Managed Grafana and export the key. Manually delete the key if re-running
 export AMG_API_KEY=$(aws grafana create-workspace-api-key \
   --key-name "grafana-operator-${RANDOM}" \
@@ -51,39 +49,44 @@ export AMG_API_KEY=$(aws grafana create-workspace-api-key \
 
 echo "Following Managed Grafana Workspace used for Observability accelerator:"
 echo "Managed Grafana Workspace ID = "$TF_VAR_managed_grafana_workspace_id
-echo "Managed Grafana API Key = "$AMG_API_KEY
 
 # Initialize backend for DEV cluster
-terraform -chdir=dev init -backend-config="key=dev/eks-accelerator-vpc.tfstate" \
+terraform -chdir=dev init -reconfigure -backend-config="key=dev/eks-accelerator-vpc.tfstate" \
 -backend-config="bucket=$TF_VAR_state_s3_bucket" \
 -backend-config="region=$TF_VAR_aws_region" \
 -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
-# terraform plan -var aws_region="${TF_VAR_aws_region}" -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" -var cluster_name="${TF_VAR_cluster_name}" -var grafana_api_key="${AMG_API_KEY}"
+# Apply the infrastructure changes to deploy EKS DEV cluster
+terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
+-var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
+-var cluster_name="${TF_VAR_dev_cluster_name}" \
+-var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
-# Apply the infrastructure changes to deploy EKS
+# Update kubeconfig with DEV cluster credentials for external secrets
+aws eks update-kubeconfig --name $TF_VAR_dev_cluster_name --region $TF_VAR_aws_region
+
+# Apply the EKS Observability Accelerator in DEV
 terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
 -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
 -var cluster_name="${TF_VAR_dev_cluster_name}" \
 -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
 # Initialize backend for PROD cluster
-terraform -chdir=prod init -backend-config="key=prod/eks-accelerator-vpc.tfstate" \
+terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerator-vpc.tfstate" \
 -backend-config="bucket=$TF_VAR_state_s3_bucket" \
 -backend-config="region=$TF_VAR_aws_region" \
 -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
+# Apply the infrastructure changes to deploy EKS PROD cluster
 terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
 -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
 -var cluster_name="${TF_VAR_prod_cluster_name}" \
 -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
-# Apply the EKS Observability Accelerator
-terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
--var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
--var cluster_name="${TF_VAR_dev_cluster_name}" \
--var grafana_api_key="${AMG_API_KEY}" -auto-approve
+# Update kubeconfig with PROD cluster credentials for external secrets
+aws eks update-kubeconfig --name $TF_VAR_prod_cluster_name --region $TF_VAR_aws_region
 
+# Apply the EKS Observability Accelerator in PROD
 terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
 -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
 -var cluster_name="${TF_VAR_prod_cluster_name}" \
