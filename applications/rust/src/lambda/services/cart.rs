@@ -1,30 +1,145 @@
-use crate::types::{Cart, Product};
-use rocket::{delete, get, post, State};
-use lambda_runtime::Error;
+use crate::types::{Cart, Product, UIResponder};
 use aws_sdk_dynamodb as ddb;
+use aws_sdk_dynamodb::operation::put_item::PutItemOutput;
 use rocket::serde::json::Json;
+use rocket::{error, post, State};
+use serde_dynamo::to_item;
+use uuid::Uuid;
+use crate::utils::{query_ddb, reconstruct_result};
 
-#[post("/cart/create_cart", format="json", data="<user_id>")]
-pub async fn create_cart(user_id: Json<&str>, db: &State<ddb::Client>) -> Json<Cart> {
-    todo!()
+#[post("/cart/create_cart", format = "json", data = "<user_id>")]
+pub async fn create_cart(user_id: Json<&str>, db: &State<ddb::Client>, table_name: &State<String>) -> UIResponder<Cart> {
+    let new_id = Uuid::new_v4().to_string();
+    let new_cart = Cart {
+        partition_key: "CART".to_string(),
+        sort_key: new_id.clone(),
+        id: new_id.clone(),
+        products: vec![],
+        total_quantity: 0,
+        cost: "0".to_string(),
+        checkout_url: "".to_string(),
+    };
+
+    let item = to_item(new_cart.clone()).expect("Failed to turn cart into item");
+
+    let results = db.put_item()
+        .table_name(table_name.to_string())
+        .set_item(Some(item))
+        .send()
+        .await;
+
+    match results {
+        Ok(res) => {
+            UIResponder::Ok(Json::from(new_cart))
+        },
+        Err(e) => UIResponder::Err(error!("Failed to create a new cart")),
+    }
 }
 
 #[post("/cart/get_cart/<cart_id>")]
-pub async fn get_cart(cart_id: &str, db: &State<ddb::Client>) -> Json<Cart> {
-    todo!()
+pub async fn get_cart(cart_id: &str, db: &State<ddb::Client>, table_name: &State<String>) -> UIResponder<Cart> {
+    let results = query_ddb(table_name.to_string(), db, "CART", Some(cart_id));
+
+    match results.await {
+        Ok(res) => match reconstruct_result::<Cart>(res) {
+            Ok(cart) => {
+                UIResponder::Ok(Json::from(cart))
+            }
+            Err(err) => {
+                UIResponder::Err(error!("Failed to transform cart: {}", err))
+            }
+        },
+        Err(err) => {
+            UIResponder::Err(error!("Failed to get retrieve cart: {}", err))
+        }
+    }
 }
 
-#[post("/cart/add_to_cart/<cart_id>", format="json", data="<product_to_add>")]
-pub async fn add_to_cart(cart_id: &str, product_to_add: Json<Product>, db: &State<ddb::Client>) -> Json<Cart> {
-    todo!()
+#[post(
+    "/cart/add_to_cart/<cart_id>",
+    format = "json",
+    data = "<product_to_add>"
+)]
+pub async fn add_to_cart(
+    cart_id: &str,
+    product_to_add: Json<Product>,
+    db: &State<ddb::Client>,
+    table_name: &State<String>
+) -> UIResponder<Cart> {
+    let results = query_ddb(table_name.to_string(), db, "CART", Some(cart_id));
+
+    match results.await {
+        Ok(res) => match reconstruct_result::<Cart>(res) {
+            Ok(mut cart) => {
+                cart.products.push(product_to_add.0.clone());
+                cart.total_quantity += 1;
+                let item = to_item(cart.clone()).expect("Failed to turn cart into item");
+
+                let results = db.put_item()
+                    .table_name(table_name.to_string())
+                    .set_item(Some(item))
+                    .send()
+                    .await;
+
+                match results {
+                    Ok(res) => {
+                        UIResponder::Ok(Json::from(cart))
+                    },
+                    Err(e) => UIResponder::Err(error!("Failed to add to cart")),
+                }
+            }
+            Err(err) => {
+                UIResponder::Err(error!("Failed to transform cart: {}", err))
+            }
+        },
+        Err(err) => {
+            UIResponder::Err(error!("Failed to put in fetch from cart: {}", err))
+        }
+    }
 }
 
-#[post("/cart/update_cart", format="json", data="<update_cart>")]
-pub async fn update_cart(update_cart: Json<&str>, db: &State<ddb::Client>) -> Json<Cart> {
-    todo!()
-}
+#[post(
+    "/cart/remove_from_cart/<cart_id>",
+    format = "json",
+    data = "<delete_from_cart>"
+)]
+pub async fn remove_from_cart(
+    cart_id: &str,
+    delete_from_cart: Json<Product>,
+    db: &State<ddb::Client>,
+    table_name: &State<String>
+) -> UIResponder<Cart> {
+    let results = query_ddb(table_name.to_string(), db, "CART", Some(cart_id));
 
-#[post("/cart/remove_from_cart/<cart_id>", format="json", data="<delete_from_cart>")]
-pub async fn remove_from_cart(cart_id: &str, delete_from_cart: Json<Product>,db: &State<ddb::Client>) -> Json<Cart> {
-    todo!()
+    match results.await {
+        Ok(res) => match reconstruct_result::<Cart>(res) {
+            Ok(mut cart) => {
+                cart.products = cart.products
+                    .into_iter()
+                    .filter(|p| p.id != delete_from_cart.id)
+                    .collect();
+
+                let item = to_item(cart.clone()).expect("Failed to turn cart into item");
+
+                let results = db.put_item()
+                    .table_name(table_name.to_string())
+                    .set_item(Some(item))
+                    .send()
+                    .await;
+
+                match results {
+                    Ok(res) => {
+                        UIResponder::Ok(Json::from(cart))
+                    },
+                    Err(e) => UIResponder::Err(error!("Failed to remove from cart")),
+                }
+            }
+            Err(err) => {
+                UIResponder::Err(error!("Failed to transform cart: {}", err))
+            }
+        },
+        Err(err) => {
+            UIResponder::Err(error!("Failed to put in fetch from cart: {}", err))
+        }
+    }
 }

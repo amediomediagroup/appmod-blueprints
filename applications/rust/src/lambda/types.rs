@@ -1,6 +1,6 @@
-use rocket::Responder;
 use rocket::serde::json::Json;
-use serde::{Serialize, Deserialize};
+use rocket::Responder;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Menu {
@@ -26,7 +26,7 @@ pub struct Category {
     pub category_id: String,
     pub title: String,
     pub description: String,
-    pub products: Vec<Product>
+    pub products: Vec<Product>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -39,7 +39,7 @@ pub struct ProductOption {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProductVariant {
     pub id: String,
-    pub title: String,  
+    pub title: String,
     pub price: String,
 }
 
@@ -47,7 +47,7 @@ pub struct ProductVariant {
 pub struct Image {
     pub url: String,
     pub alt_text: String,
-    pub width: usize, 
+    pub width: usize,
     pub height: usize,
 }
 
@@ -67,6 +67,8 @@ pub struct Product {
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Cart {
+    pub partition_key: String,
+    pub sort_key: String,
     pub id: String,
     pub products: Vec<Product>,
     pub total_quantity: usize,
@@ -75,8 +77,8 @@ pub struct Cart {
 }
 
 #[derive(Responder)]
-pub  enum UIResponder<T> {
+pub enum UIResponder<T> {
     Ok(Json<T>),
     #[response(status = 404)]
-    Err(())  
+    Err(()),
 }
