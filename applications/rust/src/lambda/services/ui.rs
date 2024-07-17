@@ -18,12 +18,12 @@ pub async fn get_menu(menu_id: &str) -> UIResponder<Vec<Menu>> {
                     path: "/search".to_string(),
                 },
                 Menu {
-                    title: "Shirts".to_string(),
-                    path: "/search/shirts".to_string(),
+                    title: "Clothing".to_string(),
+                    path: "/search/clothing".to_string(),
                 },
                 Menu {
-                    title: "Stickers".to_string(),
-                    path: "/search/stickers".to_string(),
+                    title: "Other".to_string(),
+                    path: "/search/other".to_string(),
                 },
             ]
             .into(),
@@ -139,8 +139,11 @@ pub async fn get_collection(
     let results = query_ddb(table_name.to_string(), db, "CATEGORY", Some(collection_handle));
 
     return match results.await {
-        Ok(res) => match reconstruct_results::<Product>(res) {
-            Ok(res) => UIResponder::Ok(Json::from(res)),
+        Ok(res) => match reconstruct_result::<Category>(res) {
+            Ok(res) => {
+                let products = res.products;
+                UIResponder::Ok(Json::from(products))
+            },
             Err(err) => UIResponder::Err(error!("{:?}", err)),
         },
         Err(err) => {

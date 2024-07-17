@@ -59,8 +59,8 @@ pub struct Product {
     pub name: String,
     pub description: String,
     pub inventory: usize,
-    pub options: Vec<ProductOption>,
-    pub variants: Vec<ProductVariant>,
+    pub options: Vec<Option<ProductOption>>,
+    pub variants: Vec<Option<ProductVariant>>,
     pub price: String,
     pub images: Vec<Image>,
 }

@@ -6,10 +6,10 @@ use rocket::{error, get, post, State};
 use crate::utils::{reconstruct_result, reconstruct_results};
 
 #[get("/product/<id>")]
-pub async fn get_product(id: &str, db: &State<ddb::Client>) -> UIResponder<Product> {
+pub async fn get_product(id: &str, db: &State<ddb::Client>, table_name: &State<String>) -> UIResponder<Product> {
     let results = db
         .query()
-        .table_name("Product")
+        .table_name(table_name.to_string())
         .key_condition_expression("partition_key = :pk_val")
         .expression_attribute_values(":pk_val", AttributeValue::S("PRODUCT".to_string()))
         .filter_expression("id = :id")

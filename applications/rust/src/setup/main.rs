@@ -53,9 +53,9 @@ async fn main() {
         .await;
     let table_name = std::env::var("TABLE_NAME").unwrap_or(String::from("q-apps-table"));
 
-    let client = aws_sdk_dynamodb::Client::new(&config);
+    let client = Client::new(&config);
 
-    purge_table(&client, &table_name).await;
+    // purge_table(&client, &table_name).await;
 
     let (products, categories) = csv_to_data();
 
@@ -175,15 +175,17 @@ async fn purge_table(ddb_client: &Client, table_name: &String) {
         .build()
         .unwrap();
 
-    let throughput = OnDemandThroughput::builder().build();
+    let throughput = OnDemandThroughput::builder()
+        .max_read_request_units(5)
+        .max_write_request_units(5);
 
     let create_table_response = ddb_client
         .create_table()
+        .on_demand_throughput(throughput.build())
         .table_name(table_name)
         .key_schema(ks)
         .attribute_definitions(pk)
         .attribute_definitions(sk)
-        .on_demand_throughput(throughput)
         .send()
         .await
         .unwrap();
@@ -243,11 +245,11 @@ fn csv_to_data() -> (Vec<Product>, HashMap<String, Category>) {
                 };
                 prod_vars
                     .iter()
-                    .map(|v| ProductVariant {
+                    .map(|v| Some(ProductVariant {
                         id: v.to_string(),
                         title: v.to_string(),
                         price: rand::thread_rng().gen_range(1..=100).to_string(),
-                    })
+                    }))
                     .collect()
             },
             images: {
@@ -260,7 +262,7 @@ fn csv_to_data() -> (Vec<Product>, HashMap<String, Category>) {
                     .map(|image| {
                         let (width, height) = get_image_dimensions(image);
                         Image {
-                            url: image.to_string(),
+                            url: format!("https://d2pxm7bxcihgvo.cloudfront.net/{}", image.to_string()),
                             alt_text: format!("{} image", csv_product.name),
                             width,
                             height,
@@ -281,7 +283,7 @@ fn csv_to_data() -> (Vec<Product>, HashMap<String, Category>) {
                     Category {
                         partition_key: "CATEGORY".to_string(),
                         sort_key: csv_product.category.clone(),
-                        path: csv_product.category.clone(),
+                        path: format!("/search/{}", csv_product.category.clone()),
                         category_id: Uuid::new_v4().to_string(),
                         title: csv_product.category.clone(),
                         products: vec![product.clone()],
