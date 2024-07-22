@@ -26,6 +26,7 @@ module "eks_observability_accelerator" {
   eks_cluster_id = module.eks_cluster_with_vpc.eks_cluster_id
   aws_region = var.aws_region
   managed_grafana_workspace_id = var.managed_grafana_workspace_id
+  managed_prometheus_workspace_id = var.managed_prometheus_workspace_id
   grafana_api_key = var.grafana_api_key
   # depends_on = [module.eks_cluster_with_vpc]
 }

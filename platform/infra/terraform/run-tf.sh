@@ -71,6 +71,10 @@ terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
 -var cluster_name="${TF_VAR_dev_cluster_name}" \
 -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
+export TF_VAR_managed_prometheus_workspace_id=$(terraform -chdir=dev output -raw amp_workspace_id)
+echo "Following Managed Prometheus Workspace will be for Observability accelerator in PROD:"
+echo "Amazon Managed Prometheus Workspace ID = "$TF_VAR_managed_prometheus_workspace_id
+
 # Initialize backend for PROD cluster
 terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerator-vpc.tfstate" \
 -backend-config="bucket=$TF_VAR_state_s3_bucket" \
@@ -80,6 +84,7 @@ terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerato
 # Apply the infrastructure changes to deploy EKS PROD cluster
 terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
 -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
+-var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
 -var cluster_name="${TF_VAR_prod_cluster_name}" \
 -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
@@ -89,6 +94,7 @@ aws eks update-kubeconfig --name $TF_VAR_prod_cluster_name --region $TF_VAR_aws_
 # Apply the EKS Observability Accelerator in PROD
 terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
 -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
+-var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
 -var cluster_name="${TF_VAR_prod_cluster_name}" \
 -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
