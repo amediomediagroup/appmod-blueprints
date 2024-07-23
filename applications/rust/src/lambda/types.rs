@@ -36,7 +36,7 @@ pub struct ProductOption {
     pub values: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct ProductVariant {
     pub id: String,
     pub title: String,
@@ -52,6 +52,14 @@ pub struct Image {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct CartProduct {
+    pub product: Product,
+    pub quantity: usize,
+    pub selected_variant: ProductVariant,
+    pub selected_option: ProductOption,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Product {
     pub partition_key: String,
     pub sort_key: String,
@@ -59,8 +67,8 @@ pub struct Product {
     pub name: String,
     pub description: String,
     pub inventory: usize,
-    pub options: Vec<Option<ProductOption>>,
-    pub variants: Vec<Option<ProductVariant>>,
+    pub options: Option<Vec<ProductOption>>,
+    pub variants: Option<Vec<ProductVariant>>,
     pub price: String,
     pub images: Vec<Image>,
 }
@@ -70,7 +78,7 @@ pub struct Cart {
     pub partition_key: String,
     pub sort_key: String,
     pub id: String,
-    pub products: Vec<Product>,
+    pub products: Vec<CartProduct>,
     pub total_quantity: usize,
     pub cost: String,
     pub checkout_url: String,

@@ -1,15 +1,11 @@
 #[path = "../lambda/types.rs"]
 mod types;
 
-use crate::types::{Category, Image, Product, ProductVariant};
+use crate::types::{Category, Image, Product, ProductOption, ProductVariant};
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::default_provider::region::DefaultRegionChain;
 use aws_config::Region;
-use aws_sdk_dynamodb::types::{
-    AttributeDefinition, KeySchemaElement, KeyType, OnDemandThroughput, ScalarAttributeType,
-};
 use aws_sdk_dynamodb::Client;
-use aws_sdk_dynamodb::Error;
 use image::GenericImageView;
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
@@ -17,6 +13,7 @@ use serde::Deserialize;
 use serde_dynamo::to_item;
 use std::collections::HashMap;
 use std::fs::File;
+use futures::StreamExt;
 use uuid::Uuid;
 
 #[derive(Deserialize, Debug, Clone)]
@@ -24,9 +21,17 @@ struct CSVProduct {
     category: String,
     product: String,
     name: String,
-    variant: String,
     image_number: u32,
     file: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct CSVOptions {
+    category: String,
+    product: String,
+    name: String,
+    variant_name: String,
+    option_name: String
 }
 
 #[tokio::main]
@@ -139,69 +144,22 @@ async fn main() {
     };
 }
 
-async fn purge_table(ddb_client: &Client, table_name: &String) {
-    // delete table
-    match ddb_client
-        .delete_table()
-        .table_name(table_name)
-        .send()
-        .await
-    {
-        Ok(_) => {}
-        Err(e) => {
-            println!("Error deleting table: {:?}", e);
-        }
-    }
-    // wait 5 secs
-    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-
-    let pk = AttributeDefinition::builder()
-        .attribute_name("partition_key")
-        .attribute_type(ScalarAttributeType::S)
-        .build()
-        .unwrap();
-
-    let sk = AttributeDefinition::builder()
-        .attribute_name("sort_key")
-        .attribute_type(ScalarAttributeType::S)
-        .build()
-        .unwrap();
-
-    let ks = KeySchemaElement::builder()
-        .attribute_name("partition_key")
-        .key_type(KeyType::Hash)
-        .attribute_name("sort_key")
-        .key_type(KeyType::Range)
-        .build()
-        .unwrap();
-
-    let throughput = OnDemandThroughput::builder()
-        .max_read_request_units(5)
-        .max_write_request_units(5);
-
-    let create_table_response = ddb_client
-        .create_table()
-        .on_demand_throughput(throughput.build())
-        .table_name(table_name)
-        .key_schema(ks)
-        .attribute_definitions(pk)
-        .attribute_definitions(sk)
-        .send()
-        .await
-        .unwrap();
-
-    println!("Table created: {:?}", create_table_response);
-}
-
 fn csv_to_data() -> (Vec<Product>, HashMap<String, Category>) {
     let mut csv_products: Vec<CSVProduct> = Vec::new();
-    let file = match File::open("./res/products.csv") {
+    let mut csv_options: Vec<CSVOptions> = Vec::new();
+
+    let products_file = match File::open("./res/products.csv") {
         Ok(file) => file,
         Err(e) => panic!("Required file not found: {}", e),
     };
 
-    let mut rdr = csv::Reader::from_reader(file);
-    for result in rdr.deserialize() {
+    let variants_file = match File::open("./res/variants.csv") {
+        Ok(file) => file,
+        Err(e) => panic!("Required file not found: {}", e),
+    };
+
+    let mut product_rdr = csv::Reader::from_reader(products_file);
+    for result in product_rdr.deserialize() {
         let record: CSVProduct = match result {
             Ok(record) => record,
             Err(e) => {
@@ -213,8 +171,22 @@ fn csv_to_data() -> (Vec<Product>, HashMap<String, Category>) {
         csv_products.push(record.clone());
     }
 
-    let variants = extract_variants(&csv_products);
-    let images = extract_images(&csv_products);
+    let mut variant_rdr = csv::Reader::from_reader(variants_file);
+    for result in variant_rdr.deserialize() {
+        let record: CSVOptions = match result {
+            Ok(record) => record,
+            Err(e) => {
+                println!("Error: {}", e);
+                continue;
+            }
+        };
+
+        csv_options.push(record.clone());
+    }
+
+    let images: HashMap<String, Vec<String>> = extract_images(&csv_products);
+    let variants = build_variants(&csv_options);
+    let options= build_options(&csv_options);
 
     // Build the product type
     let mut products: Vec<Product> = Vec::new();
@@ -229,6 +201,15 @@ fn csv_to_data() -> (Vec<Product>, HashMap<String, Category>) {
             continue;
         }
 
+        let variants: Option<Vec<ProductVariant>> = match variants.get(&csv_product.name) {
+            Some(vec) => Some(vec.to_vec()),
+            None => None,
+        };
+        let options: Option<Vec<ProductOption>> = match options.get(&csv_product.name) {
+            Some(vec) => Some(vec.to_vec()),
+            None => None,
+        };
+
         // construct Product from CSVProduct
         let product = Product {
             partition_key: "PRODUCT".to_string(),
@@ -237,21 +218,8 @@ fn csv_to_data() -> (Vec<Product>, HashMap<String, Category>) {
             name: csv_product.name.clone(),
             description: csv_product.name.clone(),
             inventory: rand::thread_rng().gen_range(1..=1000),
-            options: vec![],
-            variants: {
-                let prod_vars = match variants.get(&csv_product.name) {
-                    Some(variants) => variants,
-                    None => &Vec::default(),
-                };
-                prod_vars
-                    .iter()
-                    .map(|v| Some(ProductVariant {
-                        id: v.to_string(),
-                        title: v.to_string(),
-                        price: rand::thread_rng().gen_range(1..=100).to_string(),
-                    }))
-                    .collect()
-            },
+            options: options,
+            variants: variants,
             images: {
                 let prod_imgs = match images.get(&csv_product.name) {
                     Some(imgs) => imgs,
@@ -311,20 +279,79 @@ fn get_image_dimensions(file_name: &String) -> (usize, usize) {
     (width as usize, height as usize)
 }
 
-fn extract_variants(products: &Vec<CSVProduct>) -> HashMap<String, Vec<String>> {
-    let mut variants: HashMap<String, Vec<String>> = HashMap::new();
-    for product in products {
-        if product.variant == "1" {
-            continue;
-        }
-        match variants.get_mut(&product.name) {
-            Some(variant) => {
-                if !variant.contains(&product.variant) {
-                    variant.push(product.variant.clone());
+fn build_options(csv_options: &Vec<CSVOptions>) -> HashMap<String, Vec<ProductOption>> {
+    let mut options: HashMap<String, Vec<ProductOption>> = HashMap::new();
+
+    for csv_option in csv_options {
+        match options.get_mut(&csv_option.name) {
+            Some(opts) => {
+                // we've seen the product before
+                // find the option
+                let option = opts.iter_mut().find(|o| o.id == csv_option.option_name);
+
+                match option {
+                    Some(opt) => {
+                        // we've seen the option before
+                        // find the variant
+                        let variant = opt.values.iter().find(|v| v.to_string() == csv_option.variant_name);
+                        match variant {
+                            Some(var) => {
+                                // we've seen the variant before
+                                continue;
+                            }
+                            None => {
+                                // just add variant to option values list
+                                opt.values.push(csv_option.variant_name.clone());
+                            }
+                        }
+                    }
+                    None => {
+                        opts.push(ProductOption {
+                            id: csv_option.option_name.clone(),
+                            name: csv_option.option_name.clone(),
+                            values: vec![csv_option.variant_name.clone()],
+                        });
+                    }
                 }
             }
             None => {
-                variants.insert(product.name.clone(), vec![product.variant.clone()]);
+                options.insert(
+                    csv_option.name.clone(),
+                    vec![ProductOption {
+                        id: csv_option.option_name.clone(),
+                        name: csv_option.option_name.clone(),
+                        values: vec![csv_option.variant_name.clone()],
+                    }],
+                );
+            }
+        }
+    }
+
+    options
+}
+
+fn build_variants(csv_options: &Vec<CSVOptions>) -> HashMap<String, Vec<ProductVariant>> {
+    let mut variants: HashMap<String, Vec<ProductVariant>> = HashMap::new();
+    for variant in csv_options {
+        match variants.get_mut(&variant.name) {
+            Some(var) => {
+                if !var.iter().any(|v| v.id == variant.variant_name) {
+                    var.push(ProductVariant {
+                        id: variant.variant_name.clone(),
+                        title: variant.variant_name.clone(),
+                        price: rand::thread_rng().gen_range(1..=100).to_string(),
+                    });
+                }
+            }
+            None => {
+                variants.insert(
+                    variant.name.clone(),
+                    vec![ProductVariant {
+                        id: variant.variant_name.clone(),
+                        title: variant.variant_name.clone(),
+                        price: rand::thread_rng().gen_range(1..=100).to_string(),
+                    }],
+                );
             }
         }
     }

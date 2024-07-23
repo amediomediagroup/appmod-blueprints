@@ -32,7 +32,11 @@ where
 
     if items.len() > 1 {
         return Err("More than one item returned".to_string());
+    } else if items.is_empty() {
+        return Err("No items returned".to_string());
     }
+
+    // Return the first (and only) item
     Ok(items[0].clone())
 }
 
