@@ -4,4 +4,7 @@
     <RootNamespace>Northwind.Common</RootNamespace>
     <AssemblyName>Northwind.Common</AssemblyName>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="6.6.2" />
+  </ItemGroup>
 </Project>

@@ -10,7 +10,7 @@ namespace Northwind.Persistence
         public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
         {
             services.AddDbContext<NorthwindDbContext>(options =>
-                options.UseNpgsql(configuration.GetConnectionString("NorthwindDatabase")));
+                options.UseSqlServer(configuration.GetConnectionString("NorthwindDatabase")));
 
             services.AddScoped<INorthwindDbContext>(provider => provider.GetService<NorthwindDbContext>());
 
