@@ -74,4 +74,10 @@ terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
 -var cluster_name="${TF_VAR_prod_cluster_name}" \
 -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
-echo "Execution Completed"
+echo "Terraform execution completed"
+
+# Cleanup Folders
+rm -rf terraform-aws-observability-accelerator/
+rm -rf bootstrap/managed-grafana-workspace
+
+echo "Script Complete"
