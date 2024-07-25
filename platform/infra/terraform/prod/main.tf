@@ -8,6 +8,10 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 5.0.0"
     }
+    kubectl = {
+      source  = "alekc/kubectl"
+      version = ">= 2.0.0"
+    }
   }
 }
 
@@ -15,20 +19,79 @@ provider "aws" {
   region = var.aws_region
 }
 
-module "eks_cluster_with_vpc" {
+module "eks_prod_cluster_with_vpc" {
   source  = "../terraform-aws-observability-accelerator/examples/eks-cluster-with-vpc"
   aws_region = var.aws_region
   cluster_name = var.cluster_name
 }
 
-module "eks_observability_accelerator" {
+module "eks_prod_observability_accelerator" {
   source  = "../terraform-aws-observability-accelerator/examples/existing-cluster-with-base-and-infra"
-  eks_cluster_id = module.eks_cluster_with_vpc.eks_cluster_id
+  eks_cluster_id = module.eks_prod_cluster_with_vpc.eks_cluster_id
   aws_region = var.aws_region
   managed_grafana_workspace_id = var.managed_grafana_workspace_id
-  managed_prometheus_workspace_id = var.managed_prometheus_workspace_id
+  # managed_prometheus_workspace_id = var.managed_prometheus_workspace_id
   grafana_api_key = var.grafana_api_key
-  # depends_on = [module.eks_cluster_with_vpc]
 }
 
+data "aws_eks_cluster_auth" "prod_cluster_auth" {
+  name = module.eks_prod_cluster_with_vpc.eks_cluster_id
+}
 
+data "aws_eks_cluster" "prod_cluster_name" {
+  name = module.eks_prod_cluster_with_vpc.eks_cluster_id
+}
+
+provider "kubernetes" {
+  host                   = data.aws_eks_cluster.prod_cluster_name.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.prod_cluster_name.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.prod_cluster_auth.token
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = data.aws_eks_cluster.prod_cluster_name.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.prod_cluster_name.certificate_authority[0].data)
+    token                  = data.aws_eks_cluster_auth.prod_cluster_auth.token
+  }
+}
+
+provider "kubectl" {
+  host                   = data.aws_eks_cluster.prod_cluster_name.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.prod_cluster_name.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.prod_cluster_auth.token
+  load_config_file       = false
+}
+
+resource "helm_release" "prod_argocd" {
+  name             = "argocd"
+  repository       = "https://argoproj.github.io/argo-helm"
+  chart            = "argo-cd"
+  version          = "7.3.10"
+  namespace        = "argocd"
+  create_namespace = true
+
+  set {
+    name  = "server.service.type"
+    value = "LoadBalancer"
+  }
+
+  set {
+    name  = "server.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-type"
+    value = "nlb"
+  }
+}
+
+data "kubernetes_service" "argocd_prod_server" {
+  metadata {
+    name      = "argocd-server"
+    namespace = helm_release.prod_argocd.namespace
+  }
+}
+
+# resource "helm_release" "app_of_apps" {
+#   name             = "app-of-apps"
+#   chart            = "../deployment/envs/prod"
+#   create_namespace = true
+#   depends_on       = [helm_release.argocd]
+# }

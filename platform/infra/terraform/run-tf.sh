@@ -38,7 +38,7 @@ echo "Following bucket and dynamodb table will be used to store states for dev a
 echo "S3_BUCKET = "$TF_VAR_state_s3_bucket
 echo "DYNAMO_DB_lOCK_TABLE = "$TF_VAR_state_ddb_lock_table
 
-# Create API key for Managed Grafana and export the key. Manually delete the key if re-running
+# Create API key for Managed Grafana and export the key.
 export AMG_API_KEY=$(aws grafana create-workspace-api-key \
   --key-name "grafana-operator-${RANDOM}" \
   --key-role "ADMIN" \
@@ -47,7 +47,7 @@ export AMG_API_KEY=$(aws grafana create-workspace-api-key \
   --query key \
   --output text)
 
-echo "Following Managed Grafana Workspace used for Observability accelerator:"
+echo "Following Managed Grafana Workspace used for Observability accelerator for both DEV and PROD:"
 echo "Managed Grafana Workspace ID = "$TF_VAR_managed_grafana_workspace_id
 
 # Initialize backend for DEV cluster
@@ -56,24 +56,11 @@ terraform -chdir=dev init -reconfigure -backend-config="key=dev/eks-accelerator-
 -backend-config="region=$TF_VAR_aws_region" \
 -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
-# Apply the infrastructure changes to deploy EKS DEV cluster
+# Apply the infrastructure changes to deploy EKS DEV cluster and install EKS observability Accelerator
 terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
 -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
 -var cluster_name="${TF_VAR_dev_cluster_name}" \
 -var grafana_api_key="${AMG_API_KEY}" -auto-approve
-
-# Update kubeconfig with DEV cluster credentials for external secrets
-aws eks update-kubeconfig --name $TF_VAR_dev_cluster_name --region $TF_VAR_aws_region
-
-# Apply the EKS Observability Accelerator in DEV
-terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
--var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
--var cluster_name="${TF_VAR_dev_cluster_name}" \
--var grafana_api_key="${AMG_API_KEY}" -auto-approve
-
-export TF_VAR_managed_prometheus_workspace_id=$(terraform -chdir=dev output -raw amp_workspace_id)
-echo "Following Managed Prometheus Workspace will be for Observability accelerator in PROD:"
-echo "Amazon Managed Prometheus Workspace ID = "$TF_VAR_managed_prometheus_workspace_id
 
 # Initialize backend for PROD cluster
 terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerator-vpc.tfstate" \
@@ -81,20 +68,9 @@ terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerato
 -backend-config="region=$TF_VAR_aws_region" \
 -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
-# Apply the infrastructure changes to deploy EKS PROD cluster
+# Apply the infrastructure changes to deploy EKS PROD cluster and deploy observability accelerator
 terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
 -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
--var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
--var cluster_name="${TF_VAR_prod_cluster_name}" \
--var grafana_api_key="${AMG_API_KEY}" -auto-approve
-
-# Update kubeconfig with PROD cluster credentials for external secrets
-aws eks update-kubeconfig --name $TF_VAR_prod_cluster_name --region $TF_VAR_aws_region
-
-# Apply the EKS Observability Accelerator in PROD
-terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
--var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
--var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
 -var cluster_name="${TF_VAR_prod_cluster_name}" \
 -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
