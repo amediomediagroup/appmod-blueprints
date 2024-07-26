@@ -3,12 +3,12 @@ FROM node:18 as node
 
 WORKDIR /app
 
-COPY Src/WebUI/ClientApp/package*.json ./
+COPY WebUI/ClientApp/package*.json ./
 
 RUN npm install
 
-COPY Src/WebUI/ClientApp/*.* ./
-COPY Src/WebUI/ClientApp/src ./src
+COPY WebUI/ClientApp/*.* ./
+COPY WebUI/ClientApp/src ./src
 
 RUN npm run build
 
@@ -16,10 +16,9 @@ RUN npm run build
 FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
 WORKDIR /app
 
-COPY *.sln .
-COPY Src Src
+COPY . .
 
-WORKDIR /app/Src/WebUI
+WORKDIR /app/WebUI
 RUN dotnet restore
 
 RUN dotnet publish -c Release -o out
@@ -29,6 +28,6 @@ FROM mcr.microsoft.com/dotnet/aspnet:6.0 AS runtime
 WORKDIR /app
 
 COPY --from=node /app/dist ./ClientApp/dist/
-COPY --from=build /app/Src/WebUI/out ./
+COPY --from=build /app/WebUI/out ./
 
 ENTRYPOINT ["dotnet", "Northwind.WebUI.dll"]
