@@ -16,7 +16,6 @@ Please use the below command to deploy an IDP reference implementation with an A
 idpbuilder create \
   --use-path-routing \
   --package-dir https://github.com/cnoe-io/stacks//ref-implementation \
-  --package-dir https://github.com/cnoe-io/stacks//terraform-integrations
   --package-dir https://github.com/cnoe-io/stacks//crossplane-integrations
 ```
 ## What is installed?
@@ -24,7 +23,6 @@ idpbuilder create \
 - Crossplane Runtime
 - AWS providers
 - Basic Compositions
-- Setup for Terraform Integrations
 
 2. Clone the [cnoe-io/stacks](https://github.com/cnoe-io/stacks) repository
 3. Update [the credentials secret file](crossplane-providers/provider-secret.yaml)
@@ -34,39 +32,8 @@ idpbuilder create \
 idpbuilder create \
   --use-path-routing \
   --package-dir https://github.com/cnoe-io/stacks//ref-implementation \
-  --package-dir https://github.com/cnoe-io/stacks//terraform-integrations
   --package-dir [path-to-stacks-repo]/crossplane-integrations
 ```
-<details>
-<summary> <b>Optional:</b> Add AWS Credentials</summary>
-
-In case of deploying AWS resources, you will need access to your AWS account. You can follow the instructions below, to setup your AWS account with CNOE terraform integrations:
-
-```bash
-export AWS_ACCESS_KEY_ID=<FILL THIS>
-export AWS_SECRET_ACCESS_KEY=<FILL THIS>
-# Optional for IAM roles
-export AWS_SESSION_TOKEN=<FILL THIS> 
-
-# AWS Credentials for flux-system Namespace for TOFU Controller
-cat << EOF > ./aws-secrets-tofu.yaml
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: aws-credentials
-  namespace: flux-system
-type: Opaque
-stringData:
-  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-  # Add this only if it's required. Optional for IAM roles
-  AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN}
-EOF
-
-kubectl apply -f ./aws-secrets-tofu.yaml
-```
-</details>
 
 5. Postgres credentials for RDS Database
 
@@ -99,6 +66,5 @@ kubectl apply -f ./postgres-secret.yaml
 idpbuilder create \
   --use-path-routing \
   --package-dir https://github.com/cnoe-io/stacks//ref-implementation \
-  --package-dir [path-to-stacks-repo]/terraform-integrations
   --package-dir [path-to-stacks-repo]/crossplane-integrations
 ```
