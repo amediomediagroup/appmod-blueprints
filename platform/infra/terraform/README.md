@@ -12,7 +12,9 @@ Set Cluster and region using environment variables. Example below:
 export TF_VAR_cluster_name=dev-platform
 export TF_VAR_aws_region=us-west-2
 
-Note: Setup takes up to 1-2 hours to complete. Ensure IAM role/token do not time out during the changes. If so re-run the script.
+Note: Setup takes up to 1-2 hours to complete. Ensure IAM role/token do not time out during the changes. If timed out,please re-run the script.
+
+Note: There may be some 409 errors on Terraform due to policy name conflict and can be safely ignored as they will not impact any features.
 
 # Terraform Destroy
 
