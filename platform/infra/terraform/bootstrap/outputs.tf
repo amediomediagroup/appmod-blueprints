@@ -12,3 +12,8 @@ output "amg_workspace_id" {
   description = "Amazon Managed Grafana Workspace ID"
   value       = module.amg_grafana.grafana_workspace_id
 }
+
+output "amp_workspace_id" {
+  description = "Amazon Managed prometheus Workspace ID"
+  value       = module.managed_service_prometheus.workspace_id
+}

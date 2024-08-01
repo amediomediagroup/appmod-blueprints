@@ -8,15 +8,10 @@ output "configure_kubectl" {
   value       = module.eks_prod_cluster_with_vpc.configure_kubectl
 }
 
-output "amp_workspace_id" {
-  description = "Amazon Managed Prometheus Workspace ID"
-  value       = module.eks_prod_observability_accelerator.managed_prometheus_workspace_id
-}
+# output "argocd_prod_load_balancer_url" {
+#   value = data.kubernetes_service.argocd_prod_server.status[0].load_balancer[0].ingress[0].hostname
+# }
 
-output "argocd_prod_load_balancer_url" {
-  value = data.kubernetes_service.argocd_prod_server.status[0].load_balancer[0].ingress[0].hostname
-}
-
-output "argocd_prod_initial_admin_secret" {
-  value = "kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath=\"{.data.password}\" | base64 -d"
-}
+# output "argocd_prod_initial_admin_secret" {
+#   value = "kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath=\"{.data.password}\" | base64 -d"
+# }
