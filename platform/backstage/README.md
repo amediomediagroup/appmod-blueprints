@@ -8,63 +8,36 @@
 
 ## 🌟 Implementation walkthrough
 
-1. Use the below command to deploy Argo application for CrossPlane compositions/XRDs :
+1. `idpBuilder` is extensible to launch custom Crossplane patterns using package extensions. 
+
+Please use the below command to deploy an IDP reference implementation with an Argo application for preparing up the setup for terraform integrations:
 
 ```bash
-kubectl -f ../crossplane/crossplane-compositions.yaml
+idpbuilder create \
+  --use-path-routing \
+  --package-dir https://github.com/cnoe-io/stacks//ref-implementation \
+  --package-dir https://github.com/cnoe-io/stacks//crossplane-integrations
+```
+## What is installed?
+
+- Crossplane Runtime
+- AWS providers
+- Basic Compositions
+
+2. Clone the [cnoe-io/stacks](https://github.com/cnoe-io/stacks) repository
+3. Update [the credentials secret file](crossplane-providers/provider-secret.yaml)
+4. Run the below command to create the crossplane provider secrets:
+
+```bash
+idpbuilder create \
+  --use-path-routing \
+  --package-dir https://github.com/cnoe-io/stacks//ref-implementation \
+  --package-dir [path-to-stacks-repo]/crossplane-integrations
 ```
 
-2. Naviate to `idpbuilder` repo and create an AWS Secret on required namespaces for deploying templates on AWS environment using below commands:
+5. Postgres credentials for RDS Database
 
 ```bash
-export IDP_AWS_ACCESS_KEY_ID_BASE64=$(echo -n ${YOUR_AWS_ACCESS_KEY_ID} | base64)
-export IDP_AWS_SECRET_ACCESS_KEY_BASE64=$(echo -n ${YOUR_AWS_SECRET_ACCESS_KEY} | base64)
-# AWS Credentials for argo Namespace
-cat << EOF > ./aws-secrets.yaml
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: aws-credentials
-  namespace: argo
-type: Opaque
-data:
-  AWS_ACCESS_KEY_ID: ${IDP_AWS_ACCESS_KEY_ID_BASE64}
-  AWS_SECRET_ACCESS_KEY: $IDP_AWS_SECRET_ACCESS_KEY_BASE64
-EOF
-kubectl apply -f ./aws-secrets.yaml
-
-# AWS Credentials for data-on-eks Namespace
-cat << EOF > ./aws-secrets-doeks.yaml
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: aws-credentials
-  namespace: data-on-eks
-type: Opaque
-data:
-  AWS_ACCESS_KEY_ID: ${IDP_AWS_ACCESS_KEY_ID_BASE64}
-  AWS_SECRET_ACCESS_KEY: $IDP_AWS_SECRET_ACCESS_KEY_BASE64
-EOF
-kubectl apply -f ./aws-secrets-doeks.yaml
-
-# AWS Credentials for tf-eks-observability Namespace
-cat << EOF > ./aws-secrets-eobs.yaml
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: aws-credentials
-  namespace: tf-eks-observability
-type: Opaque
-data:
-  AWS_ACCESS_KEY_ID: ${IDP_AWS_ACCESS_KEY_ID_BASE64}
-  AWS_SECRET_ACCESS_KEY: $IDP_AWS_SECRET_ACCESS_KEY_BASE64
-EOF
-kubectl apply -f ./aws-secrets-eobs.yaml
-
-# Postgres credentials for RDS Database
 cat << EOF > ./postgres-secret.yaml
 ---
 apiVersion: v1
@@ -78,7 +51,7 @@ EOF
 kubectl apply -f ./postgres-secret.yaml
 ```
 
-6. Next, in the `idpbuilder` folder, navigate to `./examples/ref-implementation/backstage/manifests/install.yaml` and add the following lines for catalog location at line 171 in backstage config to deploy crossplane backstage templates to backstage:
+6. Next, in the `idpbuilder` folder, navigate to `./ref-implementation/backstage/manifests/install.yaml` and add the following lines for catalog location at line 171 in backstage config to deploy crossplane backstage templates to backstage:
 
 ```yaml
         - type: url
@@ -92,5 +65,6 @@ kubectl apply -f ./postgres-secret.yaml
 ```bash
 idpbuilder create \
   --use-path-routing \
-  --package-dir examples/ref-implementation
+  --package-dir https://github.com/cnoe-io/stacks//ref-implementation \
+  --package-dir [path-to-stacks-repo]/crossplane-integrations
 ```
