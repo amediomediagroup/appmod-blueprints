@@ -44,15 +44,3 @@ variable "grafana_api_key" {
   type        = string
   sensitive   = true
 }
-
-variable "enable_dashboards" {
-  description = "Enables or disables curated dashboards. Dashboards are managed by the Grafana Operator"
-  type        = bool
-  default     = true
-}
-
-# variable "environment" {
-#   description = "Unique Environment name"
-#   type        = string
-#   default = "dev"
-# }

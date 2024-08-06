@@ -17,3 +17,9 @@ module "amg_grafana" {
   source  = "./managed-grafana-workspace"
   aws_region = var.aws_region
 }
+
+module "managed_service_prometheus" {
+  source  = "terraform-aws-modules/managed-service-prometheus/aws"
+  version = "~> 2.2.2"
+  workspace_alias = "aws-observability-accelerator-multicluster"
+}
