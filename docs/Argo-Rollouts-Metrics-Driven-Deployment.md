@@ -187,12 +187,3 @@ spec:
         - name: dummy-variable
           value: "triggering-rollout-test-1"
 ```
-
-## Workshop Flow
-
-Prereqs
-
-- Each attendee gets an AWS account with Workshop Studio
-- Workshop will be using one region such as us-east-2
-- Each account/region contains a basic EKS cluster that represents a non-modernized environment (such as on-prem)
-- Each account/region contains a VPC such as default with 3 public and 3 private subnets (optional, saves time on infra deployment) 
