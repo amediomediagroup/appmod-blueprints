@@ -6,7 +6,7 @@ use rocket::{error, get, State};
 
 #[get("/menu/<menu_id>")]
 pub async fn get_menu(menu_id: &str) -> UIResponder<Vec<Menu>> {
-    return match menu_id {
+    match menu_id {
         "navbar" => UIResponder::Ok(
             vec![
                 Menu {
@@ -54,7 +54,7 @@ pub async fn get_menu(menu_id: &str) -> UIResponder<Vec<Menu>> {
             .into(),
         ),
         _ => UIResponder::Err(error!("Menu not found")),
-    };
+    }
 }
 
 #[get("/page/<_page_handle>")]
@@ -74,7 +74,12 @@ pub async fn get_category(
     table_name: &State<String>,
 ) -> UIResponder<Category> {
     let table_name = table_name.inner();
-    let results = query_ddb(table_name.to_string(), db, "CATEGORY", Some(category_handle));
+    let results = query_ddb(
+        table_name.to_string(),
+        db,
+        "CATEGORY",
+        Some(category_handle),
+    );
 
     return match results.await {
         Ok(res) => match reconstruct_result::<Category>(res) {
@@ -96,7 +101,12 @@ pub async fn get_category_products(
 ) -> UIResponder<Vec<Product>> {
     let table_name = table_name.inner();
 
-    let results = query_ddb(table_name.to_string(), db, "CATEGORY", Some(category_handle));
+    let results = query_ddb(
+        table_name.to_string(),
+        db,
+        "CATEGORY",
+        Some(category_handle),
+    );
     return match results.await {
         Ok(res) => match reconstruct_result::<Category>(res) {
             Ok(res) => UIResponder::Ok(Json::from(res.products)),
@@ -136,14 +146,19 @@ pub async fn get_collection(
     db: &State<ddb::Client>,
     table_name: &State<String>,
 ) -> UIResponder<Vec<Product>> {
-    let results = query_ddb(table_name.to_string(), db, "CATEGORY", Some(collection_handle));
+    let results = query_ddb(
+        table_name.to_string(),
+        db,
+        "CATEGORY",
+        Some(collection_handle),
+    );
 
     return match results.await {
         Ok(res) => match reconstruct_result::<Category>(res) {
             Ok(res) => {
                 let products = res.products;
                 UIResponder::Ok(Json::from(products))
-            },
+            }
             Err(err) => UIResponder::Err(error!("{:?}", err)),
         },
         Err(err) => {

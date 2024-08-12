@@ -6,6 +6,7 @@ use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::default_provider::region::DefaultRegionChain;
 use aws_config::Region;
 use aws_sdk_dynamodb::Client;
+use futures::StreamExt;
 use image::GenericImageView;
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
@@ -13,7 +14,6 @@ use serde::Deserialize;
 use serde_dynamo::to_item;
 use std::collections::HashMap;
 use std::fs::File;
-use futures::StreamExt;
 use uuid::Uuid;
 
 #[derive(Deserialize, Debug, Clone)]
@@ -31,7 +31,7 @@ struct CSVOptions {
     product: String,
     name: String,
     variant_name: String,
-    option_name: String
+    option_name: String,
 }
 
 #[tokio::main]
@@ -186,7 +186,7 @@ fn csv_to_data() -> (Vec<Product>, HashMap<String, Category>) {
 
     let images: HashMap<String, Vec<String>> = extract_images(&csv_products);
     let variants = build_variants(&csv_options);
-    let options= build_options(&csv_options);
+    let options = build_options(&csv_options);
 
     // Build the product type
     let mut products: Vec<Product> = Vec::new();
@@ -230,7 +230,10 @@ fn csv_to_data() -> (Vec<Product>, HashMap<String, Category>) {
                     .map(|image| {
                         let (width, height) = get_image_dimensions(image);
                         Image {
-                            url: format!("https://d2pxm7bxcihgvo.cloudfront.net/{}", image.to_string()),
+                            url: format!(
+                                "https://d2pxm7bxcihgvo.cloudfront.net/{}",
+                                image.to_string()
+                            ),
                             alt_text: format!("{} image", csv_product.name),
                             width,
                             height,
@@ -293,7 +296,10 @@ fn build_options(csv_options: &Vec<CSVOptions>) -> HashMap<String, Vec<ProductOp
                     Some(opt) => {
                         // we've seen the option before
                         // find the variant
-                        let variant = opt.values.iter().find(|v| v.to_string() == csv_option.variant_name);
+                        let variant = opt
+                            .values
+                            .iter()
+                            .find(|v| v.to_string() == csv_option.variant_name);
                         match variant {
                             Some(var) => {
                                 // we've seen the variant before

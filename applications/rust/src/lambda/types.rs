@@ -55,8 +55,7 @@ pub struct Image {
 pub struct CartProduct {
     pub product: Product,
     pub quantity: usize,
-    pub selected_variant: ProductVariant,
-    pub selected_option: ProductOption,
+    pub selected_variant: Option<ProductVariant>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]

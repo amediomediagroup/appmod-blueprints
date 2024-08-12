@@ -70,7 +70,11 @@ pub async fn query_ddb(
         Ok(res) => Ok(res),
         Err(err) => {
             println!("Error querying DDB: {:?}", err);
-            Err(format!("Error querying DDB, {}, {}", pk, sk.unwrap_or("no sk")))
+            Err(format!(
+                "Error querying DDB, {}, {}",
+                pk,
+                sk.unwrap_or("no sk")
+            ))
         }
     }
 }
