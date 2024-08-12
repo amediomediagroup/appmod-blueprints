@@ -112,6 +112,11 @@ metadata:
   namespace: argo-rollouts
 spec:
   args:
+  - name: amp-workspace # This section is important to aquire needed workspace ID details for Amazon Managed Prometheus (AMP)
+    valueFrom:
+      secretKeyRef:
+        name: workspace-id
+        key: secretUrl
   - name: service-name # Identifier for rollouts
   metrics:
   - name: success-rate # Should I leave this name?
@@ -120,7 +125,7 @@ spec:
     successCondition: result[0] >= 0 # The query returns an array and result[0] grabs the first value. The successCondition means it passes if true and fails the rollout if it is not met.
     provider:
       prometheus:
-        address: https://aps-workspaces.us-west-2.amazonaws.com/workspaces/ws-bb900443-1a89-4386-af50-5850274c27f7 # Used the Endpoint - query URL 
+        address: https://aps-workspaces.us-west-2.amazonaws.com/workspaces/amp-workspace # Used the Endpoint - query URL. Also uses the previous secret value amp-workspace.
         query: | # This query returns something similar to: {"status":"success","data":{"resultType":"vector","result":[{"metric":{"pod":"argo-rollouts-bdbddf5fb-xbkwr"},"value":[1722963891,"0.002951664136810593"]}]}}
           sum(
             node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{cluster="appmod-dev", namespace="argo-rollouts"}
@@ -139,6 +144,18 @@ successCondition, and failureCondition are two important factors to keep in mind
 - If they are both present the first failure status will cause a rollback.
 For the query section a user can divide two query results by each other in order to get a percentage for their success and failure conditions.
 
+***Adding a secret variable for the Amazon Managed Prometheus (AMP) Workspace ID***
+
+This section of code allows for the workspace ID to be aquired during build time. This enables granting permissions needed for querying AMP, and otherwise would require deleting a pod that would then relaunch with the needed permissions if it's done post deployment.
+``` YAML
+spec:
+  args:
+  - name: amp-workspace
+    valueFrom:
+      secretKeyRef:
+        name: workspace-id
+        key: secretUrl
+```
 ***Example with more than one Analysis Template***
 ```YAML
 apiVersion: argoproj.io/v1alpha1
