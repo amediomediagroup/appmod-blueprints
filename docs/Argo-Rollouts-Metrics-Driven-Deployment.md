@@ -25,10 +25,10 @@ While Argo Rollouts allows for BlueGreen Deployment and Canary Deployment the an
               templates:
               - templateName: success-rate # This is calling the analysis-template file success-rate.
               args:
-              - name: service-name # Must match the Analysis Templates spec.args.name variable
-                value: tomcat-example # This calls the deployment for the sample Java App
+              - name: service-name # Must match the Analysis Templates spec.args.name variable.
+                value: tomcat-example # This calls the deployment for the sample Java App.
           - setWeight: 40
-          - pause: {duration: 1} # Adding a second to test a change to the rollout
+          - pause: {duration: 1} # Adding a second to test a change to the rollout.
           - setWeight: 60
           - pause: {duration: 1}
           - setWeight: 80
@@ -71,7 +71,7 @@ spec:
           - name: service-name # Must match the Analysis Templates spec.args.name variable
             value: tomcat-example # This targets the deployment with the given workload being updated.
       - setWeight: 40
-      - pause: {duration: 1} # Adding a second to test a change to the rollout
+      - pause: {duration: 1} # Adding a second to test a change to the rollout.
       - setWeight: 60
       - pause: {duration: 1}
       - setWeight: 80 # Once finishing testing 80% weight it deploys the remaining 20%.
@@ -112,20 +112,20 @@ metadata:
   namespace: argo-rollouts
 spec:
   args:
-  - name: amp-workspace # This section is important to aquire needed workspace ID details for Amazon Managed Prometheus (AMP)
+  - name: amp-workspace # This section is important to aquire needed workspace url details for Amazon Managed Prometheus (AMP).
     valueFrom:
       secretKeyRef:
-        name: workspace-id
+        name: workspace-url
         key: secretUrl
-  - name: service-name # Identifier for rollouts
+  - name: service-name # Identifier for rollouts.
   metrics:
   - name: success-rate # Should I leave this name?
-    interval: 1s # The intervals that queries are made
+    interval: 1s # The intervals that queries are made.
     count: 1
     successCondition: result[0] >= 0 # The query returns an array and result[0] grabs the first value. The successCondition means it passes if true and fails the rollout if it is not met.
     provider:
       prometheus:
-        address: https://aps-workspaces.us-west-2.amazonaws.com/workspaces/amp-workspace # Used the Endpoint - query URL. Also uses the previous secret value amp-workspace.
+        address: amp-workspace # Utilizing the secret value amp-workspace this targets the AMP workspace for the query.
         query: | # This query returns something similar to: {"status":"success","data":{"resultType":"vector","result":[{"metric":{"pod":"argo-rollouts-bdbddf5fb-xbkwr"},"value":[1722963891,"0.002951664136810593"]}]}}
           sum(
             node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{cluster="appmod-dev", namespace="argo-rollouts"}
@@ -144,16 +144,16 @@ successCondition, and failureCondition are two important factors to keep in mind
 - If they are both present the first failure status will cause a rollback.
 For the query section a user can divide two query results by each other in order to get a percentage for their success and failure conditions.
 
-***Adding a secret variable for the Amazon Managed Prometheus (AMP) Workspace ID***
+***Adding a secret variable for the Amazon Managed Prometheus (AMP) Workspace URL***
 
-This section of code allows for the workspace ID to be aquired during build time. This enables granting permissions needed for querying AMP, and otherwise would require deleting a pod that would then relaunch with the needed permissions if it's done post deployment.
+This section of code allows for the workspace url to be acquired during build time. This enables granting permissions needed for querying AMP, and otherwise would require deleting a pod that would then relaunch with the needed permissions if it's done post deployment.
 ``` YAML
 spec:
   args:
   - name: amp-workspace
     valueFrom:
       secretKeyRef:
-        name: workspace-id
+        name: workspace-url
         key: secretUrl
 ```
 ***Example with more than one Analysis Template***
