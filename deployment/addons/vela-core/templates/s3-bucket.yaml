@@ -1,0 +1,55 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  annotations:
+    definition.oam.dev/alias: ""
+    definition.oam.dev/description: AWS S3 Bucket
+  labels: {}
+  name: s3-bucket
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |2
+        let bucketService = "\(context.name)-bucket"
+        
+        output: {
+          apiVersion: "awsblueprints.io/v1alpha1"
+            kind:       "ObjectStorage"
+            metadata: {
+              name: context.name
+                namespace: default
+            }
+            spec: {
+              compositionSelector: {
+                matchLabels: {
+                  "awsblueprints.io/provider": aws
+                    "awsblueprints.io/environment": parameter.environment
+                    "s3.awsblueprints.io/configuration": parameter.configuration
+                }
+              }
+                writeConnectionSecretToRef: {
+                  name: "\(context.name)-info"
+                }
+                resourceConfig: {
+                  providerConfigName: parameter.providerConfigName,
+                  region: parameter.region,
+                  tags: {
+                    key: parameter.tag1
+                      key: parameter.tag2
+                  }
+                }
+            }
+        }
+        parameter: {
+          environment: string
+            configuration: string
+            providerConfigName: string
+            region: string
+            tag1: string
+            tag2: string
+        }
+  workload:
+    definition:
+      apiVersion: aws-service/v1
+      kind: Bucket
