@@ -11,20 +11,16 @@
 }
 
 template: {
-
-	let bucketService = "\(context.name)-bucket"
-
 	output: {
 		apiVersion: "awsblueprints.io/v1alpha1"
 		kind:       "ObjectStorage"
 		metadata: {
           name: context.name
-          namespace: default
     }
 		spec: {
 		      compositionSelector: {
 					      matchLabels: {
-						    			"awsblueprints.io/provider": aws
+						    			"awsblueprints.io/provider": "aws"
 						    			"awsblueprints.io/environment": parameter.environment
 						    			"s3.awsblueprints.io/configuration": parameter.configuration
 						    }
@@ -35,10 +31,9 @@ template: {
 					resourceConfig: {
 								providerConfigName: parameter.providerConfigName,
 								region: parameter.region,
-								tags: {
-											key: parameter.tag1
-											key: parameter.tag2
-								}
+								tags: [
+											"name: \(context.name)"
+								]
 					}
 		}
 	}
@@ -47,7 +42,5 @@ template: {
         configuration: string
         providerConfigName: string
         region: string
-        tag1: string
-        tag2: string
   }
 }
