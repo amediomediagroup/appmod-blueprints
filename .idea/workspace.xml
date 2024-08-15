@@ -4,13 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="61838aa9-291b-406e-8027-5b68c6c1716e" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/platform/backstage/templates/s3-bucket/skeleton/manifests/oam-s3-bucket.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/deployment/addons/vela-core/templates/s3-bucket.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/deployment/addons/vela-core/templates/s3-bucket.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/platform/backstage/templates/catalog-info.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/platform/backstage/templates/catalog-info.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/platform/components/s3-bucket.cue" beforeDir="false" afterPath="$PROJECT_DIR$/platform/components/s3-bucket.cue" afterDir="false" />
-    </list>
+    <list default="true" id="61838aa9-291b-406e-8027-5b68c6c1716e" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -69,7 +63,7 @@
       <option name="presentableId" value="Default" />
       <updated>1723740203697</updated>
       <workItem from="1723740204773" duration="4436000" />
-      <workItem from="1723744892302" duration="10454000" />
+      <workItem from="1723744892302" duration="11353000" />
     </task>
     <servers />
   </component>
