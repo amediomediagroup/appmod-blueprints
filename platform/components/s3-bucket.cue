@@ -32,7 +32,10 @@ template: {
 								providerConfigName: parameter.providerConfigName,
 								region: parameter.region,
 								tags: [
-											"name: \(context.name)"
+											{
+												"key": "name",
+												"value": context.name
+											}
 								]
 					}
 		}
