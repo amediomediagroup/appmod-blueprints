@@ -4,6 +4,12 @@ This is a serverless application built with Rust and AWS Lambda that provides a 
 It interacts with an AWS DynamoDB table to handle various operations related to products, categories, collections, 
 and carts.
 
+## Architecture 
+
+This architecture defines the current state of the application.
+
+![sls-shopping-cart.svg](./assets/imgs/sls-shopping-cart.svg)
+
 ## Services
 
 ### Product Service
