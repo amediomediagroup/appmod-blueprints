@@ -5,6 +5,13 @@ use serde::{Deserialize, Serialize};
 use serde_dynamo::{from_item, from_items};
 use std::fmt::Debug;
 
+use opentelemetry::{metrics::MeterProvider, KeyValue};
+use opentelemetry::metrics::Meter;
+use opentelemetry_sdk::metrics::{SdkMeterProvider};
+use opentelemetry_sdk::trace::{Span, BatchSpanProcessor, BatchSpanProcessorBuilder};
+use rocket::fairing::{Fairing, Info, Kind};
+use rocket::{async_trait, Build, Data, Orbit, Request, Response, Rocket};
+
 pub fn reconstruct_results<'a, T>(results: QueryOutput) -> Result<Vec<T>, String>
 where
     T: Debug + Deserialize<'a> + Serialize + Clone,
@@ -78,3 +85,46 @@ pub async fn query_ddb(
         }
     }
 }
+
+#[derive(Copy, Clone)]
+struct TracingFairing;
+
+pub struct TracingSpan<T = Span>(T);
+
+#[async_trait]
+impl Fairing for TracingFairing {
+    fn info(&self) -> Info {
+        Info {
+            name: "Tracing Fairing",
+            kind: Kind::Request | Kind::Response
+        }
+    }
+
+    async fn on_ignite(&self, rocket: Rocket<Build>) -> rocket::fairing::Result {
+        let meter_provider = SdkMeterProvider::builder().build();
+        let success_meter = meter_provider.meter("rocket-success");
+        let failure_meter = meter_provider.meter("rocket-failure");
+
+        Ok(rocket)
+    }
+
+    async fn on_liftoff(&self, _rocket: &Rocket<Orbit>) {
+        todo!()
+    }
+
+    async fn on_request(&self, request: &Request, _: &mut Response) {
+        let span = meter.span_builder("rocket").start(&meter_provider);
+        request.local_cache(|| span);
+    }
+
+    async fn on_response(&self, request: &Request, response: &mut Response) {
+        if let Some(mut span) = request.local_cache(|| None::<dyn opentelemetry::trace::Span>) {
+            span.end();
+        }
+    }
+
+    async fn on_shutdown(&self, _rocket: &Rocket<Orbit>) {
+        todo!()
+    }
+}
+
