@@ -14,6 +14,18 @@ using Northwind.Application;
 using Northwind.Application.Common.Interfaces;
 using Northwind.WebUI.Common;
 using Northwind.WebUI.Services;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
+using OpenTelemetry;
+using OpenTelemetry.Exporter;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics.Metrics;
+using System;
+using OpenTelemetry.Contrib.Extensions.AWSXRay.Trace;
+using OpenTelemetry.Instrumentation.Runtime;
+
+
 
 namespace Northwind.WebUI
 {
@@ -50,6 +62,54 @@ namespace Northwind.WebUI
                 .AddFluentValidation(fv => fv.RegisterValidatorsFromAssemblyContaining<INorthwindDbContext>());
 
             services.AddRazorPages();
+
+            #region OpenTelemetry
+            var serviceName = "Northwind";
+            var serviceVersion = "1.0";
+
+
+            var appResourceBuilder = ResourceBuilder.CreateDefault()
+                    .AddService(serviceName: serviceName, serviceVersion: serviceVersion);
+
+            //Configure important OpenTelemetry settings, the console exporter, and instrumentation library
+
+            var meter = new Meter(serviceName);
+            services.AddSingleton<Meter>(meter);
+            services.AddOpenTelemetry().WithMetrics(metricProviderBuilder =>
+            {
+                metricProviderBuilder
+                    .AddConsoleExporter()
+                    .AddOtlpExporter(options =>
+                    {
+                        options.Protocol = OtlpExportProtocol.Grpc;
+                        options.Endpoint = new Uri(Configuration.GetValue<string>("OTEL_EXPORTER_OTLP_ENDPOINT"));
+                    })
+                    .AddMeter(meter.Name)
+                    .SetResourceBuilder(appResourceBuilder)
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddRuntimeInstrumentation();
+
+            });
+
+            services.AddOpenTelemetry()
+                .WithTracing(tracerProviderBuilder =>
+
+                tracerProviderBuilder
+                    .AddSource(serviceName)
+                    .SetResourceBuilder(appResourceBuilder.AddTelemetrySdk())
+                    .AddAWSInstrumentation()
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddConsoleExporter()
+                    .AddOtlpExporter(options =>
+                    {
+                        options.Protocol = OtlpExportProtocol.Grpc;
+                        options.Endpoint = new Uri(Configuration.GetValue<string>("OTEL_EXPORTER_OTLP_ENDPOINT"));
+
+                    }));
+            Sdk.SetDefaultTextMapPropagator(new AWSXRayPropagator());
+            #endregion
 
             // Customise default API behaviour
             services.Configure<ApiBehaviorOptions>(options =>
