@@ -2,7 +2,7 @@ mod services;
 mod types;
 mod utils;
 
-use lambda_web::{is_running_on_lambda, launch_rocket_on_lambda, LambdaError};
+use lambda_web::{is_running_on_lambda, LambdaError};
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::default_provider::region::DefaultRegionChain;
 use aws_sdk_dynamodb as ddb;
@@ -18,26 +18,40 @@ use services::ui::*;
 async fn main() -> Result<(), LambdaError> {
     tracing::init_default_subscriber();
 
-    let profile = "vshardul+q-apps-Admin";
+    let mut config;
 
-    let region = DefaultRegionChain::builder()
-        .profile_name(&profile)
-        .build()
-        .region()
-        .await
-        .unwrap_or(Region::from_static("us-east-1"));
+    if is_running_on_lambda() {
+        let region = DefaultRegionChain::builder()
+            .build()
+            .region()
+            .await
+            .unwrap_or(Region::from_static("us-east-1"));
 
-    let creds = DefaultCredentialsChain::builder()
-        .profile_name(&profile)
-        .region(region.clone())
-        .build()
-        .await;
+        config = aws_config::from_env().region(region).load().await;
+    }
+    else {
+        let profile = "vshardul+q-apps-Admin";
 
-    let config = aws_config::from_env()
-        .credentials_provider(creds)
-        .region(region)
-        .load()
-        .await;
+        let region = DefaultRegionChain::builder()
+            .profile_name(&profile)
+            .build()
+            .region()
+            .await
+            .unwrap_or(Region::from_static("us-east-1"));
+
+        let creds = DefaultCredentialsChain::builder()
+            .profile_name(&profile)
+            .region(region.clone())
+            .build()
+            .await;
+
+        config = aws_config::from_env()
+            .credentials_provider(creds)
+            .region(region)
+            .load()
+            .await;
+    }
+
     let table_name = std::env::var("TABLE_NAME").unwrap_or(String::from("q-apps-table"));
 
     let prometheus = PrometheusMetrics::new();
@@ -65,13 +79,15 @@ async fn main() -> Result<(), LambdaError> {
             ],
         )
         .mount("/metrics", prometheus);
-    if is_running_on_lambda() {
-        // Launch on AWS Lambda
-        launch_rocket_on_lambda(rocket).await?;
-    } else {
-        // Launch local server
-        let _ = rocket.launch().await?;
-    }
+    // if is_running_on_lambda() {
+    //     // Launch on AWS Lambda
+    //     launch_rocket_on_lambda(rocket).await?;
+    // } else {
+    //     // Launch local server
+    //     let _ = rocket.launch().await?;
+    // }
+
+    let _ = rocket.launch().await?;
 
     Ok(())
 }

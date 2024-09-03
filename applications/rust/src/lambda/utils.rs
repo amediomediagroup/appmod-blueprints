@@ -5,10 +5,11 @@ use serde::{Deserialize, Serialize};
 use serde_dynamo::{from_item, from_items};
 use std::fmt::Debug;
 
-use opentelemetry::{metrics::MeterProvider, KeyValue};
+use opentelemetry::{global, metrics::MeterProvider, KeyValue};
 use opentelemetry::metrics::Meter;
 use opentelemetry_sdk::metrics::{SdkMeterProvider};
-use opentelemetry_sdk::trace::{Span, BatchSpanProcessor, BatchSpanProcessorBuilder};
+use opentelemetry_sdk::propagation::TraceContextPropagator;
+use opentelemetry_sdk::trace::{Span, BatchSpanProcessor, BatchSpanProcessorBuilder, TracerProvider};
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::{async_trait, Build, Data, Orbit, Request, Response, Rocket};
 
@@ -101,20 +102,17 @@ impl Fairing for TracingFairing {
     }
 
     async fn on_ignite(&self, rocket: Rocket<Build>) -> rocket::fairing::Result {
-        let meter_provider = SdkMeterProvider::builder().build();
-        let success_meter = meter_provider.meter("rocket-success");
-        let failure_meter = meter_provider.meter("rocket-failure");
-
-        Ok(rocket)
-    }
-
-    async fn on_liftoff(&self, _rocket: &Rocket<Orbit>) {
-        todo!()
+        global::set_text_map_propagator(TraceContextPropagator::new());
+        let span_processor: BatchSpanProcessor<String> = BatchSpanProcessorBuilder;
+        
+        let provider = TracerProvider::builder()
+            .with_batch_exporter()
+            .build();
+        global::set_tracer_provider(provider);
     }
 
     async fn on_request(&self, request: &Request, _: &mut Response) {
-        let span = meter.span_builder("rocket").start(&meter_provider);
-        request.local_cache(|| span);
+        
     }
 
     async fn on_response(&self, request: &Request, response: &mut Response) {

@@ -21,6 +21,14 @@ RUN cargo install --target x86_64-unknown-linux-musl --path .
 
 # Copy the statically-linked binary into a scratch container.
 FROM scratch
+
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
+ENV PORT=7000
+WORKDIR "/var/task"
+
 COPY --from=build /usr/local/cargo/bin/lambda .
 USER 1000
+
+ENV ROCKET_PORT=8080
+
 CMD ["./lambda"]
