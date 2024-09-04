@@ -20,37 +20,22 @@ async fn main() -> Result<(), LambdaError> {
 
     let mut config;
 
-    if is_running_on_lambda() {
-        let region = DefaultRegionChain::builder()
-            .build()
-            .region()
-            .await
-            .unwrap_or(Region::from_static("us-east-1"));
+    let region = DefaultRegionChain::builder()
+        .build()
+        .region()
+        .await
+        .unwrap_or(Region::from_static("us-east-1"));
 
-        config = aws_config::from_env().region(region).load().await;
-    }
-    else {
-        let profile = "vshardul+q-apps-Admin";
+    let creds = DefaultCredentialsChain::builder()
+        .region(region.clone())
+        .build()
+        .await;
 
-        let region = DefaultRegionChain::builder()
-            .profile_name(&profile)
-            .build()
-            .region()
-            .await
-            .unwrap_or(Region::from_static("us-east-1"));
-
-        let creds = DefaultCredentialsChain::builder()
-            .profile_name(&profile)
-            .region(region.clone())
-            .build()
-            .await;
-
-        config = aws_config::from_env()
-            .credentials_provider(creds)
-            .region(region)
-            .load()
-            .await;
-    }
+    config = aws_config::from_env()
+        .credentials_provider(creds)
+        .region(region)
+        .load()
+        .await;
 
     let table_name = std::env::var("TABLE_NAME").unwrap_or(String::from("q-apps-table"));
 
