@@ -1,16 +1,35 @@
-FROM rust:slim-buster-arm64v8 AS builder
+# Dockerfile for creating a statically-linked Rust application using docker's
+# multi-stage build feature. This also leverages the docker build cache to avoid
+# re-downloading dependencies if they have not changed.
+FROM rust:slim-buster AS build
+WORKDIR /usr/src
 
-WORKDIR /app
-COPY . .
+# Download the target for static linking.
+RUN rustup target add aarch64-unknown-linux-musl
 
+# Create a dummy project and build the app's dependencies.
+# If the Cargo.toml or Cargo.lock files have not changed,
+# we can use the docker build cache and skip these (typically slow) steps.
+RUN USER=root cargo new commerce-backend
+WORKDIR /usr/src/lambda
+COPY Cargo.toml Cargo.lock ./
 RUN cargo build --release
 
-FROM rust:slim-buster-arm64v8
+# Copy the source and build the application.
+COPY src ./src
+RUN cargo install --target aarch64-unknown-linux-musl --path .
 
-COPY --from=builder /app/target/release/lambda /app/lambda
+# Copy the statically-linked binary into a scratch container.
+FROM scratch
 
-WORKDIR /app
-COPY src/setup/res /app/res
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
+ENV PORT=7000
+WORKDIR "/var/task"
 
-ENTRYPOINT ["/app/lambda"]
+COPY --from=build /usr/local/cargo/bin/lambda .
+USER 1000
 
+ENV ROCKET_ADDRESS=0.0.0.0
+ENV ROCKET_PORT=8080
+
+CMD ["./lambda"]
