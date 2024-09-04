@@ -1,5 +1,27 @@
 #!/bin/bash
+#
+# Copyright 2024 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this
+# software and associated documentation files (the "Software"), to deal in the Software
+# without restriction, including without limitation the rights to use, copy, modify,
+# merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+# PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
 
+#title           create-tf.sh
+#description     This script sets up terraform EKS clusters and prerequisites
+#version         1.0
+#==============================================================================
+
+source ./setup-keycloak.sh
 # checking environment variables
 
 if [ -z "${TF_VAR_aws_region}" ]; then
@@ -21,7 +43,6 @@ echo "PROD_CLUSTER_NAME = "$TF_VAR_prod_cluster_name
 
 rm -rf terraform-aws-observability-accelerator/
 git clone https://github.com/aws-observability/terraform-aws-observability-accelerator.git
-cp -r terraform-aws-observability-accelerator/examples/managed-grafana-workspace bootstrap/
 
 # bootstrapping TF S3 bucket and DynamoDB locally
 echo "bootstrapping Terraform"
@@ -31,8 +52,24 @@ terraform -chdir=bootstrap apply -auto-approve
 
 export TF_VAR_state_s3_bucket=$(terraform -chdir=bootstrap  output -raw eks-accelerator-bootstrap-state-bucket)
 export TF_VAR_state_ddb_lock_table=$(terraform -chdir=bootstrap output -raw eks-accelerator-bootstrap-ddb-lock-table)
-export TF_VAR_managed_grafana_workspace_id=$(terraform -chdir=bootstrap output -raw amg_workspace_id)
 export TF_VAR_managed_prometheus_workspace_id=$(terraform -chdir=bootstrap output -raw amp_workspace_id)
+export TF_VAR_managed_grafana_workspace_id=$(terraform -chdir=bootstrap output -raw amg_workspace_id)
+export TF_VAR_grafana_workspace_endpoint=$(terraform -chdir=bootstrap output -raw grafana_workspace_endpoint)
+
+export WORKSPACE_ENDPOINT=$TF_VAR_grafana_workspace_endpoint
+export KEYCLOAK_NAMESPACE=keycloak
+export KEYCLOAK_REALM=amg
+export WORKSPACE_ID=$TF_VAR_managed_grafana_workspace_id
+export KEYCLOAK_USER_ADMIN_PASSWORD=$(openssl rand -base64 8)
+export KEYCLOAK_USER_EDITOR_PASSWORD=$(openssl rand -base64 8)
+# Export the Keycloak admin password for the workspace from the Management Cluster Keycloak
+export KEYCLOAK_ADMIN_PASSWORD=$(kubectl get secret keycloak-config -n keycloak --template={{.data.KEYCLOAK_ADMIN_PASSWORD}} | base64 -d)
+
+# Configure Keycloak Realm for Grafana Workspace
+configure_keycloak
+
+# Update SAML Auth for Grafana Workspace
+update_workspace_saml_auth
 
 # Bootstrap EKS Cluster using S3 bucket and DynamoDB
 echo "Following bucket and dynamodb table will be used to store states for dev and PROD Cluster:"
@@ -84,6 +121,21 @@ echo "Terraform execution completed"
 
 # Cleanup Folders
 rm -rf terraform-aws-observability-accelerator/
-rm -rf bootstrap/managed-grafana-workspace
+
+echo "-------------------"
+echo "Workspace endpoint: https://$WORKSPACE_ENDPOINT/"
+echo "-------------------"
+echo "Admin credentials"
+echo "-------------------"
+echo "username: admin"
+echo "password: $KEYCLOAK_USER_ADMIN_PASSWORD"
+echo ""
+echo "-------------------"
+echo "Editor credentials"
+echo "-------------------"
+echo "username: editor"
+echo "password: $KEYCLOAK_USER_EDITOR_PASSWORD"
+echo ""
+echo "Setup done."
 
 echo "Script Complete"
