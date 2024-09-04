@@ -64,6 +64,7 @@ export KEYCLOAK_USER_ADMIN_PASSWORD=$(openssl rand -base64 8)
 export KEYCLOAK_USER_EDITOR_PASSWORD=$(openssl rand -base64 8)
 # Export the Keycloak admin password for the workspace from the Management Cluster Keycloak
 export KEYCLOAK_ADMIN_PASSWORD=$(kubectl get secret keycloak-config -n keycloak --template={{.data.KEYCLOAK_ADMIN_PASSWORD}} | base64 -d)
+export AWS_REGION=$TF_VAR_aws_region
 
 # Configure Keycloak Realm for Grafana Workspace
 configure_keycloak

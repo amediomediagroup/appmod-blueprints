@@ -117,10 +117,6 @@ function configure_keycloak() {
 EOF
 )
   CMD="unset HISTFILE\n
-if [ -f /tmp/realm.json ]; then\n
-  echo \"WARNING: Found existing realm configuration file in the container. May be from a previous install. Skipping configuration.\"\n
-  exit 0\n
-fi\n
 cat >/tmp/realm.json <<EOF\n$(echo -e "$REALM_JSON")\nEOF\n
 while true; do\n
     cd /opt/keycloak/bin/\n
@@ -189,7 +185,7 @@ function update_workspace_saml_auth() {
 EOF
 )
   echo "Retrieving AMG workspace authentication configuration..."
-  WORKSPACE_AUTH_CONFIG=$(aws grafana describe-workspace-authentication --workspace-id $WORKSPACE_ID)
+  WORKSPACE_AUTH_CONFIG=$(aws grafana describe-workspace-authentication --workspace-id $WORKSPACE_ID --region $AWS_REGION)
   CMD_RESULT=$?
   if [ $CMD_RESULT -ne 0 ]; then
     handle_error "ERROR: Failed to retrieve AMG workspace SAML authentication configuration."
@@ -231,7 +227,7 @@ EOF
 
   echo "Updating AMG workspace SAML authentication..."
   WORKSPACE_AUTH_SAML_STATUS=$(aws grafana update-workspace-authentication \
-    --cli-input-json "$WORKSPACE_AUTH_SAML_INPUT_CONFIG" --query "authentication.saml.status" --output text)
+    --cli-input-json "$WORKSPACE_AUTH_SAML_INPUT_CONFIG" --query "authentication.saml.status" --output text --region "$AWS_REGION")
   CMD_RESULT=$?
   if [ $CMD_RESULT -ne 0 ]; then
     handle_error "ERROR: Failed to update AMG workspace SAML authentication."
