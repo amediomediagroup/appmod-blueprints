@@ -21,7 +21,6 @@ echo "PROD_CLUSTER_NAME = "$TF_VAR_prod_cluster_name
 
 rm -rf terraform-aws-observability-accelerator/
 git clone https://github.com/aws-observability/terraform-aws-observability-accelerator.git
-cp -r terraform-aws-observability-accelerator/examples/managed-grafana-workspace bootstrap/
 
 # bootstrapping TF S3 bucket and DynamoDB locally
 echo "bootstrapping Terraform"
@@ -89,6 +88,5 @@ echo "Terraform execution completed"
 
 # Cleanup Folders
 rm -rf terraform-aws-observability-accelerator/
-rm -rf bootstrap/managed-grafana-workspace
 
 echo "Destroy Complete"
