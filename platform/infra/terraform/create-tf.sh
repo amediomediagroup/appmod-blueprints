@@ -58,7 +58,7 @@ export TF_VAR_grafana_workspace_endpoint=$(terraform -chdir=bootstrap output -ra
 
 export WORKSPACE_ENDPOINT=$TF_VAR_grafana_workspace_endpoint
 export KEYCLOAK_NAMESPACE=keycloak
-export KEYCLOAK_REALM=amg
+export KEYCLOAK_REALM=grafana
 export WORKSPACE_ID=$TF_VAR_managed_grafana_workspace_id
 export KEYCLOAK_USER_ADMIN_PASSWORD=$(openssl rand -base64 8)
 export KEYCLOAK_USER_EDITOR_PASSWORD=$(openssl rand -base64 8)
