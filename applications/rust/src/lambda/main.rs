@@ -4,11 +4,9 @@ mod services;
 mod types;
 mod utils;
 
-use lambda_web::{is_running_on_lambda, LambdaError};
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::default_provider::region::DefaultRegionChain;
 use aws_sdk_dynamodb as ddb;
-use lambda_runtime::tracing;
 use rocket_prometheus::{PrometheusMetrics};
 use rocket::{self, routes};
 use services::product::*;
@@ -17,9 +15,7 @@ use services::cart::*;
 use services::ui::*;
 
 #[rocket::main]
-async fn main() -> Result<(), LambdaError> {
-    tracing::init_default_subscriber();
-
+async fn main() -> Result<(), rocket::Error> {
     let mut config;
 
     let region = DefaultRegionChain::builder()
@@ -74,7 +70,7 @@ async fn main() -> Result<(), LambdaError> {
     //     let _ = rocket.launch().await?;
     // }
 
-    let _ = rocket.launch().await?;
+    let _rocket = rocket.launch().await?;
 
     Ok(())
 }

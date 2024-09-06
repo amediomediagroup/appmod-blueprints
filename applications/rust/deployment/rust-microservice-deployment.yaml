@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: rust-app
-          image: app/rust-microservice:latest
+          image: 913524909446.dkr.ecr.us-west-2.amazonaws.com/app/rust-microservice:latest
           ports:
             - containerPort: 8080
           env:
