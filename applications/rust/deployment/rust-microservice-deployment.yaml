@@ -13,6 +13,7 @@ spec:
       labels:
         app: rust-app
     spec:
+      serviceAccountName: rust-microservice-no-perms
       containers:
         - name: rust-app
           image: 913524909446.dkr.ecr.us-west-2.amazonaws.com/app/rust-microservice:latest

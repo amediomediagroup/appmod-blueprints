@@ -36,7 +36,7 @@ struct CSVOptions {
 
 #[tokio::main]
 async fn main() {
-    let profile = "vshardul+q-apps-Admin";
+    let profile = std::env::var("PROFILE").unwrap_or(String::from("vshardul+q-apps-Admin"));
 
     let region = DefaultRegionChain::builder()
         .profile_name(&profile)

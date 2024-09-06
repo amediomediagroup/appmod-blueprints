@@ -19,12 +19,19 @@ RUN rustup target add x86_64-unknown-linux-musl
 COPY Cargo.toml Cargo.lock ./
 COPY src/lambda/ ./src/lambda/
 
+# Required for Rocket
+RUN update-ca-certificates
+
 RUN cargo build --bin lambda --target x86_64-unknown-linux-musl --release && exit 0
 
 # Copy the statically-linked binary into a scratch container.
 FROM scratch
 
 COPY --from=build /usr/app/target/x86_64-unknown-linux-musl/release/lambda .
+
+# steal the CA certs from our builder in production
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
 USER 1000
 
 ENV ROCKET_ADDRESS=0.0.0.0
