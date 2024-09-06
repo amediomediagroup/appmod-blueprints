@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rust-app
+  namespace: argo-rollouts  # TODO: Change this before going to workshop
+spec:
+  selector:
+    app: rust-app
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: LoadBalancer

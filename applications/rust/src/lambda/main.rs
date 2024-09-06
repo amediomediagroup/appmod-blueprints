@@ -1,3 +1,5 @@
+#![allow(warnings)]
+
 mod services;
 mod types;
 mod utils;

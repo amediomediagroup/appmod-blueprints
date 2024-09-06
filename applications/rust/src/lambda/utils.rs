@@ -92,37 +92,37 @@ struct TracingFairing;
 
 pub struct TracingSpan<T = Span>(T);
 
-#[async_trait]
-impl Fairing for TracingFairing {
-    fn info(&self) -> Info {
-        Info {
-            name: "Tracing Fairing",
-            kind: Kind::Request | Kind::Response
-        }
-    }
-
-    async fn on_ignite(&self, rocket: Rocket<Build>) -> rocket::fairing::Result {
-        global::set_text_map_propagator(TraceContextPropagator::new());
-        let span_processor: BatchSpanProcessor<String> = BatchSpanProcessorBuilder;
-        
-        let provider = TracerProvider::builder()
-            .with_batch_exporter()
-            .build();
-        global::set_tracer_provider(provider);
-    }
-
-    async fn on_request(&self, request: &Request, _: &mut Response) {
-        
-    }
-
-    async fn on_response(&self, request: &Request, response: &mut Response) {
-        if let Some(mut span) = request.local_cache(|| None::<dyn opentelemetry::trace::Span>) {
-            span.end();
-        }
-    }
-
-    async fn on_shutdown(&self, _rocket: &Rocket<Orbit>) {
-        todo!()
-    }
-}
+// #[async_trait]
+// impl Fairing for TracingFairing {
+//     fn info(&self) -> Info {
+//         Info {
+//             name: "Tracing Fairing",
+//             kind: Kind::Request | Kind::Response
+//         }
+//     }
+//
+//     async fn on_ignite(&self, rocket: Rocket<Build>) -> rocket::fairing::Result {
+//         global::set_text_map_propagator(TraceContextPropagator::new());
+//         let span_processor: BatchSpanProcessor<String> = BatchSpanProcessorBuilder;
+//
+//         let provider = TracerProvider::builder()
+//             .with_batch_exporter()
+//             .build();
+//         global::set_tracer_provider(provider);
+//     }
+//
+//     async fn on_request(&self, request: &Request, _: &mut Response) {
+//
+//     }
+//
+//     async fn on_response(&self, request: &Request, response: &mut Response) {
+//         if let Some(mut span) = request.local_cache(|| None::<dyn opentelemetry::trace::Span>) {
+//             span.end();
+//         }
+//     }
+//
+//     async fn on_shutdown(&self, _rocket: &Rocket<Orbit>) {
+//         todo!()
+//     }
+// }
 
