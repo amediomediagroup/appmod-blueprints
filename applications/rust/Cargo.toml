@@ -24,7 +24,7 @@ path = "src/setup/main.rs"
 
 [[bin]]
 name = "integration"
-path = "src/integration/main.rs"
+path = "integration/main.rs"
 
 
 [dependencies]

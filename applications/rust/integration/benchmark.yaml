@@ -1,5 +1,5 @@
 config:
-  target: ""
+  target: "http://127.0.0.1:80" #TODO: Override with artillery command
   phases:
     - duration: 15
       arrivalRate: 1
@@ -30,22 +30,17 @@ config:
     thresholds:
       - http.response_time.p99: 100
       - http.response_time.p95: 75
-scenarios:
-  - name: Add and remove from the cart
-    flow:
-      -loop:
-        - post:
-            url: '/cart/create_cart'
-            json: '{{ $randomUUID() }}'
-            capture:
-              - json: "$.sort_key"
-                as: id
-        - get:
-            url: '/cart/get_cart/{{ id }}'
-        - post:
-            url: '/cart/add_to_cart/{{ id }}'
-            json:
-        - post:
-            url: '/cart/remove_from_cart/{{ id }}'
-  - name: Navigate around the website
 
+scenarios:
+  - name: "Navigate Menus"
+    flow:
+      - get:
+          url: "/"
+      - get:
+          url: "/category/FRONT_PAGE/products"
+      - post:
+          url: "/products/"
+          json: "shirt"
+      - post:
+          url: "/products/"
+          json: "keyboard"
