@@ -1,0 +1,82 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: microservices
+  title: MicroServices
+  description: Creates a new Gitea Repo and ArgocCD for deploying a microservice
+  tags:
+    - microservices
+    - gitea
+    - argocd
+spec:
+  owner: platform-team
+  type: service
+  parameters:
+    - title: Provide Microservice Information
+      required:
+        - microservice_name
+        - environment
+      properties:
+        microservice_name:
+          title: Microservice Name
+          type: string
+          description: Name of the microservice
+        environment:
+          title: Environment
+          type: string
+          description: The environment (e.g., dev, prod)
+          enum: ['dev', 'prod']
+        gitRepo:
+          title: Git Repository Needed
+          type: boolean
+          description: Do you need a git repo?
+          default: true
+        argocdApp:
+           title: Argocd App Needed
+          type: boolean
+          description: Do you need an argocd app?
+          default: true
+  steps:
+    - id: template
+      name: Fetch Skeleton + Template
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          microservice_name: ${{ parameters.microservice_name }}
+          environment: ${{ parameters.environment }}
+    - id: publish
+      name: Publishing to a gitea git repository
+      action: publish:gitea
+      input:
+        description: Microservice ${{parameters.microservice_name}} for ${{parameters.environment}}
+        repoUrl: ${{parameters.repoUrl}}?repo=${{parameters.name}}
+        defaultBranch: main
+    - id: create-argocd-app
+      name: Create ArgoCD App
+      action: cnoe:create-argocd-app
+      input:
+        appName: ${{parameters.name}}
+        argoInstance: in-cluster
+        projectName: default
+        repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.name}}
+        path: "manifests"
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
+    - id: template-output
+      name: Template Output
+      action: debug:log
+      input:
+        listWorkspace: true
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
