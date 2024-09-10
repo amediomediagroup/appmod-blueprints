@@ -1,0 +1,12 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: s3-bucket-${{values.bucket_name}}
+  description: S3 Bucket for ${{ values.bucket_name }}
+  annotations:
+    backstage.io/kubernetes-namespace: ${{values.namespace}}
+spec:
+  type: s3-bucket
+  lifecycle: experimental
+  owner: guest
+  system: ${{values.name | dump}}
