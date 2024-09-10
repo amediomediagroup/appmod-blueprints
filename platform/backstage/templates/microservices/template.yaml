@@ -1,8 +1,8 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: microservices-with-repo-template
-  title: MicroServices with Repo
+  name: microservices
+  title: MicroServices
   description: Creates a new Gitea Repo and ArgocCD for deploying a microservice
   tags:
     - microservices
@@ -12,40 +12,27 @@ spec:
   owner: platform-team
   type: service
   parameters:
-    - title: Provide S3 Bucket Information
+    - title: Provide Microservice Information
       required:
-        - microservice_name
+        - microserviceName
         - environment
-        - region
+        - repoName
       properties:
-        microservice_name:
-          title: Bucket Name
+        microserviceName:
+          title: Microservice Name
           type: string
-          description: Name of the S3 bucket
+          description: Name of the microservice
         environment:
           title: Environment
           type: string
           description: The environment (e.g., dev, prod)
           enum: ['dev', 'prod']
-        provider:
-          title: Provider
+        repoName:
+          title: Repo URL of your Gitea Repo integrated with Backstage
           type: string
-          description: Provider Configuration
-          default: default
-        region:
-          title: Region
-          type: string
-          description: AWS region for the S3 bucket
-          default: us-west-2
-        namespace:
-          default: default
-          title: Existing namespace to create this resource
-          type: string
-        configuration:
-          default: standard
-          title: Configuration of your S3 Bucket
-          type: string
-          enum: ['standard', 'intelligent-tiering']
+          pattern: ^[a-zA-Z0-9-_.]+$
+  steps:
+    - id: fetch-base
   steps:
     - id: template
       name: Fetch Skeleton + Template
@@ -53,18 +40,24 @@ spec:
       input:
         url: ./skeleton
         values:
-          provider: ${{ parameters.provider }}
-          bucket_name: ${{ parameters.bucket_name }}
+          microservice_name: ${{ parameters.microserviceName }}
           environment: ${{ parameters.environment }}
-          region: ${{ parameters.region }}
     - id: publish
-      name: Publish
-      action: publish:github
+      name: Publishing to a gitea git repository
+      action: publish:gitea
       input:
-        allowedHosts: ['github.com']
-        description: This is ${{ parameters.bucket_name }}
-        repoUrl: 'github.com?owner=platform-team&repo=${{ parameters.bucket_name }}'
-        repoVisibility: private
+        description: Microservice ${{parameters.microserviceName}} for ${{parameters.environment}}
+        repoUrl: ${{parameters.repoUrl}}?repo=${{parameters.repoName}}
+        defaultBranch: main
+    - id: create-argocd-app
+      name: Create ArgoCD App
+      action: cnoe:create-argocd-app
+      input:
+        appName: ${{parameters.microserviceName}}
+        argoInstance: in-cluster
+        projectName: default
+        repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.repoName}}
+        path: "manifests"
     - id: register
       name: Register
       action: catalog:register

@@ -1,12 +1,12 @@
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
-  name: s3-bucket-${{values.bucket_name}}
-  description: S3 Bucket for ${{ values.bucket_name }}
+  name: microservice-${{values.microserviceName}}
+  description: Microservice for ${{values.microserviceName}}
   annotations:
-    backstage.io/kubernetes-namespace: ${{values.namespace}}
+    backstage.io/kubernetes-namespace: backstage
 spec:
-  type: s3-bucket
+  type: micro-service
   lifecycle: experimental
   owner: guest
-  system: ${{values.name | dump}}
+  system: ${{values.microserviceName | dump}}
