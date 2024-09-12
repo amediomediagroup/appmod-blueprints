@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: rust-app-svc
+  name: rust-app-svc  # rust-app-svc.argo-rollouts.svc.cluster.local
   namespace: argo-rollouts  # TODO: Change this before going to workshop
 spec:
   selector:

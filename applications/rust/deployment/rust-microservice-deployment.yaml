@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: rust-app
+  name: rust-app-deployment
   namespace: argo-rollouts  # TODO: Change this before going to workshop
 spec:
   replicas: 3

@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: rust-svc-load-test
+  namespace: argo-rollouts
   labels:
     workload: rust-svc-test
 spec:
@@ -9,4 +10,4 @@ spec:
     - name: artillery-container
       image: 913524909446.dkr.ecr.us-west-2.amazonaws.com/test/rust-svc
       # <service-name>.<namespace>.svc.cluster.local:<service-port>
-      command: ["run", "run", "-t rust-app-svc.argo-rollouts.svc.cluster.local:80", "/scripts/benchmark.yaml"]
+      command: ["run", "run", "-t", "http://rust-apps-svc.argo-rollouts.svc.cluster.local", "/scripts/benchmark.yaml"]
