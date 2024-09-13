@@ -7,3 +7,7 @@ spec:
   targets:
     - ./rds-cluster/template.yaml
     - ./s3-bucket/template.yaml
+    - ./microservices/template.yaml
+    - ./microservices-with-repo/template.yaml
+
+
