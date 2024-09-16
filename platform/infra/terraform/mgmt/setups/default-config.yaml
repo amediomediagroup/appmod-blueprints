@@ -20,3 +20,6 @@ enable_external_secret: true
 
 # If set to true will apply flux and tofu manifests to allow deploying terraform resources from backstage.
 enable_terraform_integrations: true
+
+# If set to true will apply spark and ray operators to allow deploying of AI/ML applications from backstage.
+enable_aiml_integrations: true
