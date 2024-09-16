@@ -79,7 +79,7 @@ module "managed_grafana" {
   saml_org_assertion      = "org"
   saml_role_assertion     = "role"
   # Dummy values for SAML configuration to setup will be updated after keycloak integration
-  saml_idp_metadata_url   = "https://my_idp_metadata.url"
+  saml_idp_metadata_url   = var.grafana_keycloak_idp_url
 
   tags = local.tags
 }

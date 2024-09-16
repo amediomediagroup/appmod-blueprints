@@ -120,7 +120,7 @@ EOF
 cat >/tmp/realm.json <<EOF\n$(echo -e "$REALM_JSON")\nEOF\n
 while true; do\n
     cd /opt/keycloak/bin/\n
-    ./kcadm.sh config credentials --server http://localhost:8080/ --realm master --user cnoe-admin --password $KEYCLOAK_ADMIN_PASSWORD --config /tmp/kcadm.config\n
+    ./kcadm.sh config credentials --server http://localhost:8080/keycloak --realm master --user cnoe-admin --password $KEYCLOAK_ADMIN_PASSWORD --config /tmp/kcadm.config\n
     ./kcadm.sh update realms/master -s sslRequired=NONE --config /tmp/kcadm.config\n
     ./kcadm.sh create realms -f /tmp/realm.json --config /tmp/kcadm.config\n
     USER_ID=\$(./kcadm.sh get users -r $KEYCLOAK_REALM -q username=admin --fields id --config /tmp/kcadm.config 2>/dev/null | cut -d' ' -f5 | cut -d'\"' -f2 | tr -d '\\\n')\n
@@ -160,7 +160,7 @@ function update_workspace_saml_auth() {
   ELB_HOSTNAME=$(kubectl get ingress \
               -n $KEYCLOAK_NAMESPACE \
               -o json 2> /dev/null| jq -r '.items[] | .spec.rules[] | .host as $host  | ( $host + .path)' | sort | grep -v ^/)
-  SAML_URL=https://$ELB_HOSTNAME/realms/$KEYCLOAK_REALM/protocol/saml/descriptor
+  SAML_URL=http://$ELB_HOSTNAME/keycloak/realms/$KEYCLOAK_REALM/protocol/saml/descriptor
   EXPECTED_SAML_CONFIG=$(cat <<EOF | jq --sort-keys -r '.'
 {
   "assertionAttributes": {

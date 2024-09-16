@@ -19,11 +19,60 @@ provider "aws" {
   region = var.aws_region
 }
 
-module "eks_prod_cluster_with_vpc" {
-  source  = "../terraform-aws-observability-accelerator/examples/eks-cluster-with-vpc"
-  aws_region = var.aws_region
-  cluster_name = var.cluster_name
+locals {
+  tags = {
+    Blueprint  = var.cluster_name
+    GithubRepo = "github.com/aws-observability/terraform-aws-observability-accelerator"
+  }
 }
+
+#---------------------------------------------------------------
+# EKS Blueprints
+#---------------------------------------------------------------
+
+module "eks_blueprints_prod" {
+  source = "github.com/aws-ia/terraform-aws-eks-blueprints?ref=v4.32.1"
+
+  cluster_name    = var.cluster_name
+  cluster_version = var.eks_version
+
+  vpc_id             = var.vpc_id
+  private_subnet_ids = var.vpc_private_subnets
+
+  managed_node_groups = {
+    mg_5 = {
+      node_group_name = "managed-ondemand"
+      instance_types  = [var.managed_node_instance_type]
+      min_size        = var.managed_node_min_size
+      subnet_ids      = var.vpc_private_subnets
+    }
+  }
+
+  tags = local.tags
+}
+
+module "eks_blueprints_kubernetes_addons" {
+  source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/kubernetes-addons?ref=v4.32.1"
+
+  eks_cluster_id       = module.eks_blueprints_prod.eks_cluster_id
+  eks_cluster_endpoint = module.eks_blueprints_prod.eks_cluster_endpoint
+  eks_oidc_provider    = module.eks_blueprints_prod.oidc_provider
+  eks_cluster_version  = module.eks_blueprints_prod.eks_cluster_version
+
+  # EKS Managed Add-ons
+  enable_amazon_eks_vpc_cni            = true
+  enable_amazon_eks_coredns            = true
+  enable_amazon_eks_kube_proxy         = true
+  enable_amazon_eks_aws_ebs_csi_driver = true
+
+  tags = local.tags
+}
+
+# module "eks_prod_cluster_with_vpc" {
+#   source  = "../terraform-aws-observability-accelerator/examples/eks-cluster-with-vpc"
+#   aws_region = var.aws_region
+#   cluster_name = var.cluster_name
+# }
 
 # module "eks_prod_observability_accelerator" {
 #   source  = "../terraform-aws-observability-accelerator/examples/existing-cluster-with-base-and-infra"
@@ -36,7 +85,7 @@ module "eks_prod_cluster_with_vpc" {
 
 module "eks_prod_monitoring" {
   source                 = "../terraform-aws-observability-accelerator/modules/eks-monitoring"
-  eks_cluster_id         = module.eks_prod_cluster_with_vpc.eks_cluster_id
+  eks_cluster_id         = module.eks_blueprints_prod.eks_cluster_id
   enable_amazon_eks_adot = true
   enable_cert_manager    = true
   enable_java            = true
@@ -52,6 +101,7 @@ module "eks_prod_monitoring" {
   # Disable additional dashboards
   enable_apiserver_monitoring  = false
   enable_adotcollector_metrics = false
+  enable_nvidia_monitoring     = false
 
   # grafana_api_key = var.grafana_api_key
   # grafana_url     = "https://${data.aws_grafana_workspace.prod_amg_ws.endpoint}"
@@ -79,11 +129,11 @@ data "aws_prometheus_workspace" "prod_amp_ws" {
 }
 
 data "aws_eks_cluster_auth" "prod_cluster_auth" {
-  name = module.eks_prod_cluster_with_vpc.eks_cluster_id
+  name = module.eks_blueprints_prod.eks_cluster_id
 }
 
 data "aws_eks_cluster" "prod_cluster_name" {
-  name = module.eks_prod_cluster_with_vpc.eks_cluster_id
+  name = module.eks_blueprints_prod.eks_cluster_id
 }
 
 provider "kubernetes" {
