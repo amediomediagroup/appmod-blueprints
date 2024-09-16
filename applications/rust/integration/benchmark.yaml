@@ -7,14 +7,14 @@ config:
       name: Warm up
     - duration: 30
       arrivalRate: 10
-      rampTo: 30
+      rampTo: 100
       name: Burn
     - duration: 60
-      arrivalRate: 30
+      arrivalRate: 100
       name: Sustained
     - duration: 15
-      arrivalRate: 20
-      rampTo: 50
+      arrivalRate: 100
+      rampTo: 500
       name: Spike
     - duration: 20
       arrivalRate: 100
@@ -35,7 +35,7 @@ scenarios:
   - name: "Navigate Menus"
     flow:
       - get:
-          url: "/category/FRONT_PAGE/products"
+          url: "/collection/FRONT_PAGE"
       - post:
           url: "/products/"
           json: "Shirt"

@@ -1,4 +1,4 @@
-#[path = "../lambda/types.rs"]
+#[path = "../api/types.rs"]
 mod types;
 
 use crate::types::{Category, Image, Product, ProductOption, ProductVariant};

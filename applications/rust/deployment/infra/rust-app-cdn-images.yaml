@@ -1,0 +1,2 @@
+apiVersion: cloudfront.aws.crossplane.io/v1beta1
+kine:

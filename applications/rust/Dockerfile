@@ -17,17 +17,17 @@ RUN apt update && apt install -y musl-tools musl-dev build-essential gcc-x86-64-
 RUN rustup target add x86_64-unknown-linux-musl
 
 COPY Cargo.toml Cargo.lock ./
-COPY src/lambda/ ./src/lambda/
+COPY src/api/ ./src/api/
 
 # Required for Rocket
 RUN update-ca-certificates
 
-RUN cargo build --bin lambda --target x86_64-unknown-linux-musl --release && exit 0
+RUN cargo build --bin api --target x86_64-unknown-linux-musl --release && exit 0
 
 # Copy the statically-linked binary into a scratch container.
 FROM scratch
 
-COPY --from=build /usr/app/target/x86_64-unknown-linux-musl/release/lambda .
+COPY --from=build /usr/app/target/x86_64-unknown-linux-musl/release/api .
 
 # steal the CA certs from our builder in production
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
