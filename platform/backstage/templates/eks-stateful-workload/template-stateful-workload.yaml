@@ -1,7 +1,7 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  description: Creates an EKS Cluster with Stateful Workload
+  description: Creates EKS Cluster with Stateful Workload
   name: eks-stateful-workload
   title: EKS Cluster with Stateful Workload
 spec:
