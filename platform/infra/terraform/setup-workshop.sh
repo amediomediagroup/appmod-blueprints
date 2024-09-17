@@ -142,8 +142,6 @@ terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
 -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
 # Change IAM Access Configs for DEV Cluster
-# aws cli command to get eks cluster config 
-
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_dev_cluster_name
 export DEV_ACCESS_CONF= $(aws eks describe-cluster  --region $TF_VAR_aws_region --name $TF_VAR_dev_cluster_name --query 'cluster.accessConfig' --output text)
 

@@ -2,7 +2,6 @@ private
 .DS_Store
 .idea
 .build
-config.yaml
 
 # Local .terraform directories
 **/.terraform/*
