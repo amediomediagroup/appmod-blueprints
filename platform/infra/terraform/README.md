@@ -6,6 +6,14 @@
 - Terraform CLI
 - kubectl
 
+To setup the environment goto the following path and run the script. The script works only from the root directory.
+
+```bash
+cd /appmod-blueprints/platform/infra/terraform
+./setup-workshop.sh
+
+```
+
 The script setup-workshop.sh does the following:
 
 - Create the EKS management cluster where IDP Builder will be deployed
@@ -27,7 +35,7 @@ Outputs will provide the details of URLs that are needed to access the core serv
 
 To deploy sample app, refer to prod-public-apps.yaml to deploy applications. Ensure the destination is mapped to the correct target cluster (dev-cluster or prod-cluster).
 
-Ensure the target cluster is mapped to the local management cluster and only the target cluster (Dev or Prod) is updated on the actual applications that will have the running applications. Example refer to to argo-examples folders to deploy applications or app-of-apps from public repo or integrated Gitea.
+Ensure the target cluster is mapped to the local management cluster and only the target cluster (Dev or Prod) is updated on the actual applications that will have the running applications. For Examples,refer to argo-examples folders to deploy applications or app-of-apps from public repo or integrated Gitea.
 
 
 # Terraform Destroy
