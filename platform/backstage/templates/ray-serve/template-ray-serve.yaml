@@ -1,7 +1,7 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  description: Creates Ray Service on Kubernetes
+  description: Creates Ray Serving on Kubernetes
   name: ray-serve-kubernetes
   title: Ray Service on Kubernetes
 spec:
