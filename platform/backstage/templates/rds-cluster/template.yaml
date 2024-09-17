@@ -1,7 +1,7 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  description: Creates an Amazon RDS Database with CrossPlane
+  description: Creates Amazon RDS Database with CrossPlane
   name: db-cluster-rds
   title: Creates an Amazon RDS Database
 spec:
