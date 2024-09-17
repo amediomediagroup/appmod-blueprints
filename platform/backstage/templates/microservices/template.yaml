@@ -1,7 +1,7 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: microservices
+  name: microservices-with-git-repo
   title: MicroServices
   description: Creates a new Gitea Repo and ArgocCD for deploying a microservice
   tags:
