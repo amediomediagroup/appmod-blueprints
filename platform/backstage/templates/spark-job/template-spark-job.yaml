@@ -1,7 +1,7 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  description: Creates a Basic Kubernetes Deployment
+  description: Creates a Kubernetes Spark Job
   name: argo-workflows-spark-job
   title: Basic Argo Workflow with a Spark Job
 spec:
