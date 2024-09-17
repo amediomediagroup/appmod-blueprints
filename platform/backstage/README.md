@@ -18,6 +18,15 @@ This repo has following backstage templates which can be plugged in to your Inte
 - `spark-on-eks` backstage template enables you to deploy an EKS cluster with Spark operator to run Spark jobs.
 
 Some of above patterns require you to install `crossplane`, `flux`, `tofu-controller`, `ray`, `spark` operators. If you have setup your backstage environment using our [AppMod Blueprints reference implementation on EKS](https://github.com/aws-samples/appmod-blueprints/tree/feature/modern-engg-integratedflow), you should be all set.
+You can import these backstage templates manually via backstage console or you also use below config in `backstage-config` configmap.
+
+```yaml
+        - type: url
+          target: https://github.com/aws-samples/appmod-blueprints/blob/main/platform/backstage/templates/catalog-info.yaml
+          rules:
+            - allow: [User, Group]
+```
+
 Alternative you can also use the below setup if you are using `idpbuilder`.
 
 ## 🏃‍♀️ Prerequisites
