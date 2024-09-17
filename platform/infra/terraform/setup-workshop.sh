@@ -143,10 +143,10 @@ terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
 
 # Change IAM Access Configs for DEV Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_dev_cluster_name
-export DEV_ACCESS_CONF= $(aws eks describe-cluster  --region $TF_VAR_aws_region --name $TF_VAR_dev_cluster_name --query 'cluster.accessConfig' --output text)
+export DEV_ACCESS_CONF=$(aws eks describe-cluster --region $TF_VAR_aws_region --name $TF_VAR_dev_cluster_name --query 'cluster.accessConfig' --output text)
 
-if [ "$DEV_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]; then
-    echo "Changing IAM access configs for DEV cluster";
+if [[ "$DEV_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
+    echo "Changing IAM access configs for DEV cluster: $DEV_ACCESS_CONF";
     aws eks update-cluster-config  --region $TF_VAR_aws_region --name ${TF_VAR_dev_cluster_name} --access-config authenticationMode=API_AND_CONFIG_MAP
 fi
 
@@ -167,12 +167,11 @@ terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
 
 # Change IAM Access Configs for PROD Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_prod_cluster_name
-export PROD_ACCESS_CONF= $(aws eks describe-cluster  --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --query 'cluster.accessConfig' --output text)
-if [ "$PROD_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]; then
-    echo "Changing IAM access configs for PROD cluster"
-    aws eks update-cluster-config  --region $TF_VAR_aws_region --name "${TF_VAR_prod_cluster_name}" --access-config authenticationMode=API_AND_CONFIG_MAP
+export PROD_ACCESS_CONF=$(aws eks describe-cluster --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --query 'cluster.accessConfig' --output text)
+if [[ "$PROD_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
+    echo "Changing IAM access configs for PROD cluster: $PROD_ACCESS_CONF"
+    aws eks update-cluster-config  --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP
 fi
-
 
 # Reconnect back to Management Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluster_name
