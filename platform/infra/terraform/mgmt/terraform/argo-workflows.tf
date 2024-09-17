@@ -71,8 +71,8 @@ resource "terraform_data" "argo_workflows_keycloak_setup" {
 
   provisioner "local-exec" {
     command = "./install.sh"
-
     working_dir = "${path.module}/scripts/argo-workflows"
+    
     environment = {
       "ARGO_WORKFLOWS_REDIRECT_URL" = "${local.argo_redirect_url}"
     }

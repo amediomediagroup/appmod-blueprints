@@ -30,7 +30,7 @@ if [ -z "${TF_VAR_aws_region}" ]; then
     export TF_VAR_aws_region="us-west-2"
 fi
 
-REPO_ROOT=$(git rev-parse --show-toplevel)
+export REPO_ROOT=$(git rev-parse --show-toplevel)
 source ${REPO_ROOT}/platform/infra/terraform/setup-keycloak.sh
 
 # Deploy the base cluster with prerequisites like ArgoCD and Ingress-nginx
@@ -43,7 +43,6 @@ export DNS_HOSTNAME=$(kubectl get service  ingress-nginx-controller -n ingress-n
 sed -e "s/INGRESS_DNS/${DNS_HOSTNAME}/g" ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/default-config.yaml > ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/config.yaml
 
 # Deploy the apps on IDP Builder and ArgoCD
-
 ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/install.sh
 
 cd ${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/mgmt-cluster/
@@ -166,8 +165,13 @@ terraform -chdir=post-deploy init -reconfigure -backend-config="key=post/argocd-
 -backend-config="region=$TF_VAR_aws_region" \
 -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
-# Apply the infrastructure changes to deploy EKS DEV cluster and install EKS observability Accelerator
-terraform -chdir=post-deploy apply -var aws_region="${TF_VAR_aws_region}" -auto-approve
+export TF_VAR_GITEA_URL="https://${DNS_HOSTNAME}/gitea/"
+
+# Apply the changes for ArgoConnect and Codebuild project for clusters
+terraform -chdir=post-deploy apply -var aws_region="${TF_VAR_aws_region}" \
+-var mgmt_cluster_gitea_url="${TF_VAR_GITEA_URL}" \
+-var dev_cluster_name="${TF_VAR_dev_cluster_name}" \
+-var prod_cluster_name="${TF_VAR_prod_cluster_name}" -auto-approve
 
 echo "Terraform execution completed"
 

@@ -13,6 +13,7 @@ The script setup-workshop.sh does the following:
 - Deploys core tools needed on ArgoCD like Gitea, backstage etc.,
 - Deploys the DEV and PROD EKS clusters with all tools including observability and integration with Amazon Managed Grafana.
 - Automatically add the DEV and PROD clusters to the ArgoCD integration.
+- Setup Codebuild project which can be integrated with backstage.
 
 Set Cluster and region using environment variables. Example below:
 export TF_VAR_cluster_name=dev-platform
@@ -20,11 +21,14 @@ export TF_VAR_aws_region=us-west-2
 
 Note: Setup takes up to 1-2 hours to complete. Ensure IAM role/token do not time out during the changes. If timed out,please re-run the script.
 
+Outputs will provide the details of URLs that are needed to access the core services including Amazon Managed Grafana.
+
 # Setup Application
 
 To deploy sample app, refer to prod-public-apps.yaml to deploy applications. Ensure the destination is mapped to the correct target cluster (dev-cluster or prod-cluster).
 
-Ensure the target cluster is mapped to the local management cluster and only the target cluster (Dev or Prod) is updated on the actual applications that will have the running applications.
+Ensure the target cluster is mapped to the local management cluster and only the target cluster (Dev or Prod) is updated on the actual applications that will have the running applications. Example refer to to argo-examples folders to deploy applications or app-of-apps from public repo or integrated Gitea.
+
 
 # Terraform Destroy
 

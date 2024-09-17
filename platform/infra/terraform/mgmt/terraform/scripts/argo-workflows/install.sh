@@ -2,6 +2,7 @@
 set -e -o pipefail
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
+MODERN_ROOT=${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/
 
 kubectl wait --for=jsonpath=.status.health.status=Healthy -n argocd application/keycloak
 kubectl wait --for=condition=ready pod -l app=keycloak -n keycloak  --timeout=30s
@@ -26,11 +27,11 @@ KEYCLOAK_TOKEN=$(curl -sS  --fail-with-body -X POST -H "Content-Type: applicatio
 --data-urlencode "client_id=admin-cli" \
 localhost:8090/keycloak/realms/master/protocol/openid-connect/token | jq -e -r '.access_token')
 
-envsubst < config-payloads/client-payload.json > config-payloads/client-payload-to-be-applied.json
+envsubst < ${MODERN_ROOT}/scripts/argo-workflows/config-payloads/client-payload.json > ${MODERN_ROOT}/scripts/argo-workflows/config-payloads/client-payload-to-be-applied.json
 
 curl -sS -H "Content-Type: application/json" \
 -H "Authorization: bearer ${KEYCLOAK_TOKEN}" \
--X POST --data @config-payloads/client-payload-to-be-applied.json \
+-X POST --data @${MODERN_ROOT}/scripts/argo-workflows/config-payloads/client-payload-to-be-applied.json \
 localhost:8090/keycloak/admin/realms/cnoe/clients
 
 CLIENT_ID=$(curl -sS -H "Content-Type: application/json" \
@@ -47,10 +48,10 @@ curl -sS -H "Content-Type: application/json" -H "Authorization: bearer ${KEYCLOA
 
 echo 'storing client secrets to argo namespace'
 
-envsubst < secret-sso.yaml | kubectl apply -f -
+envsubst < ${MODERN_ROOT}/scripts/argo-workflows/secret-sso.yaml | kubectl apply -f -
 
 # If TLS secret is available in /private, use it. Could be empty...
-if ls ${REPO_ROOT}/private/argo-workflows-tls-backup-* 1> /dev/null 2>&1; then
-    TLS_FILE=$(ls -t ${REPO_ROOT}/private/argo-workflows-tls-backup-* | head -n1)
+if ls ${MODERN_ROOT}/private/argo-workflows-tls-backup-* 1> /dev/null 2>&1; then
+    TLS_FILE=$(ls -t ${MODERN_ROOT}/private/argo-workflows-tls-backup-* | head -n1)
     kubectl apply -f ${TLS_FILE}
 fi

@@ -2,6 +2,7 @@
 set -e -o pipefail
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
+cd ${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/scripts/backstage
 
 export POSTGRES_PASSWORD=${1}
 export DOMAIN_NAME=${2}

@@ -2,21 +2,22 @@
 set -e -o pipefail
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
+MODERN_ROOT=${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/
 NAMESPACE="argo"
 LABEL_SELECTOR="controller.cert-manager.io/fao=true"
 NAME=argo-workflows
 
 
-echo "backing up TLS secrets to ${REPO_ROOT}/private"
+echo "backing up TLS secrets to ${MODERN_ROOT}/private"
 
-mkdir -p ${REPO_ROOT}/private
+mkdir -p ${MODERN_ROOT}/private
 secrets=$(kubectl get secrets -n ${NAMESPACE} -l ${LABEL_SELECTOR} --ignore-not-found)
 
 if [[ ! -z "${secrets}" ]]; then
-    kubectl get secrets -n ${NAMESPACE} -l ${LABEL_SELECTOR} -o yaml > ${REPO_ROOT}/private/${NAME}-tls-backup-$(date +%s).yaml
+    kubectl get secrets -n ${NAMESPACE} -l ${LABEL_SELECTOR} -o yaml > ${MODERN_ROOT}/private/${NAME}-tls-backup-$(date +%s).yaml
 fi
 
-kubectl delete -f secret-sso.yaml || true
+kubectl delete -f ${MODERN_ROOT}/scripts/argo-workflows/secret-sso.yaml || true
 
 ADMIN_PASSWORD=$(kubectl get secret -n keycloak keycloak-config -o go-template='{{index .data "KEYCLOAK_ADMIN_PASSWORD" | base64decode}}')
 
