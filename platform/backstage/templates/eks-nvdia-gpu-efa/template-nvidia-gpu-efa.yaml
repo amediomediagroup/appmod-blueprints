@@ -1,7 +1,7 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  description: Creates a NVDIA GPU EFA Infrastructure on EKS
+  description: Creates NVDIA GPU EFA Infrastructure on EKS
   name: eks-nvdia-gpu-efa
   title: EKS - NVDIA GPU EFA Infrastructure
 spec:
