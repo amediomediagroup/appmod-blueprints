@@ -31,6 +31,41 @@ resource "aws_iam_role_policy" "modernengg-codebuild-policy-role" {
   policy = data.aws_iam_policy_document.modernengg-codebuild-policy.json
 }
 
+# EKS code build access entry for the Dev cluster
+
+resource "aws_eks_access_entry" "dev_cluster_access_entry" {
+  cluster_name      = var.dev_cluster_name
+  principal_arn     = aws_iam_role.modernengg-codebuild-role.arn
+  type              = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "dev_cluster_access_policy_assoc" {
+  cluster_name  = var.dev_cluster_name
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  principal_arn = aws_iam_role.modernengg-codebuild-role.arn
+
+  access_scope {
+    type       = "cluster"
+  }
+}
+
+# EKS code build access entry for the Prod cluster
+resource "aws_eks_access_entry" "prod_cluster_access_entry" {
+  cluster_name      = var.prod_cluster_name
+  principal_arn     = aws_iam_role.modernengg-codebuild-role.arn
+  type              = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "prod_cluster_access_policy_assoc" {
+  cluster_name  = var.prod_cluster_name
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  principal_arn = aws_iam_role.modernengg-codebuild-role.arn
+
+  access_scope {
+    type       = "cluster"
+  }
+}
+
 # CodeBuild project resource
 
 resource "aws_codebuild_project" "eks_install_script_project" {
