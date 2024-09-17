@@ -141,6 +141,10 @@ terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
 -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
 -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
+# Change IAM Access Configs for DEV Cluster
+aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_dev_cluster_name
+aws eks update-cluster-config --name $TF_VAR_dev_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP
+
 # Initialize backend for PROD cluster
 terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerator-vpc.tfstate" \
 -backend-config="bucket=$TF_VAR_state_s3_bucket" \
@@ -155,6 +159,10 @@ terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
 -var vpc_id="${TF_eks_cluster_vpc_id}" \
 -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
 -var grafana_api_key="${AMG_API_KEY}" -auto-approve
+
+# Change IAM Access Configs for DEV Cluster
+aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_prod_cluster_name
+aws eks update-cluster-config --name $TF_VAR_prod_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP
 
 # Reconnect back to Management Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluster_name
