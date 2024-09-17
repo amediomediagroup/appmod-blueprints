@@ -1,7 +1,7 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  description: Creates an EKS Cluster with Istio
+  description: Creates EKS Cluster with Istio
   name: eks-istio
   title: EKS Cluster with Istio
 spec:
