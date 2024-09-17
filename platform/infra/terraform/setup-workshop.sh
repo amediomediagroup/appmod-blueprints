@@ -142,8 +142,15 @@ terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
 -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
 # Change IAM Access Configs for DEV Cluster
+# aws cli command to get eks cluster config 
+
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_dev_cluster_name
-aws eks update-cluster-config --name $TF_VAR_dev_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP
+export DEV_ACCESS_CONF= $(aws eks describe-cluster  --region $TF_VAR_aws_region --name $TF_VAR_dev_cluster_name --query 'cluster.accessConfig' --output text)
+
+if [ "$DEV_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]; then
+    echo "Changing IAM access configs for DEV cluster";
+    aws eks update-cluster-config  --region $TF_VAR_aws_region --name ${TF_VAR_dev_cluster_name} --access-config authenticationMode=API_AND_CONFIG_MAP
+fi
 
 # Initialize backend for PROD cluster
 terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerator-vpc.tfstate" \
@@ -160,9 +167,14 @@ terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
 -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
 -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
-# Change IAM Access Configs for DEV Cluster
+# Change IAM Access Configs for PROD Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_prod_cluster_name
-aws eks update-cluster-config --name $TF_VAR_prod_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP
+export PROD_ACCESS_CONF= $(aws eks describe-cluster  --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --query 'cluster.accessConfig' --output text)
+if [ "$PROD_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]; then
+    echo "Changing IAM access configs for PROD cluster"
+    aws eks update-cluster-config  --region $TF_VAR_aws_region --name "${TF_VAR_prod_cluster_name}" --access-config authenticationMode=API_AND_CONFIG_MAP
+fi
+
 
 # Reconnect back to Management Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluster_name
