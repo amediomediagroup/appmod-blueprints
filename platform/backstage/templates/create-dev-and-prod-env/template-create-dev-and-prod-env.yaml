@@ -1,9 +1,9 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  description: Deploys dev and prod clusters
-  name: create-eks-cluster
-  title: Create EKS Clusters
+  description: Deploys dev and prod clusters on EKS
+  name: create-dev-and-prod-env
+  title: Create Dev and Prod Environment
 spec:
   owner: guest
   type: service
@@ -30,7 +30,7 @@ spec:
     - action: fetch:template
       id: fetch-base
       input:
-        url: ./templates-create-eks-cluster/
+        url: ./templates-create-dev-and-prod-env/
         values:
           name: ${{ parameters.name }}
           namespace: ${{ parameters.namespace }}

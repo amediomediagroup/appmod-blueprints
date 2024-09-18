@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: create-eks-cluster-${{values.name}}
+  name: create-dev-and-prod-env-${{values.name}}
   namespace: ${{values.namespace}}
 spec:
   template:
