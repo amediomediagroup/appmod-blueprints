@@ -21,8 +21,13 @@ spec:
             type: string
           description: Labels to apply to the application
           ui:autofocus: true
+        repoUrl:
+          title: Gitea URL
+          type: string
+          description: Gitea URL on Management cluster
       required:
         - name
+        - repoUrl
       title: Choose your repository location
     - description: Configure your DB Cluster
       properties:
@@ -89,6 +94,7 @@ spec:
         url: ./skeleton
         values:
           name: ${{parameters.name}}
+          repoUrl: ${{parameters.repoUrl}}
     - action: roadiehq:utils:serialize:yaml
       id: serialize
       input:
@@ -110,7 +116,7 @@ spec:
       action: publish:gitea
       input:
         description: This is an example app
-        repoUrl: cnoe.localtest.me:8443/gitea?repo=${{parameters.name}}
+        repoUrl: ${{parameters.repoUrl}}?repo=${{parameters.name}}
         defaultBranch: main
     - id: create-argocd-app
       name: Create ArgoCD App
