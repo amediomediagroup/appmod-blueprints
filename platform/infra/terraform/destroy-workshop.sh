@@ -127,7 +127,7 @@ terraform -chdir=prod destroy -var aws_region="${TF_VAR_aws_region}" \
 # aws s3 rm s3://$TF_VAR_state_s3_bucket --recursive
 
 # Destroy bootstrap Bucket, DynamoDB lock table, Amazon Managed Grafana and Amazon Managed Prometheus
-#terraform -chdir=bootstrap destroy -auto-approve
+terraform -chdir=bootstrap destroy -auto-approve
 
 
 # Cleanup the IDP Builder and applications
