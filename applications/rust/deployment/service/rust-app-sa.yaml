@@ -6,3 +6,12 @@ metadata:
   annotations:
     eks.amazonaws.com/role-arn: arn:aws:iam::913524909446:role/DynamoDBAccessRole
 
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rust-setup-sa
+  namespace: argo-rollouts
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::913524909446:role/DynamoDBAccessRole
