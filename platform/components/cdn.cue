@@ -8,6 +8,10 @@
     description: "AWS CloudFront distribution customized for serving images from S3"
     labels: {}
     type: "component"
+    parameter: {
+        region: string
+
+    }
 }
 
 template: {
@@ -31,7 +35,7 @@ template: {
                         spec: {
                             forProvider: {
                                 acl:    "private"
-                                region: context.region
+                                region: parameter.region
                             }
                             providerConfigRef: {
                                 name: "aws-provider"
