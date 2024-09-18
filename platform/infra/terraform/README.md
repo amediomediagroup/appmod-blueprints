@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- AWS CLI
+- AWS CLI 2.17+ (Needed for EKS Access Config)
 - Terraform CLI
 - kubectl
 

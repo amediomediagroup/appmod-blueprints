@@ -147,7 +147,7 @@ export DEV_ACCESS_CONF=$(aws eks describe-cluster --region $TF_VAR_aws_region --
 
 if [[ "$DEV_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
     echo "Changing IAM access configs for DEV cluster: $DEV_ACCESS_CONF";
-   # aws eks update-cluster-config  --region $TF_VAR_aws_region --name ${TF_VAR_dev_cluster_name} --access-config authenticationMode=API_AND_CONFIG_MAP
+    aws eks update-cluster-config  --region $TF_VAR_aws_region --name ${TF_VAR_dev_cluster_name} --access-config authenticationMode=API_AND_CONFIG_MAP
 fi
 
 # Initialize backend for PROD cluster
