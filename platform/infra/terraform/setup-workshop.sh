@@ -104,6 +104,9 @@ configure_keycloak
 # Update SAML Auth for Grafana Workspace
 update_workspace_saml_auth || true
 
+# Setup Gitea Repo
+${REPO_ROOT}/platform/infra/terraform/giteaInit.sh
+
 cd "${REPO_ROOT}/platform/infra/terraform/"
 
 # Bootstrap EKS Cluster using S3 bucket and DynamoDB
