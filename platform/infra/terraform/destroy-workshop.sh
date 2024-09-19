@@ -126,16 +126,6 @@ terraform -chdir=prod destroy -var aws_region="${TF_VAR_aws_region}" \
 # Empty the state bucket manually if needed. This is intentionally kept commented to protect the state files
 # aws s3 rm s3://$TF_VAR_state_s3_bucket --recursive
 
-# Destroy bootstrap Bucket, DynamoDB lock table, Amazon Managed Grafana and Amazon Managed Prometheus
-#terraform -chdir=bootstrap destroy -auto-approve
-
-
-# Cleanup the IDP Builder and applications
-${REPO_ROOT}/platform/infra/terraform/mgmt/setups/uninstall.sh
-
-# Cleanup the IDP EKS management cluster and prerequisites
-${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/mgmt-cluster/uninstall.sh
-
 # Destroy possible resources that may not be cleaned up by terraform
 
 aws secretsmanager delete-secret --secret-id "modern-engg/keycloak/config" --force-delete-without-recovery --region $TF_VAR_aws_region || true
@@ -144,8 +134,6 @@ LOAD_BALANCER_ARN=$(aws elbv2 describe-load-balancers --region $TF_VAR_aws_regio
 
 TARGET_GROUP_ARNS=$(aws elbv2 describe-target-groups --region $TF_VAR_aws_region --load-balancer-arn $LOAD_BALANCER_ARN --query 'TargetGroups[*].TargetGroupArn' --output text)
 
-#!/bin/bash
-
 # Split the target group ARNs into an array
 read -r -a TARGET_GROUP_ARN_ARRAY <<< "$TARGET_GROUP_ARNS"
 
@@ -153,10 +141,19 @@ read -r -a TARGET_GROUP_ARN_ARRAY <<< "$TARGET_GROUP_ARNS"
 for TARGET_GROUP_ARN in "${TARGET_GROUP_ARN_ARRAY[@]}"
 do
     echo "Deleting target group: $TARGET_GROUP_ARN"
-    aws elbv2 delete-target-group --region $TF_VAR_aws_region --target-group-arn $TARGET_GROUP_ARN || done
+    aws elbv2 delete-target-group --region $TF_VAR_aws_region --target-group-arn $TARGET_GROUP_ARN || true
 done
 
 aws elbv2 delete-load-balancer --region $TF_VAR_aws_region --load-balancer-arn $LOAD_BALANCER_ARN || true
+
+# Destroy bootstrap Bucket, DynamoDB lock table, Amazon Managed Grafana and Amazon Managed Prometheus
+terraform -chdir=bootstrap destroy -auto-approve
+
+# Cleanup the IDP Builder and applications
+${REPO_ROOT}/platform/infra/terraform/mgmt/setups/uninstall.sh
+
+# Cleanup the IDP EKS management cluster and prerequisites
+${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/mgmt-cluster/uninstall.sh
 
 echo "Terraform execution completed"
 
