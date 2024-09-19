@@ -104,9 +104,6 @@ configure_keycloak
 # Update SAML Auth for Grafana Workspace
 update_workspace_saml_auth || true
 
-# Setup Gitea Repo
-${REPO_ROOT}/platform/infra/terraform/giteaInit.sh
-
 cd "${REPO_ROOT}/platform/infra/terraform/"
 
 # Bootstrap EKS Cluster using S3 bucket and DynamoDB
@@ -177,7 +174,7 @@ if [[ "$PROD_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
 fi
 
 echo "Sleeping for 5 minutes to allow cluster to change auth mode"
-#sleep 300
+sleep 300
 
 # Reconnect back to Management Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluster_name
@@ -193,6 +190,9 @@ terraform -chdir=post-deploy init -reconfigure -backend-config="key=post/argocd-
 -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
 export TF_VAR_GITEA_URL="https://${DNS_HOSTNAME}/gitea/"
+
+# Setup Gitea Repo
+${REPO_ROOT}/platform/infra/terraform/giteaInit.sh
 
 # Apply the changes for ArgoConnect and Codebuild project for clusters
 terraform -chdir=post-deploy apply -var aws_region="${TF_VAR_aws_region}" \
