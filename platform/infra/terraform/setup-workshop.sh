@@ -191,14 +191,14 @@ terraform -chdir=post-deploy init -reconfigure -backend-config="key=post/argocd-
 
 export TF_VAR_GITEA_URL="https://${DNS_HOSTNAME}/gitea/"
 
-# Setup Gitea Repo
-${REPO_ROOT}/platform/infra/terraform/giteaInit.sh
-
 # Apply the changes for ArgoConnect and Codebuild project for clusters
 terraform -chdir=post-deploy apply -var aws_region="${TF_VAR_aws_region}" \
 -var mgmt_cluster_gitea_url="${TF_VAR_GITEA_URL}" \
 -var dev_cluster_name="${TF_VAR_dev_cluster_name}" \
 -var prod_cluster_name="${TF_VAR_prod_cluster_name}" -auto-approve
+
+# Setup Gitea Repo
+${REPO_ROOT}/platform/infra/terraform/giteaInit.sh
 
 echo "Terraform execution completed"
 
