@@ -18,10 +18,11 @@ The script setup-workshop.sh does the following:
 
 - Create the EKS management cluster where IDP Builder will be deployed
 - Installs ArgoCD, Ingress-Nginx and its pre-requisites.
-- Deploys core tools needed on ArgoCD like Gitea, backstage etc.,
+- Deploys core tools needed on ArgoCD like Gitea, Backstage, Argo Workflows etc.,
 - Deploys the DEV and PROD EKS clusters with all tools including observability and integration with Amazon Managed Grafana.
 - Automatically add the DEV and PROD clusters to the ArgoCD integration.
 - Setup Codebuild project which can be integrated with backstage.
+- Other components that are deployed in all 3 clusters include crossplane, KubeVela.
 
 Set Cluster and region using environment variables. Example below:
 export TF_VAR_cluster_name=dev-platform
