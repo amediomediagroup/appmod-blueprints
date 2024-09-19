@@ -176,10 +176,15 @@ if [[ "$PROD_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
     aws eks update-cluster-config  --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP
 fi
 
-sleep 300
+echo "Sleeping for 5 minutes to allow cluster to change auth mode"
+#sleep 300
 
 # Reconnect back to Management Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluster_name
+
+# Setup Applications on Clusters using ArgoCD on the management cluster
+# Setup Kubevela on Management,Dev and Prod clusters
+kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/argocd-apps/
 
 # Connect ArgoCD on MGMT cluster to DEV and PROD target clusters
 terraform -chdir=post-deploy init -reconfigure -backend-config="key=post/argocd-connect-vpc.tfstate" \
