@@ -57,13 +57,32 @@ module "eks_blueprints_kubernetes_addons" {
   eks_cluster_id       = module.eks_blueprints_dev.eks_cluster_id
   eks_cluster_endpoint = module.eks_blueprints_dev.eks_cluster_endpoint
   eks_oidc_provider    = module.eks_blueprints_dev.oidc_provider
-  eks_cluster_version  = module.eks_blueprints_dev.eks_cluster_version
+  eks_cluster_version  = module.eks_blueprints_dev.eks_cluster_version 
 
   # EKS Managed Add-ons
   enable_amazon_eks_vpc_cni            = true
   enable_amazon_eks_coredns            = true
   enable_amazon_eks_kube_proxy         = true
   enable_amazon_eks_aws_ebs_csi_driver = true
+  enable_crossplane                    = true
+
+  tags = local.tags
+}
+
+module "eks_blueprints_addons" {
+  source = "aws-ia/eks-blueprints-addons/aws"
+  version = "~> 1.16.3" #ensure to update this to the latest/desired version
+
+  cluster_name      = module.eks_blueprints_dev.eks_cluster_id
+  cluster_endpoint  = module.eks_blueprints_dev.eks_cluster_endpoint
+  cluster_version   = module.eks_blueprints_dev.eks_cluster_version
+  oidc_provider_arn = module.eks_blueprints_dev.eks_oidc_provider_arn
+
+  eks_addons = {
+    eks-pod-identity-agent = {
+      most_recent = true
+    }
+  }
 
   tags = local.tags
 }
