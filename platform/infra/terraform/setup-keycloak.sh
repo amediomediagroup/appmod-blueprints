@@ -120,7 +120,7 @@ EOF
 cat >/tmp/realm.json <<EOF\n$(echo -e "$REALM_JSON")\nEOF\n
 while true; do\n
     cd /opt/keycloak/bin/\n
-    ./kcadm.sh config credentials --server http://localhost:8080/keycloak --realm master --user cnoe-admin --password $KEYCLOAK_ADMIN_PASSWORD --config /tmp/kcadm.config\n
+    ./kcadm.sh config credentials --server http://localhost:8080/keycloak --realm master --user modernengg-admin --password $KEYCLOAK_ADMIN_PASSWORD --config /tmp/kcadm.config\n
     ./kcadm.sh update realms/master -s sslRequired=NONE --config /tmp/kcadm.config\n
     ./kcadm.sh create realms -f /tmp/realm.json --config /tmp/kcadm.config\n
     USER_ID=\$(./kcadm.sh get users -r $KEYCLOAK_REALM -q username=admin --fields id --config /tmp/kcadm.config 2>/dev/null | cut -d' ' -f5 | cut -d'\"' -f2 | tr -d '\\\n')\n
