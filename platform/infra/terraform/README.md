@@ -41,5 +41,10 @@ Ensure the target cluster is mapped to the local management cluster and only the
 
 # Terraform Destroy
 
+```bash
+cd /appmod-blueprints/platform/infra/terraform
+./destroy-workshop.sh
+
+```
 Execute the destroy-workshop.sh to destroy all the components. The bucket is intentionally not cleaned or removed to preserve the state files.
 There will be error at the end of the script that S3 bucket deletion failed due to objects in the bucket. You can manually remove the terraform state files and destroy the bucket.
