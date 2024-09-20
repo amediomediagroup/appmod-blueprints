@@ -27,7 +27,7 @@ spec:
         					spec: {
         						forProvider: {
         							acl:    "private"
-        							region: context.region
+        							region: parameter.region
         						}
         						providerConfigRef: name: "aws-provider"
         					}
@@ -85,6 +85,34 @@ spec:
         					}
         				}
         			},
+        			{
+        				name: "s3-bucket-policy"
+        				base: {
+        					apiVersion: "s3.aws.crossplane.io/v1beta1"
+        					kind:       "BucketPolicy"
+        					spec: {
+        						forProvider: {
+        							region:     parameter.region
+        							bucketName: "\($.resources[0].status.atProvider.name)"
+        							policy:     json.Marshal({
+        								Version: "2008-10-17"
+        								Id:      "PolicyForCloudFrontPrivateContent"
+        								Statement: [
+        									{
+        										Sid:    "AllowCloudFrontServicePrincipal"
+        										Effect: "Allow"
+        										Principal: Service: "cloudfront.amazonaws.com"
+        										Action:   "s3:GetObject"
+        										Resource: "arn:aws:s3:::\($.resources[0].status.atProvider.name)/*"
+        										Condition: StringEquals: "AWS:SourceArn": "\($.resources[2].status.atProvider.arn)"
+        									},
+        								]
+        							})
+        						}
+        						providerConfigRef: name: "aws-provider"
+        					}
+        				}
+        			},
         		]
         	}
         }
@@ -92,4 +120,3 @@ spec:
     definition:
       apiVersion: aws-service/v1
       kind: cdn
-

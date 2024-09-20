@@ -22,7 +22,7 @@ AttributeDefinition: {
 
 KeySchema: {
 	attributeName: string
-	keyType: string
+	keyType:       string
 }
 
 template: {
@@ -34,11 +34,11 @@ template: {
 		}
 		spec: {
 			forProvider: {
-				region: parameter.region
-				name: paramater.tableName
-				billingMode: "PAY_PER_REQUEST"
+				region:               parameter.region
+				name:                 paramater.tableName
+				billingMode:          "PAY_PER_REQUEST"
 				attributeDefinitions: parameter.attributeDefinition
-				keySchema: paramter.keySchema
+				keySchema:            paramter.keySchema
 			}
 			providerConfigRef: {
 				name: "aws-provider"
