@@ -25,9 +25,9 @@ set -e -o pipefail
 # checking environment variables
 
 if [ -z "${TF_VAR_aws_region}" ]; then
-    message="env variable AWS_REGION not set, defaulting to us-west-2"
-    echo $message
-    export TF_VAR_aws_region="us-west-2"
+  message="env variable AWS_REGION not set, defaulting to us-west-2"
+  echo $message
+  export TF_VAR_aws_region="us-west-2"
 fi
 
 export REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -37,10 +37,10 @@ source ${REPO_ROOT}/platform/infra/terraform/setup-keycloak.sh
 ${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/mgmt-cluster/install.sh
 
 # Set the DNS_HOSTNAME to be checked
-export DNS_HOSTNAME=$(kubectl get service  ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+export DNS_HOSTNAME=$(kubectl get service ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
 # Replace dns with the value of DNS_HOSTNAME
-sed -e "s/INGRESS_DNS/${DNS_HOSTNAME}/g" ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/default-config.yaml > ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/config.yaml
+sed -e "s/INGRESS_DNS/${DNS_HOSTNAME}/g" ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/default-config.yaml >${REPO_ROOT}/platform/infra/terraform/mgmt/setups/config.yaml
 
 # Deploy the apps on IDP Builder and ArgoCD
 ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/install.sh
@@ -81,7 +81,7 @@ terraform -chdir=bootstrap init -reconfigure
 terraform -chdir=bootstrap plan
 terraform -chdir=bootstrap apply -auto-approve
 
-export TF_VAR_state_s3_bucket=$(terraform -chdir=bootstrap  output -raw eks-accelerator-bootstrap-state-bucket)
+export TF_VAR_state_s3_bucket=$(terraform -chdir=bootstrap output -raw eks-accelerator-bootstrap-state-bucket)
 export TF_VAR_state_ddb_lock_table=$(terraform -chdir=bootstrap output -raw eks-accelerator-bootstrap-ddb-lock-table)
 export TF_VAR_managed_prometheus_workspace_id=$(terraform -chdir=bootstrap output -raw amp_workspace_id)
 export TF_VAR_managed_grafana_workspace_id=$(terraform -chdir=bootstrap output -raw amg_workspace_id)
@@ -128,49 +128,49 @@ echo "Managed Prometheus Workspace ID = "$TF_VAR_managed_prometheus_workspace_id
 
 # Initialize backend for DEV cluster
 terraform -chdir=dev init -reconfigure -backend-config="key=dev/eks-accelerator-vpc.tfstate" \
--backend-config="bucket=$TF_VAR_state_s3_bucket" \
--backend-config="region=$TF_VAR_aws_region" \
--backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
+  -backend-config="bucket=$TF_VAR_state_s3_bucket" \
+  -backend-config="region=$TF_VAR_aws_region" \
+  -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
 # Apply the infrastructure changes to deploy EKS DEV cluster and install EKS observability Accelerator
 terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
--var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
--var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
--var cluster_name="${TF_VAR_dev_cluster_name}" \
--var vpc_id="${TF_eks_cluster_vpc_id}" \
--var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
--var grafana_api_key="${AMG_API_KEY}" -auto-approve
+  -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
+  -var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
+  -var cluster_name="${TF_VAR_dev_cluster_name}" \
+  -var vpc_id="${TF_eks_cluster_vpc_id}" \
+  -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
+  -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
 # Change IAM Access Configs for DEV Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_dev_cluster_name
 export DEV_ACCESS_CONF=$(aws eks describe-cluster --region $TF_VAR_aws_region --name $TF_VAR_dev_cluster_name --query 'cluster.accessConfig' --output text)
 
 if [[ "$DEV_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
-    echo "Changing IAM access configs for DEV cluster: $DEV_ACCESS_CONF";
-    aws eks update-cluster-config  --region $TF_VAR_aws_region --name ${TF_VAR_dev_cluster_name} --access-config authenticationMode=API_AND_CONFIG_MAP
+  echo "Changing IAM access configs for DEV cluster: $DEV_ACCESS_CONF"
+  aws eks update-cluster-config --region $TF_VAR_aws_region --name ${TF_VAR_dev_cluster_name} --access-config authenticationMode=API_AND_CONFIG_MAP
 fi
 
 # Initialize backend for PROD cluster
 terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerator-vpc.tfstate" \
--backend-config="bucket=$TF_VAR_state_s3_bucket" \
--backend-config="region=$TF_VAR_aws_region" \
--backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
+  -backend-config="bucket=$TF_VAR_state_s3_bucket" \
+  -backend-config="region=$TF_VAR_aws_region" \
+  -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
 # Apply the infrastructure changes to deploy EKS PROD cluster and deploy observability accelerator
 terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
--var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
--var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
--var cluster_name="${TF_VAR_prod_cluster_name}" \
--var vpc_id="${TF_eks_cluster_vpc_id}" \
--var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
--var grafana_api_key="${AMG_API_KEY}" -auto-approve
+  -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
+  -var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
+  -var cluster_name="${TF_VAR_prod_cluster_name}" \
+  -var vpc_id="${TF_eks_cluster_vpc_id}" \
+  -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
+  -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
 # Change IAM Access Configs for PROD Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_prod_cluster_name
 export PROD_ACCESS_CONF=$(aws eks describe-cluster --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --query 'cluster.accessConfig' --output text)
 if [[ "$PROD_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
-    echo "Changing IAM access configs for PROD cluster: $PROD_ACCESS_CONF"
-    aws eks update-cluster-config  --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP
+  echo "Changing IAM access configs for PROD cluster: $PROD_ACCESS_CONF"
+  aws eks update-cluster-config --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP
 fi
 
 echo "Sleeping for 5 minutes to allow cluster to change auth mode"
@@ -185,17 +185,17 @@ kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/
 
 # Connect ArgoCD on MGMT cluster to DEV and PROD target clusters
 terraform -chdir=post-deploy init -reconfigure -backend-config="key=post/argocd-connect-vpc.tfstate" \
--backend-config="bucket=$TF_VAR_state_s3_bucket" \
--backend-config="region=$TF_VAR_aws_region" \
--backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
+  -backend-config="bucket=$TF_VAR_state_s3_bucket" \
+  -backend-config="region=$TF_VAR_aws_region" \
+  -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
-export TF_VAR_GITEA_URL="https://${DNS_HOSTNAME}/gitea/"
+export TF_VAR_GITEA_URL="https://${DNS_HOSTNAME}/gitea"
 
 # Apply the changes for ArgoConnect and Codebuild project for clusters
 terraform -chdir=post-deploy apply -var aws_region="${TF_VAR_aws_region}" \
--var mgmt_cluster_gitea_url="${TF_VAR_GITEA_URL}" \
--var dev_cluster_name="${TF_VAR_dev_cluster_name}" \
--var prod_cluster_name="${TF_VAR_prod_cluster_name}" -auto-approve
+  -var mgmt_cluster_gitea_url="${TF_VAR_GITEA_URL}" \
+  -var dev_cluster_name="${TF_VAR_dev_cluster_name}" \
+  -var prod_cluster_name="${TF_VAR_prod_cluster_name}" -auto-approve
 
 # Setup Gitea Repo
 ${REPO_ROOT}/platform/infra/terraform/giteaInit.sh
@@ -232,3 +232,4 @@ echo ""
 echo "Setup done."
 
 echo "Script Complete"
+
