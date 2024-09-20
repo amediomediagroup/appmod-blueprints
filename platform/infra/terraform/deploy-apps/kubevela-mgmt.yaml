@@ -8,7 +8,7 @@ spec:
   source:
     chart: vela-core
     repoURL: https://kubevela.github.io/charts
-    targetRevision: 1.9.12
+    targetRevision: 1.9.11
     helm:
       releaseName: kubevela-mgmt
   destination:
