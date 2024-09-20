@@ -3,11 +3,15 @@ kind: Application
 metadata:
   name: kubevela-mgmt
   namespace: argocd
+  labels:
+    env: mgmt
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  project: modern-engg
   source:
     chart: vela-core
-    repoURL: https://kubevela.github.io/charts
+    repoURL: ${GITHUB_URL}
     targetRevision: 1.9.11
     helm:
       releaseName: kubevela-mgmt
