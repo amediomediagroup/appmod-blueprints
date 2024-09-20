@@ -1,4 +1,3 @@
---- appmod-service.cue ---
 apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:

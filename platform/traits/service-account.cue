@@ -75,39 +75,6 @@ template: {
       }
     }
 
-    if parameter.componentPrivileges != _|_ {
-      for _, c in parameter.componentPrivileges {
-        let component = context.components["\(c.name)"]
-        if component != _|_ {}
-        "\(context.name)-\(c.name)-iam-policy": {
-          apiVersion: "iam.aws.upbound.io/v1beta1"
-          kind: "Policy"
-          metadata: name: "\(context.name)-\(c.name)-iam-policy"
-          spec: {
-            name: "\(context.name)-\(c.name)-iam-policy"
-            forProvider: {
-              policy: {"""
-                {
-                  "Version": "2012-10-17",
-                  "Statement": [
-                    {
-                      "Effect": "Allow",
-                      "Action": [
-                        "\(c.service):*"
-                      ],
-                      "Resource": "*"
-                    }
-                  ]
-                }
-              """}
-              roleRef: name: "\(context.name)-iam-role"
-            }
-            providerConfigRef: name: "provider-upbound-aws-config"
-          }
-        }
-      }
-    }
-
     "\(context.name)-podidentity": {
       apiVersion: "eks.aws.upbound.io/v1beta1" 
       kind: "PodIdentityAssociation"
