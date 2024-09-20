@@ -180,8 +180,8 @@ sleep 300
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluster_name
 
 # Setup Applications on Clusters using ArgoCD on the management cluster
-# Setup Kubevela on Management,Dev and Prod clusters
-kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/argocd-apps/
+# Setup Kubevela on Management,Dev and Prod clusters and deploy crossplane AWS providers
+kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/
 
 # Connect ArgoCD on MGMT cluster to DEV and PROD target clusters
 terraform -chdir=post-deploy init -reconfigure -backend-config="key=post/argocd-connect-vpc.tfstate" \
