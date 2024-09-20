@@ -46,5 +46,14 @@ cd /appmod-blueprints/platform/infra/terraform
 ./destroy-workshop.sh
 
 ```
-Execute the destroy-workshop.sh to destroy all the components. The bucket is intentionally not cleaned or removed to preserve the state files.
+
+Execute the destroy-workshop.sh to destroy all the components excepts the bootstrap components. This is to ensure the buckets and the lock table are not destriyed in case of any issues during deletion,so it can be re-run again.Once the script is ran successfully execute the terraform command below to remove the bootsrap components.
+
+```bash
+cd /appmod-blueprints/platform/infra/terraform
+terraform -chdir=bootstrap destroy -auto-approve
+
+```
+
+The bucket is intentionally not cleaned or removed to preserve the state files.
 There will be error at the end of the script that S3 bucket deletion failed due to objects in the bucket. You can manually remove the terraform state files and destroy the bucket.

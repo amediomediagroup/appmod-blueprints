@@ -104,7 +104,7 @@ terraform -chdir=dev destroy -var aws_region="${TF_VAR_aws_region}" \
 -var cluster_name="${TF_VAR_dev_cluster_name}" \
 -var vpc_id="${TF_eks_cluster_vpc_id}" \
 -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
--var grafana_api_key="${AMG_API_KEY}" -auto-approve
+-var grafana_api_key="${AMG_API_KEY}" -auto-approve -lock=false
 
 # Initialize backend for PROD cluster
 terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerator-vpc.tfstate" \
@@ -121,14 +121,12 @@ terraform -chdir=prod destroy -var aws_region="${TF_VAR_aws_region}" \
 -var cluster_name="${TF_VAR_prod_cluster_name}" \
 -var vpc_id="${TF_eks_cluster_vpc_id}" \
 -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
--var grafana_api_key="${AMG_API_KEY}" -auto-approve
+-var grafana_api_key="${AMG_API_KEY}" -auto-approve -lock=false
 
 # Empty the state bucket manually if needed. This is intentionally kept commented to protect the state files
 # aws s3 rm s3://$TF_VAR_state_s3_bucket --recursive
 
 # Destroy possible resources that may not be cleaned up by terraform
-
-aws secretsmanager delete-secret --secret-id "modern-engg/keycloak/config" --force-delete-without-recovery --region $TF_VAR_aws_region || true
 
 LOAD_BALANCER_ARN=$(aws elbv2 describe-load-balancers --region $TF_VAR_aws_region --names "modern-engg" --query 'LoadBalancers[*].LoadBalancerArn' --output text) || true
 
@@ -147,13 +145,18 @@ done
 aws elbv2 delete-load-balancer --region $TF_VAR_aws_region --load-balancer-arn $LOAD_BALANCER_ARN || true
 
 # Destroy bootstrap Bucket, DynamoDB lock table, Amazon Managed Grafana and Amazon Managed Prometheus
-terraform -chdir=bootstrap destroy -auto-approve
+#terraform -chdir=bootstrap destroy -auto-approve
 
 # Cleanup the IDP Builder and applications
 ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/uninstall.sh
 
+# Cleanup the keycloak Secret config if not cleaned
+aws secretsmanager delete-secret --secret-id "modern-engg/keycloak/config" --force-delete-without-recovery --region $TF_VAR_aws_region || true
+
 # Cleanup the IDP EKS management cluster and prerequisites
 ${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/mgmt-cluster/uninstall.sh
+
+rm -rf ${REPO_ROOT}/platform/infra/terraform/.git || true
 
 echo "Terraform execution completed"
 
