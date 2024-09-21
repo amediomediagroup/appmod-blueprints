@@ -1,0 +1,10 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-lambda
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  package: xpkg.upbound.io/upbound/provider-aws-lambda:v1.13.0
+  controllerConfigRef:
+    name: provider-aws-config

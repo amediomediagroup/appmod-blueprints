@@ -8,7 +8,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: modern-engg
+  project: default
   source:
     chart: vela-core
     repoURL: ${GITHUB_URL}
