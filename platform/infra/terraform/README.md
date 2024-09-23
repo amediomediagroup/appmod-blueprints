@@ -47,7 +47,7 @@ cd /appmod-blueprints/platform/infra/terraform
 
 ```
 
-Execute the destroy-workshop.sh to destroy all the components excepts the bootstrap components. This is to ensure the buckets and the lock table are not destriyed in case of any issues during deletion,so it can be re-run again.Once the script is ran successfully execute the terraform command below to remove the bootsrap components.
+Execute the destroy-workshop.sh to destroy all the components except the bootstrap components. This is to ensure the buckets and the lock table are not destroyed in case of any issues during deletion,so it can be re-run again. Once the script is ran successfully execute the terraform command below to remove the bootstrap components.
 
 ```bash
 cd /appmod-blueprints/platform/infra/terraform

@@ -200,6 +200,9 @@ terraform -chdir=post-deploy apply -var aws_region="${TF_VAR_aws_region}" \
 # Setup Gitea Repo
 ${REPO_ROOT}/platform/infra/terraform/giteaInit.sh
 
+# Clean git folder inside the terraform folder to avoid conflicts
+rm -rf ${REPO_ROOT}/platform/infra/terraform/.git || true
+
 echo "Terraform execution completed"
 
 # Cleanup Folders
