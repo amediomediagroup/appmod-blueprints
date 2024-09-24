@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     chart: crossplane
-    repoURL: ttps://charts.crossplane.io/stable
+    repoURL: https://charts.crossplane.io/stable
     targetRevision: 1.17.1
     helm:
       releaseName: crossplane-prod
