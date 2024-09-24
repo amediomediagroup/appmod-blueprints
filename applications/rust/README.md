@@ -70,3 +70,17 @@ Explain your implementation and design decisions briefly.
 
 ## Deployment Guide
 
+The Rust application is setup for automated deployment through ArgoCD. All you need to do is commit your changes through
+Git and the build/deploy pipeline will take care of the rest.
+
+Fundamentally, the application is composed through Kubevela templates to abstract infrastructure building blocks away
+for the engineering team so they can request something like a: `WebServer` instead of having to request a `Deployment`.
+
+Kubevela also allows you to abstract away Kubernetes and Cloud-Native concepts behind a simple YAML or composition. This
+then breaks down your application into the necessary components to be deployed across the platform teams compute provider
+and the underlying cloud provider.
+
+How the system deploys behind the scenes is that:
+* Kubevela builds downstream templates for your application based on what you want
+* The compute and containers is deployed through ArgoCD
+* Necessary Cloud components are parsed through Crossplane and deployed
