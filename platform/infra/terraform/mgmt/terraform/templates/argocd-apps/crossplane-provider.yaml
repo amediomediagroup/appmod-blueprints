@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: crossplane-provider
+  name: crossplane-prov-mgmt
   namespace: argocd
   labels:
     env: dev
@@ -12,7 +12,10 @@ spec:
   source:
     repoURL: ${GITHUB_URL}
     targetRevision: feature/upgradeToPathBasedRouting
-    path: packages/crossplane/dev/
+    path: packages/crossplane-provider/base/
+    parameters:
+      - name: ROLE_ARN
+        value: ${ROLE_ARN}
   destination:
     server: "https://kubernetes.default.svc"
     namespace: crossplane-system
