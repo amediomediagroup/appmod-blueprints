@@ -12,13 +12,13 @@ spec:
   sources:
     - chart: crossplane
       repoURL: https://charts.crossplane.io/stable
-      targetRevision: 1.13.2
+      targetRevision: 1.15.0
       helm:
         releaseName: crossplane
         valueFiles:
           - $values/packages/crossplane/dev/values.yaml
     - repoURL: ${GITHUB_URL}
-      targetRevision: HEAD
+      targetRevision: feature/upgradeToPathBasedRouting
       ref: values
   destination:
     server: "https://kubernetes.default.svc"
