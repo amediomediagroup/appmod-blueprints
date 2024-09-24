@@ -38,15 +38,36 @@ resource "kubectl_manifest" "application_argocd_crossplane" {
   }
 }
 
-resource "kubectl_manifest" "crossplane_drc_provider" {
+resource "kubectl_manifest" "application_argocd_crossplane_provider" {
   depends_on = [ 
     kubectl_manifest.application_argocd_crossplane, 
   ]
-  yaml_body = templatefile("${path.module}/templates/manifests/crossplane-aws-controller-config.yaml", {
+  yaml_body = templatefile("${path.module}/templates/argocd-apps/crossplane-provider.yaml", {
+     GITHUB_URL = local.repo_url,
      ROLE_ARN = module.crossplane_aws_provider_role.iam_role_arn
     }
   )
 }
+
+resource "kubectl_manifest" "application_argocd_crossplane_compositions" {
+  depends_on = [
+    kubectl_manifest.application_argocd_crossplane,
+  ]
+  yaml_body = templatefile("${path.module}/templates/argocd-apps/crossplane-compositions.yaml", {
+     GITHUB_URL = local.repo_url
+    }
+  )
+}
+
+# resource "kubectl_manifest" "crossplane_drc_provider" {
+#   depends_on = [
+#     kubectl_manifest.application_argocd_crossplane,
+#   ]
+#   yaml_body = templatefile("${path.module}/templates/manifests/crossplane-aws-controller-config.yaml", {
+#      ROLE_ARN = module.crossplane_aws_provider_role.iam_role_arn
+#     }
+#   )
+# }
 
 # resource "kubectl_manifest" "crossplane_aws_services_provider" {
 #   depends_on = [
@@ -57,4 +78,3 @@ resource "kubectl_manifest" "crossplane_drc_provider" {
 #     }
 #   )
 # }
-
