@@ -72,7 +72,13 @@ echo "Managed Grafana Workspace ID = "$TF_VAR_managed_grafana_workspace_id
 echo "Following Amazon Managed Prometheus Workspace will be used for Observability accelerator for both DEV and PROD:"
 echo "Managed Prometheus Workspace ID = "$TF_VAR_managed_prometheus_workspace_id
 
+cd ${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/mgmt-cluster/
+export TF_eks_cluster_vpc_id=$(terraform output -raw eks_cluster_vpc_id)
+export TF_eks_cluster_private_subnets=$(terraform output -json eks_cluster_private_subnets)
+
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name modern-engineering
+
+cd ${REPO_ROOT}/platform/infra/terraform/
 
 # Connect ArgoCD on MGMT cluster to DEV and PROD target clusters
 terraform -chdir=post-deploy init -reconfigure -backend-config="key=post/argocd-connect-vpc.tfstate" \
@@ -83,11 +89,7 @@ terraform -chdir=post-deploy init -reconfigure -backend-config="key=post/argocd-
 # Apply the infrastructure changes to deploy EKS DEV cluster and install EKS observability Accelerator
 terraform -chdir=post-deploy destroy -var aws_region="${TF_VAR_aws_region}" -auto-approve
 
-cd ${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/mgmt-cluster/
-export TF_eks_cluster_vpc_id=$(terraform output -raw eks_cluster_vpc_id)
-export TF_eks_cluster_private_subnets=$(terraform output -json eks_cluster_private_subnets)
-
-cd ${REPO_ROOT}/platform/infra/terraform
+cd ${REPO_ROOT}/platform/infra/terraform/
 
 # Initialize backend for DEV cluster
 terraform -chdir=dev init -reconfigure -backend-config="key=dev/eks-accelerator-vpc.tfstate" \
