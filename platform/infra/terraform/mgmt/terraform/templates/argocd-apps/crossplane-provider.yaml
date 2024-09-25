@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: ${GITHUB_URL}
     targetRevision: feature/upgradeToPathBasedRouting
-    path: packages/crossplane-provider/base/
+    path: packages/crossplane-provider/dev/
     parameters:
       - name: ROLE_ARN
         value: ${ROLE_ARN}
