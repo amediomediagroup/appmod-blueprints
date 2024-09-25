@@ -10,8 +10,8 @@ SESSION_NAME="workshop"
 if ! aws iam get-user --user-name "$IAM_USER_NAME" &>/dev/null; then
   aws iam create-user --user-name "$IAM_USER_NAME"
   ACCESS_KEY_OUTPUT=$(aws iam create-access-key --user-name "$IAM_USER_NAME")
-  USER_ACCESS_KEY_ID=$(echo $ACCESS_KEY_OUTPUT | jq -r '.AcessKey.AccessKeyId' --output text)
-  USER_SECRET_ACCESS_KEY=$(echo $ACCESS_KEY_OUTPUT | jq -r '.AcessKey.SecretAccessKey' --output text)
+  USER_ACCESS_KEY_ID=$(echo $ACCESS_KEY_OUTPUT | jq -r '.AccessKey.AccessKeyId')
+  USER_SECRET_ACCESS_KEY=$(echo $ACCESS_KEY_OUTPUT | jq -r '.AccessKey.SecretAccessKey')
   echo "AWS_ACCESS_KEY_ID=$USER_ACCESS_KEY_ID" >"$IAM_USER_NAME.creds"
   echo "AWS_SECRET_ACCESS_KEY=$USER_SECRET_ACCESS_KEY" >>"$IAM_USER_NAME.creds"
 
@@ -48,8 +48,8 @@ EOF
 
   aws iam create-role \
     --role-name $ROLE_NAME \
-    --assume-role-policy-document file://assume-role-policy.json
-  --max-session-duration
+    --assume-role-policy-document file://assume-role-policy.json \
+    --max-session-duration $ROLE_MAX_SESSION_DURATION
 
   aws iam attach-role-policy \
     --role-name $ROLE_NAME \
@@ -104,6 +104,7 @@ fi
 source "$IAM_USER_NAME.creds"
 export AWS_ACCESS_KEY_ID
 export AWS_SECRET_ACCESS_KEY
+echo $(aws sts get-caller-identity)
 
 ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/$ROLE_NAME --role-session-name $SESSION_NAME --duration-seconds $SESSION_DURATION)
 export AWS_ACCESS_KEY_ID=$(echo $ASSUME_ROLE_OUTPUT | jq -r '.Credentials.AccessKeyId')
