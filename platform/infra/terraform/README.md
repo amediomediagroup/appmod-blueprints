@@ -21,7 +21,7 @@ To setup the environment when testing locally, go to the following path and run 
 
 ```bash
 cd /appmod-blueprints/platform/infra/terraform
-./setup-workshop.sh
+./setup-workshop-local.sh
 ```
 
 ### Setup Workshop Local Script
@@ -79,4 +79,3 @@ terraform -chdir=bootstrap destroy -auto-approve
 
 The bucket is intentionally not cleaned or removed to preserve the state files.
 There will be error at the end of the script that S3 bucket deletion failed due to objects in the bucket. You can manually remove the terraform state files and destroy the bucket.
-
