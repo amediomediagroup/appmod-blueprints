@@ -10,7 +10,7 @@ spec:
     repoURL: https://charts.crossplane.io/stable
     targetRevision: 1.17.1
     helm:
-      releaseName: crossplane-dev
+      releaseName: crossplane
   destination:
     name: 'dev-cluster'
     namespace: crossplane-system
