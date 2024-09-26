@@ -10,7 +10,7 @@ To setup the environment goto the following path and run the script. The script 
 
 ```bash
 cd /appmod-blueprints/platform/infra/terraform
-./setup-workshop.sh
+./setup-environments.sh
 
 ```
 
@@ -43,7 +43,7 @@ Ensure the target cluster is mapped to the local management cluster and only the
 
 ```bash
 cd /appmod-blueprints/platform/infra/terraform
-./destroy-workshop.sh
+./destroy-environments.sh
 
 ```
 
