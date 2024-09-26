@@ -162,6 +162,3 @@ workshop/cdk.out
 .terraform.lock.hcl
 
 platform/infra/terraform/terraform-aws-observability-accelerator
-
-# IAM creds file for local run
-*.creds

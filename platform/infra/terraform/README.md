@@ -6,38 +6,15 @@
 - Terraform CLI
 - kubectl
 
-## Workshop Setup
-
-To setup the environment go to the following path and run the script. The script works only from the root directory.
+To setup the environment goto the following path and run the script. The script works only from the root directory.
 
 ```bash
 cd /appmod-blueprints/platform/infra/terraform
 ./setup-workshop.sh
+
 ```
 
-## Local Setup
-
-To setup the environment when testing locally, go to the following path and run the script
-
-```bash
-cd /appmod-blueprints/platform/infra/terraform
-./setup-workshop-local.sh
-```
-
-### Setup Workshop Local Script
-
-The script `setup-workshop-local.sh` does the following
-
-- Creates an IAM user named `modern-engg-local-test`
-- Creates an IAM role named `developer-env-VSCodeInstanceRole`
-- Allows codebuild, ec2, codecommit, ssm, and the new IAM user to assume the role
-- Attaches the `AdministratorAccess` policy, a cdk assume policy, and a codewhisperer policy
-- Logs into the `modern-engg-local-test` user, then assumes the `developer-env-VSCodeInstanceRole`
-- Runs the `setup-workshop.sh` script in the `developer-env-VSCodeInstanceRole`
-
-### Setup Workshop Script
-
-The script `setup-workshop.sh` does the following:
+The script setup-workshop.sh does the following:
 
 - Create the EKS management cluster where IDP Builder will be deployed
 - Installs ArgoCD, Ingress-Nginx and its pre-requisites.
@@ -60,6 +37,7 @@ Outputs will provide the details of URLs that are needed to access the core serv
 To deploy sample app, refer to prod-public-apps.yaml to deploy applications. Ensure the destination is mapped to the correct target cluster (dev-cluster or prod-cluster).
 
 Ensure the target cluster is mapped to the local management cluster and only the target cluster (Dev or Prod) is updated on the actual applications that will have the running applications. For Examples,refer to argo-examples folders to deploy applications or app-of-apps from public repo or integrated Gitea.
+
 
 # Terraform Destroy
 
