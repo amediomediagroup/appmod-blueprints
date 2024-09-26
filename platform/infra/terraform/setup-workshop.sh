@@ -195,6 +195,9 @@ sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/d
 sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-dev.yaml
 sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod.yaml
 
+sed -i -e "s#DEV_ROLE_ARN#${DEV_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-dev.yaml
+sed -i -e "s#PROD_ROLE_ARN#${PROD_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-prod.yaml
+
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/
 
 # Connect ArgoCD on MGMT cluster to DEV and PROD target clusters
