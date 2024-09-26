@@ -176,32 +176,6 @@ provider "kubectl" {
   load_config_file       = false
 }
 
-# resource "helm_release" "prod_argocd" {
-#   name             = "argocd"
-#   repository       = "https://argoproj.github.io/argo-helm"
-#   chart            = "argo-cd"
-#   version          = "7.3.10"
-#   namespace        = "argocd"
-#   create_namespace = true
-
-#   set {
-#     name  = "server.service.type"
-#     value = "LoadBalancer"
-#   }
-
-#   set {
-#     name  = "server.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-type"
-#     value = "nlb"
-#   }
-# }
-
-# data "kubernetes_service" "argocd_prod_server" {
-#   metadata {
-#     name      = "argocd-server"
-#     namespace = helm_release.prod_argocd.namespace
-#   }
-# }
-
 # Setup GitOps management for access from Management Cluster
 resource "kubernetes_service_account_v1" "prod_argocd_auth_manager" {
   metadata {
@@ -274,9 +248,54 @@ resource "aws_ssm_parameter" "gitops_prod_argocd_serverurl" {
   type      = "SecureString"
 }
 
+module "crossplane_prod_provider_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.14"
+
+  role_name_prefix = "modernengg-prod-aws"
+  role_policy_arns = {
+    policy = "arn:aws:iam::aws:policy/AdministratorAccess"
+  }
+
+  assume_role_condition_test = "StringLike"
+  oidc_providers = {
+    main = {
+      provider_arn  = module.eks_blueprints_prod.eks_oidc_provider_arn
+      namespace_service_accounts = ["crossplane-system:provider-aws*"]
+    }
+  }
+  tags = local.tags
+}
+
 # resource "helm_release" "app_of_apps" {
 #   name             = "app-of-apps"
 #   chart            = "../deployment/envs/prod"
 #   create_namespace = true
 #   depends_on       = [helm_release.argocd]
+# }
+
+# resource "helm_release" "prod_argocd" {
+#   name             = "argocd"
+#   repository       = "https://argoproj.github.io/argo-helm"
+#   chart            = "argo-cd"
+#   version          = "7.3.10"
+#   namespace        = "argocd"
+#   create_namespace = true
+
+#   set {
+#     name  = "server.service.type"
+#     value = "LoadBalancer"
+#   }
+
+#   set {
+#     name  = "server.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-type"
+#     value = "nlb"
+#   }
+# }
+
+# data "kubernetes_service" "argocd_prod_server" {
+#   metadata {
+#     name      = "argocd-server"
+#     namespace = helm_release.prod_argocd.namespace
+#   }
 # }

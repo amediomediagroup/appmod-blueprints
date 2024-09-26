@@ -33,6 +33,9 @@ fi
 export REPO_ROOT=$(git rev-parse --show-toplevel)
 source ${REPO_ROOT}/platform/infra/terraform/setup-keycloak.sh
 
+# Set Github URL for Management Cluster
+export GITHUB_URL='https://github.com/elamaran11/cnoe-appmod-implementation'
+
 # Deploy the base cluster with prerequisites like ArgoCD and Ingress-nginx
 ${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/mgmt-cluster/install.sh
 
@@ -69,6 +72,7 @@ echo "PROD_CLUSTER_NAME = "$TF_VAR_prod_cluster_name
 echo "VPC_ID = "$TF_eks_cluster_vpc_id
 echo "VPC_Private_Subnets = "$TF_eks_cluster_private_subnets
 echo "Grafana Keycloak IDP metadata URL = "$TF_VAR_grafana_keycloak_idp_url
+echo "Github Source Repo for Management EKS Cluster =" $GITHUB_URL
 
 # bootstrapping TF S3 bucket and DynamoDB locally
 cd "${REPO_ROOT}/platform/infra/terraform/"
@@ -141,13 +145,15 @@ terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
   -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
   -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
+export DEV_ROLE_ARN=$(terraform -chdir=dev output -raw crossplane_dev_provider_role_arn)
+
 # Change IAM Access Configs for DEV Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_dev_cluster_name
 export DEV_ACCESS_CONF=$(aws eks describe-cluster --region $TF_VAR_aws_region --name $TF_VAR_dev_cluster_name --query 'cluster.accessConfig' --output text)
 
 if [[ "$DEV_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
   echo "Changing IAM access configs for DEV cluster: $DEV_ACCESS_CONF"
-  aws eks update-cluster-config --region $TF_VAR_aws_region --name ${TF_VAR_dev_cluster_name} --access-config authenticationMode=API_AND_CONFIG_MAP
+  aws eks update-cluster-config --region $TF_VAR_aws_region --name ${TF_VAR_dev_cluster_name} --access-config authenticationMode=API_AND_CONFIG_MAP || true
 fi
 
 # Initialize backend for PROD cluster
@@ -165,22 +171,30 @@ terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
   -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
   -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
+export PROD_ROLE_ARN=$(terraform -chdir=prod output -raw crossplane_prod_provider_role_arn)
+
 # Change IAM Access Configs for PROD Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_prod_cluster_name
 export PROD_ACCESS_CONF=$(aws eks describe-cluster --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --query 'cluster.accessConfig' --output text)
 if [[ "$PROD_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
   echo "Changing IAM access configs for PROD cluster: $PROD_ACCESS_CONF"
-  aws eks update-cluster-config --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP
+    aws eks update-cluster-config --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP || true
 fi
 
 echo "Sleeping for 5 minutes to allow cluster to change auth mode"
-sleep 300
+# sleep 300
 
 # Reconnect back to Management Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluster_name
 
 # Setup Applications on Clusters using ArgoCD on the management cluster
 # Setup Kubevela on Management,Dev and Prod clusters and deploy crossplane AWS providers
+sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-dev.yaml
+sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-prod.yaml
+
+sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-dev.yaml
+sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod
+
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/
 
 # Connect ArgoCD on MGMT cluster to DEV and PROD target clusters
@@ -199,6 +213,14 @@ terraform -chdir=post-deploy apply -var aws_region="${TF_VAR_aws_region}" \
 
 # Setup Gitea Repo
 ${REPO_ROOT}/platform/infra/terraform/giteaInit.sh
+
+# Setup CrossPlane IRSA for DEV Cluster
+aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_dev_cluster_name
+kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-dev.yaml
+
+# Setup CrossPlane IRSA for PROD Cluster
+aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_prod_cluster_name
+kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-prod.yaml
 
 # Clean git folder inside the terraform folder to avoid conflicts
 rm -rf ${REPO_ROOT}/platform/infra/terraform/.git || true
