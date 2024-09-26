@@ -182,7 +182,7 @@ if [[ "$PROD_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
 fi
 
 echo "Sleeping for 5 minutes to allow cluster to change auth mode"
-# sleep 300
+sleep 300
 
 # Reconnect back to Management Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluster_name
@@ -193,7 +193,7 @@ sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/d
 sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-prod.yaml
 
 sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-dev.yaml
-sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod
+sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod.yaml
 
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/
 
