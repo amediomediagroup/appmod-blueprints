@@ -1,5 +1,6 @@
 # IAM service role for codebuild
 
+<<<<<<< HEAD
 data "aws_iam_policy_document" "codebuild_assume_role" {
   statement {
     effect = "Allow"
@@ -65,6 +66,13 @@ resource "aws_eks_access_policy_association" "prod_cluster_access_policy_assoc" 
     type       = "cluster"
   }
 }
+=======
+
+data "aws_iam_role" "workshop-role" {
+  name = "developer-env-VSCodeInstanceRole"
+}
+
+>>>>>>> 281f308 (update codebuild and create-cluster)
 
 # CodeBuild project resource
 
