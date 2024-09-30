@@ -114,4 +114,4 @@ export AWS_SESSION_TOKEN=$(echo $ASSUME_ROLE_OUTPUT | jq -r '.Credentials.Sessio
 echo "Running script with assumed role credentials"
 echo $(aws sts get-caller-identity)
 
-./setup-workshop.sh
+./setup-environments.sh
