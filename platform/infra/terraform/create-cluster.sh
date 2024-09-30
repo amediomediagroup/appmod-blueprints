@@ -31,7 +31,7 @@ terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
   -var cluster_name="${TF_VAR_prod_cluster_name}" \
   -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
-echo "\n\n-------- Dev Cluster --------"
+echo "-------- Dev Cluster --------"
 terraform -chdir=dev output
 
 echo "-------- Prod Cluster --------"
