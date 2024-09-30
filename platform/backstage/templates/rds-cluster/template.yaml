@@ -51,6 +51,7 @@ spec:
           region: ${{ parameters.region }}
           storageGBs: ${{parameters.storageGBs}}
           subnetIds: ${{parameters.subnetIds}}
+          repoUrl: ${{parameters.repoUrl}}
       name: Fetch Base
     - id: publish
       name: Publishing to a gitea git repository
