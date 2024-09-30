@@ -107,7 +107,7 @@ data:
       locations:
         # Examples from a public GitHub repository.
         - type: url
-          target: https://github.com/aws-samples/appmod-blueprints/blob/feature/add-create-template/platform/backstage/templates/catalog-info.yaml
+          target: https://github.com/aws-samples/appmod-blueprints/blob/feat-add-create-template/platform/backstage/templates/catalog-info.yaml
           rules:
             - allow: [User, Group]
         ## Uncomment these lines to add an example org
