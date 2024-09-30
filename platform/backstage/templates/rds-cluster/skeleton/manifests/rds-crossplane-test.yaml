@@ -1,0 +1,47 @@
+apiVersion: rds.aws.upbound.io/v1beta1
+kind: SubnetGroup
+metadata:
+  name: test-subnetgroup
+  namespace: rds-test
+spec:
+  forProvider:
+    region: us-west-2
+    subnetIds: 
+      - subnet-08c323a3d3456e24c
+      - subnet-06ca846dc05c99f40
+---
+apiVersion: rds.aws.upbound.io/v1beta1
+kind: Cluster
+metadata:
+  name: test-rds-cluster
+  namespace: rds-test
+spec:
+  forProvider:
+    autoGeneratePassword: true
+    engine: aurora-postgresql
+    masterPasswordSecretRef:
+      key: password
+      name: test-rds-cluster-password
+      namespace: rds-test 
+    masterUsername: rds_test_admin 
+    region: us-west-2
+    dbSubnetGroupNameRef:
+      name: test-subnetgroup
+    skipFinalSnapshot: true
+  writeConnectionSecretToRef:
+    name: test-rds-cluster-secret
+    namespace: rds-test
+---
+apiVersion: rds.aws.upbound.io/v1beta1
+kind: ClusterInstance
+metadata:
+  name: test-instance
+spec:
+  forProvider:
+    region: us-west-2
+    clusterIdentifierRef:
+      name: test-rds-cluster
+    engine: aurora-postgresql
+    instanceClass: db.r5.large
+
+---
