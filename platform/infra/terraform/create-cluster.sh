@@ -14,7 +14,7 @@ terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
   -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
   -var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
   -var cluster_name="${TF_VAR_dev_cluster_name}" \
-  -var grafana_api_key="${AMG_API_KEY}" -auto-approve
+  -var grafana_api_key="${AMG_API_KEY}" -refresh-only -auto-approve
 
 aws eks update-kubeconfig --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name
 
@@ -29,7 +29,7 @@ terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
   -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
   -var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
   -var cluster_name="${TF_VAR_prod_cluster_name}" \
-  -var grafana_api_key="${AMG_API_KEY}" -auto-approve
+  -var grafana_api_key="${AMG_API_KEY}" -refresh-only -auto-approve
 
 echo "-------- Dev Cluster --------"
 terraform -chdir=dev output

@@ -16,7 +16,7 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 
-#title           destroy-workshop.sh
+#title           destroy-environments.sh
 #description     This script deletes all terraform EKS clusters and prerequisites
 #version         1.0
 #==============================================================================

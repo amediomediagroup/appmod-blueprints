@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: GITHUB_URL
+    repoURL: https://github.com/elamaran11/cnoe-appmod-implementation
     targetRevision: feature/upgradeToPathBasedRouting
     path: packages/crossplane-compositions/dev/
   destination:

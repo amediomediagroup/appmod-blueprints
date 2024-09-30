@@ -1,10 +1,8 @@
 # IAM service role for codebuild
 
-
 data "aws_iam_role" "workshop-role" {
   name = "developer-env-VSCodeInstanceRole"
 }
-
 
 # CodeBuild project resource
 
