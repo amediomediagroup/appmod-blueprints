@@ -37,8 +37,3 @@ spec:
       value: ${{ values.tfVars.vpc_cidr }}
   retryInterval: 10s
   destroyResourcesOnDeletion: true
-  runnerPodTemplate:
-    spec:
-      envFrom:
-        - secretRef:
-            name: aws-credentials

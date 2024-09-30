@@ -18,8 +18,3 @@ spec:
   varsFrom:
     - kind: ConfigMap
       name: "serverless-microservice-${{values.name}}-tf-cm"
-  runnerPodTemplate:
-    spec:
-      envFrom:
-        - secretRef:
-            name: aws-credentials
