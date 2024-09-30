@@ -43,14 +43,14 @@ data:
       # workingDirectory: /tmp # Use this to configure a working directory for the scaffolder, defaults to the OS temp-dir
 
     integrations:
-       gitea:
-         - baseUrl: ${GITEA_BASE_URL}
-           host: ${GITEA_HOST}
-           username: ${GITEA_USERNAME}
-           password: ${GITEA_PASSWORD}
-       github:
-         - host: github.com
-           token: ${GITHUB_TOKEN}
+      gitea:
+        - baseUrl: ${GITEA_BASE_URL}
+          host: ${GITEA_HOST}
+          username: ${GITEA_USERNAME}
+          password: ${GITEA_PASSWORD}
+      github:
+        - host: github.com
+          token: ${GITHUB_TOKEN}
         ### Example for how to add your GitHub Enterprise instance using the API:
         # - host: ghe.example.net
         #   apiBaseUrl: https://ghe.example.net/api/v3
