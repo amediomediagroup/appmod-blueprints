@@ -14,108 +14,50 @@ spec:
           type: string
           description: Unique name of the component
           ui:autofocus: true
-        labels:
-          title: Labels
-          type: object
-          additionalProperties:
-            type: string
-          description: Labels to apply to the application
-          ui:autofocus: true
+        namespace:
+          default: flux-system
+          title: namespace within the kubernetes cluster to deploy this
+          type: string
+        region:
+          title: aws region
+          type: string
         repoUrl:
           title: Gitea URL
           type: string
           description: Gitea URL on Management cluster
+        storageGBs:
+          title: Amount of storage per instance in GBs
+          type: number
+          default: 100
+        subnetIds:
+          title: subnet IDs for cluster
+          type: array
+          items:
+            type: string
+      title: Configuration Options
       required:
         - name
         - repoUrl
-      title: Choose your repository location
-    - description: Configure your DB Cluster
-      properties:
-        apiVersion:
-          default: awsblueprints.io/v1alpha1
-          description: APIVersion for the resource
-          type: string
-        kind:
-          default: RelationalDatabase
-          description: Kind for the resource
-          type: string
-        config:
-          description: DB Cluster Specifications
-          properties:
-            resourceConfig:
-              description: ResourceConfig defines general properties of this RDS Cluster.
-              properties:
-                deletionPolicy:
-                  description: Defaults to Delete
-                  enum:
-                    - Delete
-                    - Orphan
-                  type: string
-                region:
-                  type: string
-                providerConfigName:
-                  type: string
-                  default: default
-                tags:
-                  items:
-                    properties:
-                      key:
-                        type: string
-                      value:
-                        type: string
-                    required:
-                      - key
-                      - value
-                    type: object
-                  type: array
-              required:
-                - region
-              type: object
-            storageGB:
-              type: integer
-              default: 100
-            vpcId:
-              type: string
-            subnetIds:
-              items:
-                type: string
-              type: array
-          required:
-            - resourceConfig
-            - vpcId
-            - subnetIds
-          title: RDS Cluster Options
-          type: object
+        - region
+        - subnetIds
   steps:
-    - id: template
-      name: Generating component
-      action: fetch:template
+    - action: fetch:template
+      id: fetch-base
       input:
-        url: ./skeleton
+        url: ./skeleton/
         values:
-          name: ${{parameters.name}}
-          repoUrl: ${{parameters.repoUrl}}
-    - action: roadiehq:utils:serialize:yaml
-      id: serialize
-      input:
-        data:
-          apiVersion: awsblueprints.io/v1alpha1
-          kind: ${{ parameters.kind }}
-          metadata:
-            name: ${{ parameters.name }}
-          spec: ${{ parameters.config }}
-      name: serialize
-    - action: roadiehq:utils:fs:write
-      id: write
-      input:
-        content: ${{ steps['serialize'].output.serialized }}
-        path: kustomize/base/${{ parameters.name }}.yaml
-      name: write-to-file
+          name: ${{ parameters.name }}
+          namespace: ${{ parameters.namespace }}
+          region: ${{ parameters.region }}
+          storageGBs: ${{parameters.storageGBs}}
+          subnetIds: ${{parameters.subnetIds}}
+      name: Fetch Base
     - id: publish
       name: Publishing to a gitea git repository
       action: publish:gitea
       input:
-        description: This is an example app
+        description: RDS Cluster manifests
+        # Hard coded value for this demo purposes only.
         repoUrl: ${{parameters.repoUrl}}?repo=${{parameters.name}}
         defaultBranch: main
     - id: create-argocd-app
@@ -123,11 +65,12 @@ spec:
       action: cnoe:create-argocd-app
       input:
         appName: ${{parameters.name}}
-        appNamespace: default
+        appNamespace: ${{parameters.namespace}}
         argoInstance: in-cluster
         projectName: default
+        # necessary until we generate our own cert
         repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.name}}
-        path: "kustomize/base"
+        path: "manifests"
     - id: register
       name: Register
       action: catalog:register
@@ -139,3 +82,4 @@ spec:
       - title: Open in catalog
         icon: catalog
         entityRef: ${{ steps['register'].output.entityRef }}
+
