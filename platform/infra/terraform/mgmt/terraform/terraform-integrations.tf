@@ -20,7 +20,7 @@ module "tofu_aws_role" {
   oidc_providers = {
     main = {
       provider_arn = data.aws_iam_openid_connect_provider.eks_oidc.arn
-      namespace_service_accounts = ["flux-system:provider-aws*"]
+      namespace_service_accounts = ["flux-system:tf-runner"]
     }
   }
   tags = var.tags
