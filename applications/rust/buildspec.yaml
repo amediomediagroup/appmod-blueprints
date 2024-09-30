@@ -13,3 +13,8 @@ phases:
       - cd integration
       - docker build -f Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION .
       - docker push $ECR_REGISTRY/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION
+
+  integration:
+    commands:
+      - cd ./application/rust/
+      - cargo test # @vshardul write some tests brother. Unit tests are usually quite nice
