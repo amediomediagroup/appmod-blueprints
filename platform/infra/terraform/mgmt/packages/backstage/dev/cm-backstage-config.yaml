@@ -108,6 +108,7 @@ data:
         # Examples from a public GitHub repository.
         - type: url
 <<<<<<< HEAD
+<<<<<<< HEAD
           target: https://github.com/mlops-on-kubernetes/backstage-terraform-integrations/blob/main/backstage-templates-for-eks/catalog-info.yaml
           rules:
             - allow: [User, Group]
@@ -116,6 +117,9 @@ data:
 =======
           target: https://github.com/aws-samples/appmod-blueprints/blob/feature/add-create-template/platform/backstage/templates/catalog-info.yaml
 >>>>>>> b6883c7 (update rds template)
+=======
+          target: https://github.com/aws-samples/appmod-blueprints/blob/feat-add-create-template/platform/backstage/templates/catalog-info.yaml
+>>>>>>> 0f37e77 (fixes for backstage)
           rules:
             - allow: [User, Group]
         ## Uncomment these lines to add an example org
