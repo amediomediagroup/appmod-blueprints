@@ -45,4 +45,6 @@ spec:
                 name: gitea-credentials
             - secretRef:
                 name: argocd-credentials
+            - secretRef:
+                name: github-token
 

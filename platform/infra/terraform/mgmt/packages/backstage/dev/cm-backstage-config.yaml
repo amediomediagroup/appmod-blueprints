@@ -48,14 +48,9 @@ data:
            host: ${GITEA_HOST}
            username: ${GITEA_USERNAME}
            password: ${GITEA_PASSWORD}
-    #  github:
-    #    - host: github.com
-    #      apps:
-    #        - $include: github-integration.yaml
-    #    - host: github.com
-    #      # This is a Personal Access Token or PAT from GitHub. You can find out how to generate this token, and more information
-    #      # about setting up the GitHub integration here: https://backstage.io/docs/getting-started/configuration#setting-up-a-github-integration
-    #      token: ${GITHUB_TOKEN}
+       github:
+         - host: github.com
+           token: ${GITHUB_TOKEN}
         ### Example for how to add your GitHub Enterprise instance using the API:
         # - host: ghe.example.net
         #   apiBaseUrl: https://ghe.example.net/api/v3
