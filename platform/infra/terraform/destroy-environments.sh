@@ -149,11 +149,18 @@ aws elbv2 delete-load-balancer --region $TF_VAR_aws_region --load-balancer-arn $
 # Destroy bootstrap Bucket, DynamoDB lock table, Amazon Managed Grafana and Amazon Managed Prometheus
 #terraform -chdir=bootstrap destroy -auto-approve
 
+# Cleanup the keycloak and AMG Secrets config if not cleaned
+aws secretsmanager delete-secret --secret-id "modern-engg/keycloak/config" --force-delete-without-recovery --region $TF_VAR_aws_region || true
+
+aws secretsmanager delete-secret --secret-id "modern-engg/amg" --force-delete-without-recovery --region $TF_VAR_aws_region || true
+# Delete the cluster if deletion is not clean
+
+aws eks delete-cluster --name $TF_VAR_dev_cluster_name || true
+
+aws eks delete-cluster --name $TF_VAR_prod_cluster_name || true
+
 # Cleanup the IDP Builder and applications
 ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/uninstall.sh
-
-# Cleanup the keycloak Secret config if not cleaned
-aws secretsmanager delete-secret --secret-id "modern-engg/keycloak/config" --force-delete-without-recovery --region $TF_VAR_aws_region || true
 
 # Cleanup the IDP EKS management cluster and prerequisites
 ${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/mgmt-cluster/uninstall.sh

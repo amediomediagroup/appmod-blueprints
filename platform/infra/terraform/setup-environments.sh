@@ -53,9 +53,33 @@ export TF_eks_cluster_vpc_id=$(terraform output -raw eks_cluster_vpc_id)
 export TF_eks_cluster_private_subnets=$(terraform output -json eks_cluster_private_subnets)
 
 export KEYCLOAK_NAMESPACE=keycloak
-export KEYCLOAK_REALM=grafana
+export KEYCLOAK_REALM=modernengg
 export KEYCLOAK_USER_ADMIN_PASSWORD=$(openssl rand -base64 8)
 export KEYCLOAK_USER_EDITOR_PASSWORD=$(openssl rand -base64 8)
+export KEYCLOAK_USER_VIEWER_PASSWORD=$(openssl rand -base64 8)
+
+# Set your secret values
+export AMG_SECRET_NAME="modern-engg/amg"
+export AMG_SECRET_VALUE="{\"amg-admin-password\":\"$KEYCLOAK_USER_ADMIN_PASSWORD\",\"amg-editor-password\":\"$KEYCLOAK_USER_EDITOR_PASSWORD\",\"amg-viewer-password\":\"$KEYCLOAK_USER_VIEWER_PASSWORD\"}"
+
+# Check if the secret exists
+if aws secretsmanager describe-secret --secret-id $AMG_SECRET_NAME --region $TF_VAR_aws_region &> /dev/null; then
+    echo "Secret exists. Updating..."
+    aws secretsmanager put-secret-value \
+        --secret-id $AMG_SECRET_NAME \
+        --secret-string "$AMG_SECRET_VALUE" \
+        --region $TF_VAR_aws_region
+    echo "Secret updated successfully."
+else
+    echo "Secret does not exist. Creating..."
+    aws secretsmanager create-secret \
+        --name $AMG_SECRET_NAME \
+        --description "My secret description" \
+        --secret-string "$AMG_SECRET_VALUE" \
+        --region $TF_VAR_aws_region \
+        --tags "Key=project,Value=modern-engg" --query "ARN"
+    echo "Secret created successfully."
+fi
 
 # Default cluster names set. To override, set them as environment variables.
 export TF_VAR_mgmt_cluster_name="modern-engineering"
@@ -92,11 +116,7 @@ export TF_VAR_managed_grafana_workspace_id=$(terraform -chdir=bootstrap output -
 export TF_VAR_grafana_workspace_endpoint=$(terraform -chdir=bootstrap output -raw grafana_workspace_endpoint)
 
 export WORKSPACE_ENDPOINT=$TF_VAR_grafana_workspace_endpoint
-export KEYCLOAK_NAMESPACE=keycloak
-export KEYCLOAK_REALM=grafana
 export WORKSPACE_ID=$TF_VAR_managed_grafana_workspace_id
-export KEYCLOAK_USER_ADMIN_PASSWORD=$(openssl rand -base64 8)
-export KEYCLOAK_USER_EDITOR_PASSWORD=$(openssl rand -base64 8)
 
 # Export the Keycloak admin password for the workspace from the Management Cluster Keycloak
 export KEYCLOAK_ADMIN_PASSWORD=$(kubectl get secret keycloak-config -n keycloak --template={{.data.KEYCLOAK_ADMIN_PASSWORD}} | base64 -d)
@@ -244,18 +264,24 @@ echo "Backstage URL is: https://$DNS_HOSTNAME/"
 echo "ArgoWorkflows URL is: https://$DNS_HOSTNAME/argo-workflows"
 
 echo "-------------------"
-echo "Workspace endpoint: https://$WORKSPACE_ENDPOINT/"
+echo "Amazon Managed Grafana Workspace endpoint: https://$WORKSPACE_ENDPOINT/"
 echo "-------------------"
-echo "Admin credentials"
+echo "Amazon Managed Grafana Admin Credentials"
 echo "-------------------"
-echo "username: admin"
+echo "username: monitor-admin"
 echo "password: $KEYCLOAK_USER_ADMIN_PASSWORD"
 echo ""
 echo "-------------------"
-echo "Editor credentials"
+echo "Amazon Managed Grafana Editor Credentials"
 echo "-------------------"
-echo "username: editor"
+echo "username: monitor-editor"
 echo "password: $KEYCLOAK_USER_EDITOR_PASSWORD"
+echo ""
+echo "-------------------"
+echo "Amazon Managed Grafana Viewer Credentials"
+echo "-------------------"
+echo "username: monitor-viewer"
+echo "password: $KEYCLOAK_USER_VIEWER_PASSWORD"
 echo ""
 echo "Setup done."
 

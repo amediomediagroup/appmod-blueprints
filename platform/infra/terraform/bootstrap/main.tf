@@ -53,25 +53,25 @@ module "managed_grafana" {
   # Workspace API keys
   workspace_api_keys = {
     viewer = {
-      key_name        = "viewer"
+      key_name        = "grafana-viewer"
       key_role        = "VIEWER"
       seconds_to_live = 3600
     }
     editor = {
-      key_name        = "editor"
+      key_name        = "grafana-editor"
       key_role        = "EDITOR"
       seconds_to_live = 3600
     }
     admin = {
-      key_name        = "admin"
+      key_name        = "grafana-admin"
       key_role        = "ADMIN"
       seconds_to_live = 3600
     }
   }
 
   # Workspace SAML configuration
-  saml_admin_role_values  = ["admin"]
-  saml_editor_role_values = ["editor"]
+  saml_admin_role_values  = ["grafana-admin"]
+  saml_editor_role_values = ["grafana-editor","grafana-viewer"]
   saml_email_assertion    = "mail"
   saml_groups_assertion   = "groups"
   saml_login_assertion    = "mail"
