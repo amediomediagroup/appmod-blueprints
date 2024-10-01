@@ -2,6 +2,7 @@
 
 This repo has following backstage templates which can be plugged in to your Internal Developer Portal via backstage readily:
 
+- `create-dev-and-prod-env` backstage template enables you to deploy 2 EKS clusters for Dev and Prod application environments
 - `eks-cost-monitoring` backstage template enables you to deploy an EKS cluster with cost monitoring tools on your cluster to enable your Kubernetes cluster with cost monitoring out of the box.
 - `eks-istio` backstage template enables you to deploy an EKS cluster with istio as service mesh for managing networking and telemetry for your micro services.
 - `eks-nvdia-gpu-efa` backstage template enables you to deploy an EKS cluster with GPU infrastructure to run ML and LLM based workloads.
@@ -37,7 +38,7 @@ Alternative you can also use the below setup if you are using `idpbuilder`.
 
 ## 🌟 Implementation walkthrough
 
-1. `idpBuilder` is extensible to launch custom Crossplane patterns using package extensions. 
+1. `idpBuilder` is extensible to launch custom Crossplane patterns using package extensions.
 
 Please use the below command to deploy an IDP reference implementation with an Argo application for preparing up the setup for terraform integrations:
 
@@ -48,6 +49,7 @@ idpbuilder create \
   --package-dir https://github.com/cnoe-io/stacks//crossplane-integrations \
   --package-dir https://github.com/cnoe-io/stacks//terraform-integrations
 ```
+
 ## What is installed?
 
 - Crossplane Runtime
@@ -97,6 +99,7 @@ EOF
 kubectl apply -f ./aws-secrets-tofu.yaml
 
 ```
+
 </details>
 
 5. Postgres credentials for RDS Database
@@ -133,3 +136,4 @@ idpbuilder create \
   --package-dir [path-to-stacks-repo]/crossplane-integrations \
   --package-dir [path-to-stacks-repo]//terraform-integration
 ```
+
