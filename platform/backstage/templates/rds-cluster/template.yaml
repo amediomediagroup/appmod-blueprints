@@ -30,7 +30,6 @@ spec:
         - name
         - repoUrl
         - region
-        - subnetIds
   steps:
     - action: fetch:template
       id: fetch-base
