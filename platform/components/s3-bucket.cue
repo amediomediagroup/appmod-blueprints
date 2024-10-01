@@ -5,7 +5,7 @@
 		apiVersion: "apps/v1"
 		kind:       "Deployment"
 	}
-	description: ""
+	description: "S3 Bucket"
 	labels: {}
 	type: "component"
 }
@@ -21,7 +21,6 @@ template: {
 			forProvider: {
 				region: "\(parameter.region)"
 			}
-			providerConfigRef: name: "provider-upbound-aws-config"
 		}
 	}
 	parameter: {
@@ -29,4 +28,3 @@ template: {
     region: string
   }
 }
-

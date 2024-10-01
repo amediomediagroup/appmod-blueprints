@@ -52,7 +52,6 @@ template: {
             }
           """}
         }
-        providerConfigRef: name: "provider-upbound-aws-config"
       }
     }
 
@@ -69,7 +68,6 @@ template: {
               policyArnRef: name: "\(context.appName)-\(c)-iam-policy"
               roleRef: name: "\(context.name)-iam-role"
             }
-            providerConfigRef: name: "provider-upbound-aws-config"
           }
         }
       }
@@ -87,7 +85,6 @@ template: {
           roleArnRef: name: "\(context.name)-iam-role"
           serviceAccount: "\(context.name)-service-account"
         }
-        providerConfigRef: name: "provider-upbound-aws-config"
       }
 
     }

@@ -36,7 +36,6 @@ template: {
               }
             """}
           }
-          providerConfigRef: name: "provider-upbound-aws-config"
         }
       }
     }
@@ -51,7 +50,6 @@ template: {
           forProvider: {
             policy: "\(policy)"
           }
-          providerConfigRef: name: "provider-upbound-aws-config"
         }
       }
     }
