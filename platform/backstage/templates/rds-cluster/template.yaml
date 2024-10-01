@@ -25,15 +25,6 @@ spec:
           title: Gitea URL
           type: string
           description: Gitea URL on Management cluster
-        storageGBs:
-          title: Amount of storage per instance in GBs
-          type: number
-          default: 100
-        subnetIds:
-          title: subnet IDs for cluster
-          type: array
-          items:
-            type: string
       title: Configuration Options
       required:
         - name
@@ -49,8 +40,6 @@ spec:
           name: ${{ parameters.name }}
           namespace: ${{ parameters.namespace }}
           region: ${{ parameters.region }}
-          storageGBs: ${{parameters.storageGBs}}
-          subnetIds: ${{parameters.subnetIds}}
           repoUrl: ${{parameters.repoUrl}}
       name: Fetch Base
     - id: publish
