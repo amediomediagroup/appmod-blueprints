@@ -3,7 +3,7 @@ kind: ComponentDefinition
 metadata:
   annotations:
     definition.oam.dev/alias: ""
-    definition.oam.dev/description: ""
+    definition.oam.dev/description: S3 Bucket
   name: s3-bucket
 spec:
   schematic:
@@ -13,10 +13,7 @@ spec:
         	apiVersion: "s3.aws.upbound.io/v1beta1"
         	kind:       "Bucket"
         	metadata: name: "\(parameter.name)"
-        	spec: {
-        		forProvider: region:     "\(parameter.region)"
-        		providerConfigRef: name: "provider-upbound-aws-config"
-        	}
+        	spec: forProvider: region: "\(parameter.region)"
         }
         parameter: {
         	name:   string
