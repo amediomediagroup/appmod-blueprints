@@ -24,7 +24,7 @@ spec:
       key: password
       name: ${{values.name}}-rds-cluster-password
       namespace: ${{values.namespace}}
-    masterUsername: admin 
+    masterUsername: awsrdsadmin 
     region: ${{values.region}}
     dbSubnetGroupNameRef:
       name: ${{values.name}}-rds-subnetgroup
