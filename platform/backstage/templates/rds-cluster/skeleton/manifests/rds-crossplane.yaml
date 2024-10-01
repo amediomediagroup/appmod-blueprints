@@ -7,9 +7,9 @@ spec:
   forProvider:
     region: ${{values.region}}
     subnetIds:
-{% for subnetId in values.subnetIds %}
+      {% for subnetId in values.subnetIds %}
       - {{ subnetId }}
-{% endfor %}
+      {% endfor %}
 ---
 apiVersion: rds.aws.upbound.io/v1beta1
 kind: Cluster
