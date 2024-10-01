@@ -21,6 +21,12 @@ spec:
         region:
           title: aws region
           type: string
+        subnetIds:
+          title: Subnet IDs
+          description: ID of subnets for rds cluster
+          type: array
+          items:
+            type: string
         repoUrl:
           title: Gitea URL
           type: string
@@ -30,6 +36,7 @@ spec:
         - name
         - repoUrl
         - region
+        - subnetIds
   steps:
     - action: fetch:template
       id: fetch-base
@@ -40,6 +47,7 @@ spec:
           namespace: ${{ parameters.namespace }}
           region: ${{ parameters.region }}
           repoUrl: ${{parameters.repoUrl}}
+          subnetIds: ${{parameters.subnetIds}}
       name: Fetch Base
     - id: publish
       name: Publishing to a gitea git repository
