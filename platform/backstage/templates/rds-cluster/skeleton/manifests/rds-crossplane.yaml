@@ -27,7 +27,7 @@ spec:
     masterUsername: admin 
     region: ${{values.region}}
     dbSubnetGroupNameRef:
-      name: ${{values.name}}-subnetgroup
+      name: ${{values.name}}-rds-subnetgroup
     skipFinalSnapshot: true
   writeConnectionSecretToRef:
     name: ${{values.name}}-rds-cluster-secret
