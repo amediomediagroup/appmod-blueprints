@@ -6,9 +6,10 @@ metadata:
 spec:
   forProvider:
     region: ${{values.region}}
-    subnetIdSelector: 
-      matchLabels:
-        Name: modern-engineering-private-${{values.region}}*
+    subnetIds:
+{% for subnetId in values.subnetIds %}
+      - {{ subnetId }}
+{% endfor %}
 ---
 apiVersion: rds.aws.upbound.io/v1beta1
 kind: Cluster
