@@ -8,7 +8,7 @@ spec:
     region: ${{values.region}}
     subnetIds:
       {% for subnetId in values.subnetIds %}
-      - {{ subnetId }}
+      - ${{ subnetId }}
       {% endfor %}
 ---
 apiVersion: rds.aws.upbound.io/v1beta1
