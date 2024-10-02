@@ -51,7 +51,7 @@ Follow the following steps to get started.
 
 1. Run the following commands to setup your IDP environment:
 ```bash
-cd "./Chapter 8"
+cd ./platform/infra/terraform
 ./setup-environments.sh
 ```
 
@@ -134,7 +134,7 @@ k get secrets -n keycloak keycloak-config -o go-template='{{range $k,$v := .data
 ```
 
 ## Uninstall
-1. Run `setups/uninstall.sh` and follow the prompts.
+1. Run `./platform/infra/terraform/mgmt/setups/uninstall.sh` and follow the prompts.
 
 ## Troubleshooting
 
