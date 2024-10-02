@@ -30,6 +30,9 @@ if [ -z "${TF_VAR_aws_region}" ]; then
   export TF_VAR_aws_region="us-west-2"
 fi
 
+# SLR Required for Karpenter
+aws iam create-service-linked-role --aws-service-name spot.amazonaws.com
+
 export REPO_ROOT=$(git rev-parse --show-toplevel)
 source ${REPO_ROOT}/platform/infra/terraform/setup-keycloak.sh
 
