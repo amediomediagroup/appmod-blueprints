@@ -107,7 +107,8 @@ module "eks_dev_monitoring" {
   eks_cluster_id         = module.eks_blueprints_dev.eks_cluster_id
   enable_amazon_eks_adot = true
   enable_cert_manager    = true
-  enable_java            = false
+  enable_java            = true
+  enable_nginx           = true
 
   # This configuration section results in actions performed on AMG and AMP; and it needs to be done just once
   # And hence, this in performed in conjunction with the setup of the eks_cluster_1 EKS cluster
