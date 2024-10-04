@@ -110,6 +110,7 @@ data:
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
           target: https://github.com/mlops-on-kubernetes/backstage-terraform-integrations/blob/main/backstage-templates-for-eks/catalog-info.yaml
           rules:
             - allow: [User, Group]
@@ -124,13 +125,18 @@ data:
 =======
           target: https://github.com/aws-samples/appmod-blueprints/blob/feat-add-create-template/platform/backstage/templates/catalog-info.yaml
 =======
+=======
+>>>>>>> bce26af (Fixing Merge conflicts)
           target: https://github.com/mlops-on-kubernetes/backstage-terraform-integrations/blob/main/backstage-templates-for-eks/catalog-info.yaml
           rules:
             - allow: [User, Group]
         - type: url
           target: https://github.com/elamaran11/backstage-crossplane-integrations/blob/main/backstage-crossplane-templates/catalog-info.yaml
+<<<<<<< HEAD
 >>>>>>> d426dab (Fixing TOFU IRSA issue)
 >>>>>>> 1386ebd (Fixing TOFU IRSA issue)
+=======
+>>>>>>> bce26af (Fixing Merge conflicts)
           rules:
             - allow: [User, Group]
         ## Uncomment these lines to add an example org
