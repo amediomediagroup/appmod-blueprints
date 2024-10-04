@@ -133,6 +133,10 @@ Click on the KeyCloak URL to navigate to your browser to access the Backstage Ap
 k get secrets -n keycloak keycloak-config -o go-template='{{range $k,$v := .data}}{{printf "%s: " $k}}{{if not $v}}{{$v}}{{else}}{{$v | base64decode}}{{end}}{{"\n"}}{{end}}'
 ```
 
+### Grafana Access:
+
+At the end of the automation you will see Amazon Managed Grafana URL getting displayed along with passwords for `admin` and `editor` users. Please use this to access the Amazon Managed Grafana instance to monitor your Infrastructure and workloads.
+
 ## Uninstall
 1. Run `./platform/infra/terraform/mgmt/setups/uninstall.sh` and follow the prompts.
 
