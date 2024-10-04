@@ -19,5 +19,6 @@ spec:
     - ./spark-job/template-spark-job.yaml
     - ./ray-serve/template-ray-serve.yaml
     - ./serverless-microservice/template-serverless-microservice.yaml
+    - ./create-dev-and-prod-env/template-create-dev-and-prod-env.yaml
 
 

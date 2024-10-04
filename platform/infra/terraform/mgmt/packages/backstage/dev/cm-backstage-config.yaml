@@ -43,19 +43,14 @@ data:
       # workingDirectory: /tmp # Use this to configure a working directory for the scaffolder, defaults to the OS temp-dir
 
     integrations:
-       gitea:
-         - baseUrl: ${GITEA_BASE_URL}
-           host: ${GITEA_HOST}
-           username: ${GITEA_USERNAME}
-           password: ${GITEA_PASSWORD}
-    #  github:
-    #    - host: github.com
-    #      apps:
-    #        - $include: github-integration.yaml
-    #    - host: github.com
-    #      # This is a Personal Access Token or PAT from GitHub. You can find out how to generate this token, and more information
-    #      # about setting up the GitHub integration here: https://backstage.io/docs/getting-started/configuration#setting-up-a-github-integration
-    #      token: ${GITHUB_TOKEN}
+      gitea:
+        - baseUrl: ${GITEA_BASE_URL}
+          host: ${GITEA_HOST}
+          username: ${GITEA_USERNAME}
+          password: ${GITEA_PASSWORD}
+      github:
+        - host: github.com
+          token: ${GITHUB_TOKEN}
         ### Example for how to add your GitHub Enterprise instance using the API:
         # - host: ghe.example.net
         #   apiBaseUrl: https://ghe.example.net/api/v3
@@ -112,11 +107,7 @@ data:
       locations:
         # Examples from a public GitHub repository.
         - type: url
-          target: https://github.com/elamaran11/backstage-terraform-integrations/blob/main/backstage-templates-for-eks/catalog-info.yaml
-          rules:
-            - allow: [User, Group]
-        - type: url
-          target: https://github.com/elamaran11/backstage-crossplane-integrations/blob/main/backstage-crossplane-templates/catalog-info.yaml
+          target: https://github.com/aws-samples/appmod-blueprints/blob/feat-add-create-template/platform/backstage/templates/catalog-info.yaml
           rules:
             - allow: [User, Group]
         ## Uncomment these lines to add an example org
