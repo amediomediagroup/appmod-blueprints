@@ -18,7 +18,7 @@ spec:
         - repoPath
         - repoName
       properties:
-        microservice_name:
+        microserviceName:
           title: Microservice Name
           type: string
           description: Name of the microservice
