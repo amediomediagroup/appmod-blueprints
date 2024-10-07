@@ -5,8 +5,7 @@ metadata:
   description: kubernetes cluster for ${{ values.name }}
   annotations:
     backstage.io/kubernetes-namespace: ${{values.namespace}}
-    argo-workflows.cnoe.io/label-selector: env=dev,entity-id=${{values.name}}
-    argo-workflows.cnoe.io/cluster-name: local
+    argocd/app-name: ${{values.name | dump}}
 spec:
   type: kubernetes-cluster
   lifecycle: experimental
