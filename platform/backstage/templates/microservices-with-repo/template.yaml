@@ -17,11 +17,17 @@ spec:
         - microserviceName
         - repoPath
         - repoName
+        - environment
       properties:
         microserviceName:
           title: Microservice Name
           type: string
           description: Name of the microservice
+        environment:
+          title: Environment
+          type: string
+          description: The environment (e.g., dev, prod)
+          enum: ['dev-cluster', 'prod-cluster']
         repoName:
           title: Repo URL of your Gitea Repo integrated with Backstage
           type: string
@@ -29,14 +35,19 @@ spec:
         repoPath:
           title: Path of Git Repo to sync for GitOps
           type: string
+        appNamespace:
+          title: App Namespace
+          type: string
+          description: The namespace where the app should be deployed
+          default: default
   steps:
     - id: create-argocd-app
       name: Create ArgoCD App
       action: cnoe:create-argocd-app
       input:
         appName: ${{parameters.microserviceName}}
-        appNamespace: default
-        argoInstance: in-cluster
+        appNamespace: ${{parameters.appNamespace}}
+        argoInstance: ${{parameters.environment}}
         projectName: default
         repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.repoName}}
         path: ${{parameters.repoPath}}

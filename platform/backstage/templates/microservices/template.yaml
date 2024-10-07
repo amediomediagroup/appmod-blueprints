@@ -26,11 +26,17 @@ spec:
           title: Environment
           type: string
           description: The environment (e.g., dev, prod)
-          enum: ['dev', 'prod']
+          enum: ['dev-cluster', 'prod-cluster']
         repoName:
           title: Repo URL of your Gitea Repo integrated with Backstage
           type: string
           pattern: ^[a-zA-Z0-9-_.]+$
+        appNamespace:
+          title: App Namespace
+          type: string
+          description: The namespace where the app should be deployed
+          default: default
+    - title: Provide Gitea Instance Information
   steps:
     - id: fetch-base
       name: Fetch Skeleton + Template
@@ -52,8 +58,8 @@ spec:
       action: cnoe:create-argocd-app
       input:
         appName: ${{parameters.microserviceName}}
-        appNamespace: default
-        argoInstance: in-cluster
+        appNamespace: ${{parameters.appNamespace}}
+        argoInstance: ${{parameters.environment}}
         projectName: default
         repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.repoName}}
         path: "manifests"
