@@ -9,7 +9,7 @@ metadata:
     - gitea
     - argocd
 spec:
-  owner: platform-team
+  owner: guest
   type: service
   parameters:
     - title: Provide Microservice Information
