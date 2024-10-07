@@ -5,7 +5,7 @@ metadata:
   title: S3 Bucket Template
   description: Create S3 bucket using OAM and CrossPlane
 spec:
-  owner: platform-team
+  owner: guest
   type: service
   parameters:
     - title: Provide S3 Bucket Information
