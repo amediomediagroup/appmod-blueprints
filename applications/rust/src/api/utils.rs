@@ -5,13 +5,10 @@ use serde::{Deserialize, Serialize};
 use serde_dynamo::{from_item, from_items};
 use std::fmt::Debug;
 
-use opentelemetry::{global, metrics::MeterProvider, KeyValue};
-use opentelemetry::metrics::Meter;
-use opentelemetry_sdk::metrics::{SdkMeterProvider};
-use opentelemetry_sdk::propagation::TraceContextPropagator;
-use opentelemetry_sdk::trace::{Span, BatchSpanProcessor, BatchSpanProcessorBuilder, TracerProvider};
+use opentelemetry_appender_tracing::layer;
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::{async_trait, Build, Data, Orbit, Request, Response, Rocket};
+use tracing::{info_span, Span};
 
 pub fn reconstruct_results<'a, T>(results: QueryOutput) -> Result<Vec<T>, String>
 where
@@ -87,42 +84,39 @@ pub async fn query_ddb(
     }
 }
 
-#[derive(Copy, Clone)]
-struct TracingFairing;
-
+#[derive(Clone)]
 pub struct TracingSpan<T = Span>(T);
 
-// #[async_trait]
-// impl Fairing for TracingFairing {
-//     fn info(&self) -> Info {
-//         Info {
-//             name: "Tracing Fairing",
-//             kind: Kind::Request | Kind::Response
-//         }
-//     }
-//
-//     async fn on_ignite(&self, rocket: Rocket<Build>) -> rocket::fairing::Result {
-//         global::set_text_map_propagator(TraceContextPropagator::new());
-//         let span_processor: BatchSpanProcessor<String> = BatchSpanProcessorBuilder;
-//
-//         let provider = TracerProvider::builder()
-//             .with_batch_exporter()
-//             .build();
-//         global::set_tracer_provider(provider);
-//     }
-//
-//     async fn on_request(&self, request: &Request, _: &mut Response) {
-//
-//     }
-//
-//     async fn on_response(&self, request: &Request, response: &mut Response) {
-//         if let Some(mut span) = request.local_cache(|| None::<dyn opentelemetry::trace::Span>) {
-//             span.end();
-//         }
-//     }
-//
-//     async fn on_shutdown(&self, _rocket: &Rocket<Orbit>) {
-//         todo!()
-//     }
-// }
+pub(crate) struct TracingFairing;
+
+#[async_trait]
+impl Fairing for TracingFairing {
+    fn info(&self) -> Info {
+        Info {
+            name: "Tracing Fairing",
+            kind: Kind::Request | Kind::Response
+        }
+    }
+
+    async fn on_request(&self, request: &mut Request<'_>, _: &mut Data<'_>) {
+        let span = info_span!(
+            "request",
+            otel.name=%format!("{} {}", request.method(), request.uri().path()),
+            http.method = %request.method(),
+            http.uri = %request.uri().path(),
+            http.status_code = tracing::field::Empty,
+        );
+
+        request.local_cache(|| TracingSpan::<Option<Span>>(Some(span)));
+    }
+
+    async fn on_response<'r>(&self, request: &'r Request<'_>, response: &mut Response<'r>) {
+        if let Some(span) = request.local_cache(|| TracingSpan::<Option<Span>>(None)).0.to_owned() {
+            let current_span = span.entered();
+            current_span.record("http.status_code", response.status().code);
+
+            drop(current_span);
+        }
+    }
+}
 

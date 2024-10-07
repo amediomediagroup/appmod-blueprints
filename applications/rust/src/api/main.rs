@@ -1,9 +1,12 @@
 #![allow(warnings)]
-
 mod services;
 mod types;
 mod utils;
 
+#[macro_use]
+extern crate tracing;
+
+use std::time::Duration;
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::default_provider::region::DefaultRegionChain;
 use aws_sdk_dynamodb as ddb;
@@ -13,6 +16,12 @@ use services::product::*;
 use aws_config::Region;
 use services::cart::*;
 use services::ui::*;
+use opentelemetry::{trace::{TraceContextExt, Tracer}, KeyValue};
+use opentelemetry_appender_tracing::layer;
+use opentelemetry_otlp::{WithExportConfig};
+use opentelemetry_sdk::{trace, Resource};
+use opentelemetry_sdk::trace::{RandomIdGenerator, Sampler};
+use crate::utils::TracingFairing;
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
@@ -39,10 +48,32 @@ async fn main() -> Result<(), rocket::Error> {
 
     let prometheus = PrometheusMetrics::new();
 
+    // let tracer_provider = opentelemetry_otlp::new_pipeline()
+    //     .tracing()
+    //     .with_exporter(
+    //         opentelemetry_otlp::new_exporter()
+    //             .tonic()
+    //             .with_endpoint("http://localhost:4317")
+    //             .with_timeout(Duration::from_secs(3))
+    //     )
+    //     .with_trace_config(
+    //         trace::Config::default()
+    //             .with_sampler(Sampler::AlwaysOn)
+    //             .with_id_generator(RandomIdGenerator::default())
+    //             .with_max_events_per_span(64)
+    //             .with_max_attributes_per_span(16)
+    //             .with_max_events_per_span(16)
+    //             .with_resource(Resource::new(vec![KeyValue::new("service.name", "RustMicroservice")])),
+    //     )
+    //     .install_batch(opentelemetry_sdk::runtime::Tokio).unwrap(); // This will just explode if it's a bad config
+    //
+    // let tracer_bridge = layer::OpenTelemetryTracingBridge::new(&tracer_provider);
+
     let rocket = rocket::build()
         .manage(ddb::Client::new(&config))
         .manage(table_name)
         .attach(prometheus.clone())
+        // .attach(TracingFairing)
         .mount(
             "/",
             routes![
@@ -62,15 +93,10 @@ async fn main() -> Result<(), rocket::Error> {
             ],
         )
         .mount("/metrics", prometheus);
-    // if is_running_on_lambda() {
-    //     // Launch on AWS Lambda
-    //     launch_rocket_on_lambda(rocket).await?;
-    // } else {
-    //     // Launch local server
-    //     let _ = rocket.launch().await?;
-    // }
 
     let _rocket = rocket.launch().await?;
+
+    // let _ = tracer_provider.shutdown();
 
     Ok(())
 }
