@@ -31,7 +31,12 @@ if [ -z "${TF_VAR_aws_region}" ]; then
 fi
 
 # SLR Required for Karpenter
-aws iam create-service-linked-role --aws-service-name spot.amazonaws.com
+if aws iam get-role --role-name AWSServiceRoleForEC2Spot >/dev/null 2>&1; then
+  echo "EC2 Spot service role already exists, skipping creation."
+else
+  aws iam create-service-linked-role --aws-service-name spot.amazonaws.com
+  echo "EC2 Spot service linked role created."
+fi
 
 export REPO_ROOT=$(git rev-parse --show-toplevel)
 source ${REPO_ROOT}/platform/infra/terraform/setup-keycloak.sh
@@ -66,22 +71,22 @@ export AMG_SECRET_NAME="modern-engg/amg"
 export AMG_SECRET_VALUE="{\"amg-admin-password\":\"$KEYCLOAK_USER_ADMIN_PASSWORD\",\"amg-editor-password\":\"$KEYCLOAK_USER_EDITOR_PASSWORD\",\"amg-viewer-password\":\"$KEYCLOAK_USER_VIEWER_PASSWORD\"}"
 
 # Check if the secret exists
-if aws secretsmanager describe-secret --secret-id $AMG_SECRET_NAME --region $TF_VAR_aws_region &> /dev/null; then
-    echo "Secret exists. Updating..."
-    aws secretsmanager put-secret-value \
-        --secret-id $AMG_SECRET_NAME \
-        --secret-string "$AMG_SECRET_VALUE" \
-        --region $TF_VAR_aws_region
-    echo "Secret updated successfully."
+if aws secretsmanager describe-secret --secret-id $AMG_SECRET_NAME --region $TF_VAR_aws_region &>/dev/null; then
+  echo "Secret exists. Updating..."
+  aws secretsmanager put-secret-value \
+    --secret-id $AMG_SECRET_NAME \
+    --secret-string "$AMG_SECRET_VALUE" \
+    --region $TF_VAR_aws_region
+  echo "Secret updated successfully."
 else
-    echo "Secret does not exist. Creating..."
-    aws secretsmanager create-secret \
-        --name $AMG_SECRET_NAME \
-        --description "My secret description" \
-        --secret-string "$AMG_SECRET_VALUE" \
-        --region $TF_VAR_aws_region \
-        --tags "Key=project,Value=modern-engg" --query "ARN"
-    echo "Secret created successfully."
+  echo "Secret does not exist. Creating..."
+  aws secretsmanager create-secret \
+    --name $AMG_SECRET_NAME \
+    --description "My secret description" \
+    --secret-string "$AMG_SECRET_VALUE" \
+    --region $TF_VAR_aws_region \
+    --tags "Key=project,Value=modern-engg" --query "ARN"
+  echo "Secret created successfully."
 fi
 
 # Default cluster names set. To override, set them as environment variables.
@@ -201,7 +206,7 @@ aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_prod_cluste
 export PROD_ACCESS_CONF=$(aws eks describe-cluster --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --query 'cluster.accessConfig' --output text)
 if [[ "$PROD_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
   echo "Changing IAM access configs for PROD cluster: $PROD_ACCESS_CONF"
-    aws eks update-cluster-config --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP || true
+  aws eks update-cluster-config --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP || true
 fi
 
 echo "Sleeping for 5 minutes to allow cluster to change auth mode"
@@ -289,4 +294,3 @@ echo ""
 echo "Setup done."
 
 echo "Script Complete"
-
