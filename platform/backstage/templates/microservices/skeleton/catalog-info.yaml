@@ -1,0 +1,12 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: microservice-${{values.microserviceName}}
+  description: Microservice for ${{values.microserviceName}}
+  annotations:
+    backstage.io/kubernetes-namespace: backstage
+spec:
+  type: micro-service
+  lifecycle: experimental
+  owner: guest
+  system: ${{values.microserviceName | dump}}
