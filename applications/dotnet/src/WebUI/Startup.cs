@@ -24,6 +24,7 @@ using System.Diagnostics.Metrics;
 using System;
 using OpenTelemetry.Contrib.Extensions.AWSXRay.Trace;
 using OpenTelemetry.Instrumentation.Runtime;
+using OpenTelemetry.Exporter.Prometheus;
 
 
 
@@ -77,18 +78,19 @@ namespace Northwind.WebUI
             services.AddSingleton<Meter>(meter);
             services.AddOpenTelemetry().WithMetrics(metricProviderBuilder =>
             {
-                metricProviderBuilder
-                    .AddConsoleExporter()
-                    .AddOtlpExporter(options =>
-                    {
-                        options.Protocol = OtlpExportProtocol.Grpc;
-                        options.Endpoint = new Uri(Configuration.GetValue<string>("OTEL_EXPORTER_OTLP_ENDPOINT"));
-                    })
-                    .AddMeter(meter.Name)
-                    .SetResourceBuilder(appResourceBuilder)
-                    .AddAspNetCoreInstrumentation()
-                    .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+            metricProviderBuilder
+                .AddConsoleExporter()
+                .AddOtlpExporter(options =>
+                {
+                    options.Protocol = OtlpExportProtocol.Grpc;
+                    options.Endpoint = new Uri(Configuration.GetValue<string>("OTEL_EXPORTER_OTLP_ENDPOINT"));
+                })
+                .AddMeter(meter.Name)
+                .SetResourceBuilder(appResourceBuilder)
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddRuntimeInstrumentation()
+                .AddPrometheusExporter();
 
             });
 
@@ -145,7 +147,7 @@ namespace Northwind.WebUI
                 // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
                 app.UseHsts();
             }
-
+            app.UseOpenTelemetryPrometheusScrapingEndpoint();
             app.UseCustomExceptionHandler();
             app.UseHealthChecks("/health");
             app.UseHttpsRedirection();
@@ -162,6 +164,7 @@ namespace Northwind.WebUI
                 c.SwaggerEndpoint("/swagger/v1/swagger.json", "Northwind Traders API V1");
             });
 
+            
             app.UseRouting();
 
             app.UseAuthentication();
