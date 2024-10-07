@@ -2,7 +2,7 @@ apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
   name: microservices-without-git-repo
-  title: MicroServices with Git Repo
+  title: MicroServices without Git Repo
   description: Creates a ArgocCD for deploying a microservice for an existing Git Repo
   tags:
     - microservices
@@ -29,7 +29,7 @@ spec:
           description: The environment (e.g., dev, prod)
           enum: ['dev-cluster', 'prod-cluster', 'in-cluster']
         repoName:
-          title: Repo URL of your Gitea Repo integrated with Backstage
+          title: Repo Name of your Gitea Repo integrated with Backstage
           type: string
           pattern: ^[a-zA-Z0-9-_.]+$
         repoPath:
