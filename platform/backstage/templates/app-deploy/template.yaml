@@ -47,7 +47,7 @@ spec:
       input:
         url: ./skeleton
         values:
-          app_name: ${{ parameters.appName }}
+          appName: ${{ parameters.appName }}
           environment: ${{ parameters.environment }}
     - id: publish
       name: Publishing to a gitea git repository

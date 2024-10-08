@@ -7,7 +7,7 @@ metadata:
     backstage.io/kubernetes-namespace: backstage
     argocd/app-name: ${{values.appName | dump}}
 spec:
-  type: micro-service
+  type: app-deploy
   lifecycle: experimental
   owner: guest
   system: ${{values.appName | dump}}
