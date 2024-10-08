@@ -267,6 +267,23 @@ module "crossplane_dev_provider_role" {
   tags = local.tags
 }
 
+module "aws_load_balancer_dev_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.14"
+
+  role_name_prefix = "modern-dev-lb-controller-"
+
+  attach_load_balancer_controller_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn = module.eks_blueprints_dev.eks_oidc_provider_arn
+      namespace_service_accounts = ["aws-load-balancer-controller:aws-load-balancer-controller"]
+    }
+  }
+  tags = local.tags
+}
+
 # resource "helm_release" "dev_argocd" {
 #   name             = "argocd"
 #   repository       = "https://argoproj.github.io/argo-helm"
