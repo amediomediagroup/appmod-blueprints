@@ -32,7 +32,6 @@ spec:
           type: string
           pattern: ^[a-zA-Z0-9-_.]+$
         repoUrl:
-          default: gitea.elamaras.people.aws.dev
           title: Repo URL of your Gitea Repo integrated with Backstage
           type: string
         appNamespace:
