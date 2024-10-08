@@ -51,12 +51,6 @@ spec:
         projectName: default
         repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.repoName}}
         path: ${{parameters.repoPath}}
-    - id: register
-      name: Register
-      action: catalog:register
-      input:
-        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
-        catalogInfoPath: '/catalog-info.yaml'
     - id: template-output
       name: Template Output
       action: debug:log
