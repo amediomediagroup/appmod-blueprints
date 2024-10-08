@@ -1,36 +1,42 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: microservices-with-git-repo
-  title: MicroServices with Gitea Repo
-  description: Creates a new Gitea Repo and ArgocCD for deploying a microservice
+  name: app-deploy-with-git-repo
+  title: App Deploy with Git Repo
+  description: Creates a new Gitea Repo and ArgocCD for deploying an App
   tags:
-    - microservices
+    - app-deploy
     - gitea
     - argocd
 spec:
   owner: guest
   type: service
   parameters:
-    - title: Provide Microservice Information
+    - title: Provide App Information
       required:
-        - microserviceName
+        - appName
         - environment
         - repoName
       properties:
-        microserviceName:
-          title: Microservice Name
+        appName:
+          title: App Name
           type: string
-          description: Name of the microservice
+          description: Name of the App
         environment:
           title: Environment
           type: string
           description: The environment (e.g., dev, prod)
-          enum: ['dev', 'prod']
+          enum: ['dev-cluster', 'prod-cluster', 'in-cluster']
         repoName:
           title: Repo URL of your Gitea Repo integrated with Backstage
           type: string
           pattern: ^[a-zA-Z0-9-_.]+$
+        appNamespace:
+          title: App Namespace
+          type: string
+          description: The namespace where the app should be deployed
+          default: default
+    - title: Provide Gitea Instance Information
   steps:
     - id: fetch-base
       name: Fetch Skeleton + Template
@@ -38,21 +44,22 @@ spec:
       input:
         url: ./skeleton
         values:
-          microservice_name: ${{ parameters.microserviceName }}
+          app_name: ${{ parameters.appName }}
           environment: ${{ parameters.environment }}
     - id: publish
       name: Publishing to a gitea git repository
       action: publish:gitea
       input:
-        description: Microservice ${{parameters.microserviceName}} for ${{parameters.environment}}
+        description: App with ${{parameters.appName}} for ${{parameters.environment}}
         repoUrl: ${{parameters.repoUrl}}?repo=${{parameters.repoName}}
         defaultBranch: main
     - id: create-argocd-app
       name: Create ArgoCD App
       action: cnoe:create-argocd-app
       input:
-        appName: ${{parameters.microserviceName}}
-        argoInstance: in-cluster
+        appName: ${{parameters.appName}}
+        appNamespace: ${{parameters.appNamespace}}
+        argoInstance: ${{parameters.environment}}
         projectName: default
         repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.repoName}}
         path: "manifests"
@@ -67,7 +74,6 @@ spec:
       action: debug:log
       input:
         listWorkspace: true
-
   output:
     links:
       - title: Repository
