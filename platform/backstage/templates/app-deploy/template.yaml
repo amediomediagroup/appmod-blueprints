@@ -28,9 +28,12 @@ spec:
           description: The environment (e.g., dev, prod)
           enum: ['dev-cluster', 'prod-cluster', 'in-cluster']
         repoName:
-          title: Repo URL of your Gitea Repo integrated with Backstage
+          title: Repo Name of your Gitea Repo
           type: string
           pattern: ^[a-zA-Z0-9-_.]+$
+        repoUrl:
+          title: Repo URL of your Gitea Repo integrated with Backstage
+          type: string
         appNamespace:
           title: App Namespace
           type: string
