@@ -268,6 +268,23 @@ module "crossplane_prod_provider_role" {
   tags = local.tags
 }
 
+module "aws_load_balancer_prod_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.14"
+
+  role_name_prefix = "modern-prod-lb-controller-"
+
+  attach_load_balancer_controller_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn = module.eks_blueprints_prod.eks_oidc_provider_arn
+      namespace_service_accounts = ["aws-load-balancer-controller:aws-load-balancer-controller"]
+    }
+  }
+  tags = local.tags
+}
+
 # resource "helm_release" "app_of_apps" {
 #   name             = "app-of-apps"
 #   chart            = "../deployment/envs/prod"

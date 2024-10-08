@@ -174,6 +174,7 @@ terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
   -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
 export DEV_ROLE_ARN=$(terraform -chdir=dev output -raw crossplane_dev_provider_role_arn)
+export LB_DEV_ROLE_ARN=$(terraform -chdir=dev output -raw lb_controller_dev_role_arn)
 
 # Change IAM Access Configs for DEV Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_dev_cluster_name
@@ -200,6 +201,7 @@ terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
   -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
 export PROD_ROLE_ARN=$(terraform -chdir=prod output -raw crossplane_prod_provider_role_arn)
+export LB_PROD_ROLE_ARN=$(terraform -chdir=prod output -raw lb_controller_prod_role_arn)
 
 # Change IAM Access Configs for PROD Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_prod_cluster_name
@@ -217,14 +219,21 @@ aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluste
 
 # Setup Applications on Clusters using ArgoCD on the management cluster
 # Setup Kubevela on Management,Dev and Prod clusters and deploy crossplane AWS providers
-sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-dev.yaml
-sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-prod.yaml
+# sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-dev.yaml
+# sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-prod.yaml
 
-sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-dev.yaml
-sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod.yaml
+# sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-dev.yaml
+# sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod.yaml
 
 sed -i -e "s#DEV_ROLE_ARN#${DEV_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-dev.yaml
 sed -i -e "s#PROD_ROLE_ARN#${PROD_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-prod.yaml
+
+# Setup AWS LB controller configs and roles
+sed -i -e "s#DEV_LB_ROLE_ARN#${LB_DEV_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-dev.yaml
+sed -i -e "s#PROD_LB_ROLE_ARN#${LB_PROD_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-prod.yaml
+
+sed -i -e "s#DEV_CLUSTER_NAME#${TF_VAR_dev_cluster_name}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-dev.yaml
+sed -i -e "s#PROD_CLUSTER_NAME#${TF_VAR_prod_cluster_name}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-prod.yaml
 
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/
 
