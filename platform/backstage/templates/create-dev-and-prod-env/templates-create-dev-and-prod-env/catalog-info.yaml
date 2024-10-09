@@ -6,8 +6,11 @@ metadata:
   annotations:
     backstage.io/kubernetes-namespace: ${{values.namespace}}
     backstage.io/kubernetes-id: create-dev-and-prod-env-${{values.name}}
-    argo-workflows.cnoe.io/label-selector: env=dev,entity-id=${{values.name}}
-    argo-workflows.cnoe.io/cluster-name: local
+    argocd/app-name: ${{values.name | dump}}
+  links:
+    - url: https://${{values.repoUrl}}?repo=${{values.name}}
+      title: Repo URL
+      icon: github
 spec:
   type: service
   lifecycle: experimental
