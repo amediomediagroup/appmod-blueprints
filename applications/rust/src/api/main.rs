@@ -45,7 +45,13 @@ async fn main() -> Result<(), rocket::Error> {
         .load()
         .await;
 
-    let table_name = std::env::var("TABLE_NAME").unwrap_or(String::from("q-apps-table"));
+    let rocket_address = std::env::var("ROCKET_ADDRESS").unwrap_or(String::from("0.0.0.0"));
+    let rocket_port = std::env::var("ROCKET_PORT").unwrap_or(String::from("8080"));
+    let table_name = std::env::var("TABLE_NAME").unwrap_or(String::from("rust-service-table"));
+
+    let rocket_config = rocket::Config::figment()
+        .merge(("address", rocket_address))
+        .merge(("port", rocket_port.parse::<u16>().unwrap()));
 
     let prometheus = PrometheusMetrics::new();
 
@@ -70,7 +76,7 @@ async fn main() -> Result<(), rocket::Error> {
 
     global::set_tracer_provider(tracer_provider);
 
-    let rocket = rocket::build()
+    let rocket = rocket::custom(rocket_config)
         .manage(ddb::Client::new(&config))
         .manage(table_name)
         .attach(prometheus.clone())
