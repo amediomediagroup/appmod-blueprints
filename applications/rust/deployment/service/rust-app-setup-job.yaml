@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: rust-app-setup
-  namespace: rust-msvc  # TODO: Change this before going to workshop
+  namespace: rust-msvc
 spec:
   template:
     metadata:

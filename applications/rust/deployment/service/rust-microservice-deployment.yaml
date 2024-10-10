@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: rust-app-deployment
-  namespace: rust-msvc  # TODO: Change this before going to workshop
+  namespace: rust-msvc
 spec:
   replicas: 3
   selector:
@@ -16,13 +16,14 @@ spec:
       serviceAccountName: rust-msvc-sa
       containers:
         - name: rust-app
-          image: 389706897409.dkr.ecr.us-west-2.amazonaws.com/app/rust-svc
+          image: 389706897409.dkr.ecr.us-west-2.amazonaws.com/app/rust-svc # TODO: Change to point to your ECR repo
           ports:
             - containerPort: 8888
-          env:
-            - name: ROCKET_ADDRESS
-              value: "0.0.0.0"
-            - name: ROCKET_PORT
-              value: "8888"
-            - name: TABLE_NAME
-              value: "rust-microservice-table"
+          # removed by request, sensible defaults included in code.
+#          env:
+#            - name: ROCKET_ADDRESS
+#              value: "0.0.0.0"
+#            - name: ROCKET_PORT
+#              value: "8888"
+#            - name: TABLE_NAME
+#              value: "rust-microservice-table"
