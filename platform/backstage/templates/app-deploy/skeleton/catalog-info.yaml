@@ -1,0 +1,13 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: app-${{values.appName}}
+  description: App Deploy for ${{values.appName}}
+  annotations:
+    backstage.io/kubernetes-namespace: backstage
+    argocd/app-name: ${{values.appName | dump}}
+spec:
+  type: app-deploy
+  lifecycle: experimental
+  owner: guest
+  system: ${{values.appName | dump}}

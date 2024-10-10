@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "app-${{values.appName}}-cm"
+  namespace: flux-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  microserviceName: "${{values.appName}}"

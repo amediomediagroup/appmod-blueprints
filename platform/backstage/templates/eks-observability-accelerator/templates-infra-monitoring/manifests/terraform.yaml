@@ -28,8 +28,3 @@ spec:
       value: ${{ values.tfVars.managed_prometheus_workspace_id }}
   retryInterval: 10s
   destroyResourcesOnDeletion: true
-  runnerPodTemplate:
-    spec:
-      envFrom:
-        - secretRef:
-            name: aws-credentials
