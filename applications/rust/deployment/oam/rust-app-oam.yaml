@@ -20,7 +20,7 @@ spec:
         - type: aws-service-account
           properties:
             componentNamesForAccess:
-              - rust-dynamo
+              - rust-ddb
             clusterRegion: us-west-2
             clusterName: modern-engineering
     - name: rust-s3
@@ -36,7 +36,27 @@ spec:
       type: dynamodb
       properties:
         region: us-west-2
-
+        tableName: q-apps-table
+        attributeDefinition: [
+          {
+            attributeName: "partition_key",
+            attributeType: "STRING"
+          },
+          {
+            attributeName: "sort_key",
+            attributeType: "STRING"
+          }
+        ]
+        keySchema: [
+          {
+            attributeName: "partition_key",
+            keyType: "HASH"
+          },
+          {
+            attributeName: "sort_key",
+            keyType: "RANGE"
+          }
+        ]
       traits:
         - type: component-iam-policy
           properties:

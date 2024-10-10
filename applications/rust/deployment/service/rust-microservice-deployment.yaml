@@ -13,10 +13,10 @@ spec:
       labels:
         app: rust-app
     spec:
-      serviceAccountName: rust-microservice-no-perms
+      serviceAccountName: rust-msvc-sa
       containers:
         - name: rust-app
-          image: 771830474512.dkr.ecr.us-west-2.amazonaws.com/app/rust-svc:latest
+          image: 389706897409.dkr.ecr.us-west-2.amazonaws.com/app/rust-svc
           ports:
             - containerPort: 8888
           env:
