@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rust-app-deployment
+  namespace: argo-rollouts  # TODO: Change this before going to workshop
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rust-app
+  template:
+    metadata:
+      labels:
+        app: rust-app
+    spec:
+      serviceAccountName: rust-microservice-no-perms
+      containers:
+        - name: rust-app
+          image: 913524909446.dkr.ecr.us-west-2.amazonaws.com/app/rust-microservice:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ROCKET_ADDRESS
+              value: "0.0.0.0"
+            - name: ROCKET_PORT
+              value: "8080"
+            - name: TABLE_NAME
+              value: "rust-microservice-table"
