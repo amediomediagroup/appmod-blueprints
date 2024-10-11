@@ -18,11 +18,6 @@ edition = "2021"
 name = "api"
 path = "src/api/main.rs"
 
-[[bin]]
-name = "setup"
-path = "src/setup/main.rs"
-
-
 [dependencies]
 csv = "1.3.0"
 rand = "0.8.5"

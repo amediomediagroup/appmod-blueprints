@@ -2,6 +2,7 @@
 mod services;
 mod types;
 mod utils;
+mod setup;
 
 #[macro_use]
 extern crate tracing;
@@ -75,6 +76,8 @@ async fn main() -> Result<(), rocket::Error> {
         .install_batch(opentelemetry_sdk::runtime::Tokio).unwrap(); // This will just explode if it's a bad config
 
     global::set_tracer_provider(tracer_provider);
+
+    setup::setup(config.clone(), table_name.clone()).await;
 
     let rocket = rocket::custom(rocket_config)
         .manage(ddb::Client::new(&config))
