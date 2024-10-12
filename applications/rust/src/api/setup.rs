@@ -32,6 +32,17 @@ struct CSVOptions {
 pub async fn setup(config: SdkConfig, table_name: String) {
     let client = Client::new(&config);
 
+    let scan_output = client
+        .scan()
+        .table_name(&table_name)
+        .send()
+        .await
+        .expect("Failed to scan table");
+    if !scan_output.items().is_empty() {
+        println!("Table already has items, skipping setup");
+        return;
+    }
+
     // purge_table(&client, &table_name).await;
 
     let (products, categories) = csv_to_data();
