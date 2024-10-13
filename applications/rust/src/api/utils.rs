@@ -4,11 +4,20 @@ use aws_sdk_dynamodb::types::AttributeValue;
 use serde::{Deserialize, Serialize};
 use serde_dynamo::{from_item, from_items};
 use std::fmt::Debug;
-
+use std::time::Duration;
+use futures::SinkExt;
+use opentelemetry::{global, KeyValue};
+use opentelemetry::trace::{TracerProvider};
 use opentelemetry_appender_tracing::layer;
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::{trace, Resource};
+use opentelemetry_sdk::metrics::SdkMeterProvider;
+use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use opentelemetry_sdk::trace::{RandomIdGenerator, Sampler, Tracer};
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::{async_trait, Build, Data, Orbit, Request, Response, Rocket};
-use tracing::{info_span, Span};
+use tracing::{info_span, Level, Span};
 
 pub fn reconstruct_results<'a, T>(results: QueryOutput) -> Result<Vec<T>, String>
 where
@@ -45,6 +54,7 @@ where
     Ok(items[0].clone())
 }
 
+#[instrument]
 pub async fn query_ddb(
     table_name: String,
     db: &ddb::Client,
@@ -84,9 +94,59 @@ pub async fn query_ddb(
     }
 }
 
+pub fn init_tracer() -> Tracer {
+    let provider = opentelemetry_otlp::new_pipeline()
+        .tracing()
+        .with_exporter(
+            opentelemetry_otlp::new_exporter()
+                .tonic()
+                .with_endpoint("http://localhost:4317")
+                .with_timeout(Duration::from_secs(3))
+        )
+        .with_trace_config(
+            trace::Config::default()
+                .with_sampler(Sampler::AlwaysOn)
+                .with_id_generator(RandomIdGenerator::default())
+                .with_max_events_per_span(64)
+                .with_max_attributes_per_span(16)
+                .with_max_events_per_span(16)
+                .with_resource(Resource::new(vec![KeyValue::new("service.name", "RustMicroservice")])),
+        )
+        .install_batch(opentelemetry_sdk::runtime::Tokio)
+        .unwrap(); // This will just explode if it's a bad config
+
+    global::set_tracer_provider(provider.clone());
+    provider.tracer("rust-webserver-tracer")
+}
+
+pub struct OtelGuard {}
+
+// Initialize tracing-subscriber and return OtelGuard for opentelemetry-related termination processing
+pub fn init_tracing_subscriber() -> OtelGuard {
+    let tracer = init_tracer();
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::filter::LevelFilter::from_level(
+            Level::INFO,
+        ))
+        .with(tracing_subscriber::fmt::layer())
+        .with(OpenTelemetryLayer::new(tracer))
+        .init();
+
+    OtelGuard{}
+}
+
+impl Drop for OtelGuard {
+    fn drop(&mut self) {
+        global::shutdown_tracer_provider();
+    }
+}
+
+
 #[derive(Clone)]
 pub struct TracingSpan<T = Span>(T);
 
+#[derive(Debug)]
 pub(crate) struct TracingFairing;
 
 #[async_trait]
@@ -98,7 +158,7 @@ impl Fairing for TracingFairing {
         }
     }
 
-    async fn on_request(&self, request: &mut Request<'_>, _: &mut Data<'_>) {
+    async fn on_request(&self, request: &mut Request<'_>, data: &mut Data<'_>) {
         let span = info_span!(
             "request",
             otel.name=%format!("{} {}", request.method(), request.uri().path()),
@@ -114,8 +174,6 @@ impl Fairing for TracingFairing {
         if let Some(span) = request.local_cache(|| TracingSpan::<Option<Span>>(None)).0.to_owned() {
             let current_span = span.entered();
             current_span.record("http.status_code", response.status().code);
-
-            drop(current_span);
         }
     }
 }

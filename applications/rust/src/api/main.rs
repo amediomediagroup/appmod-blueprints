@@ -18,12 +18,8 @@ use aws_config::Region;
 use services::cart::*;
 use services::ui::*;
 use opentelemetry::{global, trace::{TraceContextExt, Tracer}, KeyValue};
-use opentelemetry::global::tracer_provider;
-use opentelemetry_appender_tracing::layer;
 use opentelemetry_otlp::{WithExportConfig};
-use opentelemetry_sdk::{trace, Resource};
-use opentelemetry_sdk::trace::{RandomIdGenerator, Sampler};
-use crate::utils::TracingFairing;
+use crate::utils::{init_tracing_subscriber, TracingFairing};
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
@@ -56,26 +52,7 @@ async fn main() -> Result<(), rocket::Error> {
 
     let prometheus = PrometheusMetrics::new();
 
-    let tracer_provider = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .tonic()
-                .with_endpoint("http://localhost:4317")
-                .with_timeout(Duration::from_secs(3))
-        )
-        .with_trace_config(
-            trace::Config::default()
-                .with_sampler(Sampler::AlwaysOn)
-                .with_id_generator(RandomIdGenerator::default())
-                .with_max_events_per_span(64)
-                .with_max_attributes_per_span(16)
-                .with_max_events_per_span(16)
-                .with_resource(Resource::new(vec![KeyValue::new("service.name", "RustMicroservice")])),
-        )
-        .install_batch(opentelemetry_sdk::runtime::Tokio).unwrap(); // This will just explode if it's a bad config
-
-    global::set_tracer_provider(tracer_provider);
+    let tracing = init_tracing_subscriber();
 
     setup::setup(config.clone(), table_name.clone()).await;
 
@@ -105,8 +82,6 @@ async fn main() -> Result<(), rocket::Error> {
         .mount("/metrics", prometheus);
 
     let _rocket = rocket.launch().await?;
-
-    // let _ = tracer_provider.shutdown();
 
     Ok(())
 }
