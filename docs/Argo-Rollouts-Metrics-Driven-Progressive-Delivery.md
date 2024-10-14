@@ -5,6 +5,30 @@
 Previously, rollouts would complete or fail without the capability to incorporate custom performance metrics, users can now integrate a load testing job during progressive delivery. Combined with existing metrics tracking, the load test results can determine the success or failure of a rollout 
 based on more granular performance data.
 
+## Prerequisite additions needed
+In order to scrape the needed metrics from workloads the OTEL collector needs to be modified to pull data from the pods that exponse metrics on the /metrics endpoint.
+
+The following command lets you check for said OTEL collector.
+```
+k get opentelemetrycollectors.opentelemetry.io -n adot-collector-kubeprometheus
+```
+The following command and code allows you to edit the needed OTEL collector. Inserting and saving the code snippet below allows for metrics to be pulled from workloads as stated above.
+```
+k edit opentelemetrycollector adot -n adot-collector-kubeprometheus
+```
+``` YAML
+receivers:
+    prometheus:
+      config:
+        scrape_configs:
+          - job_name: 'otel-collector'
+            scrape_interval: 5s
+            static_configs:
+              - targets: ['0.0.0.0:8888']
+          - job_name: k8s
+            kubernetes_sd_configs:
+            - role: pod
+```
 ## Progressive Delivery Strategies
 While Argo Rollouts allows for BlueGreen Deployment and Canary Deployment the analysis section works the same. The following doc will break down how to create a Canary Deployment with Analysis Templates to add metric driven progressive delivery.
 
@@ -136,17 +160,24 @@ You can do analysis for different sections of the rollout, and call a variety of
         - name: success-rate
             interval: 20s # The intervals that queries are made. Starts to query at the same time as the job above.
             count: 3
-            successCondition: result[0] <= 0.004 # The CPU utilization value is ~.0025 for the workload, and spikes to ~.005-.007 with the test.
+            successCondition: result[0] >= 100 # Set this to a threshold you wish that matches your query.
+            # failureCondition: result[#] >= # is another format that will fail if its met.
             provider:
                 prometheus:
                     address: "{{args.amp-workspace}}" # Gets the needed value from the secret to query AMP.
-                    query: | # This query returns something similar to: {"status":"success","data":{"resultType":"vector","result":[{"metric":{"pod":"argo-rollouts-bdbddf5fb-xbkwr"},"value":[1722963891,"0.002951664136810593"]}]}}
+                    query: | # This query returns something similar to: {"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1728922812,"11778"]}]}}
                         sum(
-                            node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{cluster="appmod-dev", namespace="argo-rollouts"}
-                            * on(namespace,pod)
-                            group_left(workload, workload_type) namespace_workload_pod:kube_pod_owner:relabel{cluster="appmod-dev", namespace="argo-rollouts", 
-                            workload="argo-rollouts", workload_type="deployment"}
-                        ) by (pod)
+                            rocket_http_requests_total{
+                            cluster="modernengg-dev",
+                            endpoint="/metrics",
+                            http_scheme="http",
+                            k8s_container_name="rust-app",
+                            k8s_namespace_name="rust-msvc",
+                            method="GET",
+                            region="us-west-2",
+                            status="200"
+                            }
+                        )
                     authentication:
                         sigv4:
                             region: us-west-2
@@ -195,11 +226,17 @@ prometheus:
     address: "{{args.amp-workspace}}" # Gets the needed value from the secret to query AMP.
     query: | # This query returns something similar to: {"status":"success","data":{"resultType":"vector","result":[{"metric":{"pod":"argo-rollouts-bdbddf5fb-xbkwr"},"value":[1722963891,"0.002951664136810593"]}]}}
         sum(
-            node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{cluster="appmod-dev", namespace="argo-rollouts"}
-            * on(namespace,pod)
-            group_left(workload, workload_type) namespace_workload_pod:kube_pod_owner:relabel{cluster="appmod-dev", namespace="argo-rollouts", 
-            workload="argo-rollouts", workload_type="deployment"}
-        ) by (pod)
+            rocket_http_requests_total{
+            cluster="modernengg-dev",
+            endpoint="/metrics",
+            http_scheme="http",
+            k8s_container_name="rust-app",
+            k8s_namespace_name="rust-msvc",
+            method="GET",
+            region="us-west-2",
+            status="200"
+            }
+        )
 ```
 This is a flexible section to query custom metrics from AMP. Due to it being right after the load test it gives the opportunity to query 
 as it runs and pass/fail depending on how the metrics change.

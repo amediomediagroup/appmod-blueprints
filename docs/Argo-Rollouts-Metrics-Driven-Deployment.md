@@ -41,6 +41,13 @@ For both of the above commands a new IAM Role will be made with the given name a
 ```
 Note that the ```"system:serviceaccount:argo-rollouts:argo-rollouts"``` is in the format of ```"system:serviceaccount:<namespaceName>:<serviceAccountName>"```.
 
+Ensure that the target service account has the annotation to target the IAM role created by the eksctl command's ARN value.
+- Should look similar to the following: ```eks.amazonaws.com/role-arn: arn:aws:iam::<Insert-Isengard-Account-ID>:role/<Insert-Target-IAM-Role>```
+- Code to apply this annotation can be found below if needed:
+  ```
+  kubectl annotate serviceaccount <Insert-Target-Service-Account> -n <Insert-Namespace> arn:aws:iam::<Insert-Isengard-Account-ID>:role/<Insert-Target-IAM-Role> --overwrite
+  ```
+
 ## Deployment Strategies
 While Argo Rollouts allows for BlueGreen Deployment and Canary Deployment the analysis section works the same. The following doc will break down how to create a Canary Deployment with Analysis Templates to add metric driven deployment.
 
