@@ -24,8 +24,23 @@ namespace Northwind.Infrastructure
             services.AddTransient<IDateTime, MachineDateTime>();
             services.AddTransient<ICsvFileBuilder, CsvFileBuilder>();
 
+            var configurationbuilder = new ConfigurationBuilder()
+                .AddJsonFile("appsettings.json")
+                .AddJsonFile($"appsettings.Local.json", optional: true)
+                .AddKeyPerFile("/opt/secret-volume", optional: true, reloadOnChange: true)
+                .AddEnvironmentVariables()
+                .Build();
+
+
+
+            var connectionString = configuration.GetConnectionString("NorthwindDatabase");
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                connectionString = @"Server=" + configurationbuilder["dbendpoint"] + ";Database=NorthwindTraders;Persist Security Info = True; User Id=" + configurationbuilder["dbusername"] + "; Password = "
+                + configurationbuilder["dbpassword"] + ";";
+            }
             services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(configuration.GetConnectionString("NorthwindDatabase")));
+                options.UseSqlServer(connectionString));
 
             services.AddDefaultIdentity<ApplicationUser>()
                 .AddEntityFrameworkStores<ApplicationDbContext>();

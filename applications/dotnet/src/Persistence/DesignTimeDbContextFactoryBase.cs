@@ -23,15 +23,22 @@ namespace Northwind.Persistence
         private TContext Create(string basePath, string environmentName)
         {
             
-            var configuration = new ConfigurationBuilder()
+            var configurationbuilder = new ConfigurationBuilder()
                 .SetBasePath(basePath)
                 .AddJsonFile("appsettings.json")
                 .AddJsonFile($"appsettings.Local.json", optional: true)
                 .AddJsonFile($"appsettings.{environmentName}.json", optional: true)
+                .AddKeyPerFile("/opt/secret-volume", optional: true, reloadOnChange: true)
                 .AddEnvironmentVariables()
                 .Build();
 
-            var connectionString = configuration.GetConnectionString(ConnectionStringName);
+            
+            var connectionString = configurationbuilder.GetConnectionString(ConnectionStringName);
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                connectionString = @"Server=" + configurationbuilder["dbendpoint"] + ";Database=NorthwindTraders;Persist Security Info = True; User Id=" + configurationbuilder["dbusername"] + "; Password = "
+                + configurationbuilder["dbpassword"] + ";";
+            }
 
             return Create(connectionString);
         }

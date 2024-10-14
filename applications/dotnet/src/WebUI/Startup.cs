@@ -136,6 +136,8 @@ namespace Northwind.WebUI
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app)
         {
+            app.UsePathBase("/northwind-app");
+            app.UseRouting();
             if (Environment.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -165,7 +167,7 @@ namespace Northwind.WebUI
             });
 
             
-            app.UseRouting();
+            
 
             app.UseAuthentication();
             app.UseIdentityServer();
