@@ -1,0 +1,19 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: create-dev-and-prod-env-${{values.name}}
+  description: Create Dev and Prod Clusters ${{ values.name }}
+  annotations:
+    backstage.io/kubernetes-namespace: ${{values.namespace}}
+    backstage.io/kubernetes-id: create-dev-and-prod-env-${{values.name}}
+    argocd/app-name: ${{values.name | dump}}
+  links:
+    - url: https://${{values.repoUrl}}?repo=${{values.name}}
+      title: Repo URL
+      icon: github
+spec:
+  type: service
+  lifecycle: experimental
+  owner: guest
+  system: ${{values.name | dump}}
+

@@ -1,0 +1,44 @@
+config:
+  target: "http://127.0.0.1:80" #TODO: Override with artillery command
+  phases:
+    - duration: 15
+      arrivalRate: 1
+      rampTo: 10
+      name: Warm up
+    - duration: 30
+      arrivalRate: 10
+      rampTo: 100
+      name: Burn
+    - duration: 60
+      arrivalRate: 100
+      name: Sustained
+    - duration: 15
+      arrivalRate: 100
+      rampTo: 500
+      name: Spike
+    - duration: 20
+      arrivalRate: 100
+      name: End
+
+  plugins:
+    ensure: {}
+    apdex: {}
+    metrics-by-endpoint: {}
+  apdex:
+    threshold: 100
+  ensure:
+    thresholds:
+      - http.response_time.p99: 50
+      - http.response_time.p95: 30
+
+scenarios:
+  - name: "Navigate Menus"
+    flow:
+      - get:
+          url: "/collection/FRONT_PAGE"
+      - post:
+          url: "/products/"
+          json: "Shirt"
+      - post:
+          url: "/products/"
+          json: "Keyboard"

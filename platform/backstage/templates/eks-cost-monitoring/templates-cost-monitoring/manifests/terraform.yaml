@@ -20,8 +20,3 @@ spec:
       value: ${{ values.tfVars.aws_region }}
   retryInterval: 10s
   destroyResourcesOnDeletion: true
-  runnerPodTemplate:
-    spec:
-      envFrom:
-        - secretRef:
-            name: aws-credentials
