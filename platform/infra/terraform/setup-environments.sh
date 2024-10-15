@@ -254,6 +254,9 @@ terraform -chdir=post-deploy apply -var aws_region="${TF_VAR_aws_region}" \
 # Setup Gitea Repo
 ${REPO_ROOT}/platform/infra/terraform/giteaInit.sh
 
+# Sleeping for Crossplane to be ready in DEV and PROD Cluster
+sleep 120
+
 # Setup CrossPlane IRSA for DEV Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_dev_cluster_name
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-dev.yaml
