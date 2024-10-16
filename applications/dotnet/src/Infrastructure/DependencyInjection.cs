@@ -1,22 +1,27 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Security.Claims;
 using Duende.IdentityServer.Models;
 using Duende.IdentityServer.Test;
 using IdentityModel;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Northwind.Application.Common.Interfaces;
 using Northwind.Common;
 using Northwind.Infrastructure.Files;
+using static System.Formats.Asn1.AsnWriter;
 
 namespace Northwind.Infrastructure
 {
     public static class DependencyInjection
     {
+        
         public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration, IWebHostEnvironment environment)
         {
             services.AddScoped<IUserManager, UserManagerService>();
@@ -34,11 +39,26 @@ namespace Northwind.Infrastructure
 
 
             var connectionString = configuration.GetConnectionString("NorthwindDatabase");
+           
             if (string.IsNullOrEmpty(connectionString))
             {
-                connectionString = @"Server=" + configurationbuilder["dbendpoint"] + ";Database=NorthwindTraders;Persist Security Info = True; User Id=" + configurationbuilder["dbusername"] + "; Password = "
-                + configurationbuilder["dbpassword"] + ";";
+                SqlConnectionStringBuilder sqlConnectionStringBuilder = new SqlConnectionStringBuilder()
+                {
+
+                    DataSource = configurationbuilder["dbendpoint"],
+                    InitialCatalog = "NorthwindTraders",
+                    PersistSecurityInfo = true,
+                    UserID = configurationbuilder["dbusername"],
+                    Password = configurationbuilder["dbpassword"],
+                    MultipleActiveResultSets = true
+                };
+                connectionString = sqlConnectionStringBuilder.ConnectionString;
+
             }
+            var loggerfactory = services.BuildServiceProvider().GetService<ILoggerFactory>();
+            loggerfactory.CreateLogger<ApplicationDbContext>().LogInformation("CONNECTION STRING: " + connectionString);
+
+
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(connectionString));
 

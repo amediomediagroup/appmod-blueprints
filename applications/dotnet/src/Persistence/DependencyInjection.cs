@@ -1,7 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Northwind.Application.Common.Interfaces;
+using System;
 
 namespace Northwind.Persistence
 {
@@ -21,9 +24,22 @@ namespace Northwind.Persistence
             var connectionString = configuration.GetConnectionString("NorthwindDatabase");
             if (string.IsNullOrEmpty(connectionString))
             {
-                connectionString = @"Server=" + configurationbuilder["dbendpoint"] + ";Database=NorthwindTraders;Persist Security Info = True; User Id=" + configurationbuilder["dbusername"] + "; Password = "
-                + configurationbuilder["dbpassword"] + ";";
+                SqlConnectionStringBuilder sqlConnectionStringBuilder = new SqlConnectionStringBuilder()
+                {
+
+                    DataSource = configurationbuilder["dbendpoint"],
+                    InitialCatalog = "NorthwindTraders",
+                    PersistSecurityInfo = true,
+                    UserID = configurationbuilder["dbusername"],
+                    Password = configurationbuilder["dbpassword"],
+                    MultipleActiveResultSets = true
+                };
+                connectionString = sqlConnectionStringBuilder.ConnectionString;
             }
+            var loggerfactory = services.BuildServiceProvider().GetService<ILoggerFactory>();
+            loggerfactory.CreateLogger<NorthwindDbContext>().LogInformation("CONNECTION STRING: " + connectionString);
+            
+
             services.AddDbContext<NorthwindDbContext>(options =>
                 options.UseSqlServer(connectionString));
 

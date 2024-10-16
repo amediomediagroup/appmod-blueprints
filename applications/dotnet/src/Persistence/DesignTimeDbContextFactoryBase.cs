@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
 using System;
@@ -36,8 +37,17 @@ namespace Northwind.Persistence
             var connectionString = configurationbuilder.GetConnectionString(ConnectionStringName);
             if (string.IsNullOrEmpty(connectionString))
             {
-                connectionString = @"Server=" + configurationbuilder["dbendpoint"] + ";Database=NorthwindTraders;Persist Security Info = True; User Id=" + configurationbuilder["dbusername"] + "; Password = "
-                + configurationbuilder["dbpassword"] + ";";
+                SqlConnectionStringBuilder sqlConnectionStringBuilder = new SqlConnectionStringBuilder()
+                {
+
+                    DataSource = configurationbuilder["dbendpoint"],
+                    InitialCatalog = "NorthwindTraders",
+                    PersistSecurityInfo = true,
+                    UserID = configurationbuilder["dbusername"],
+                    Password = configurationbuilder["dbpassword"],
+                    MultipleActiveResultSets = true
+                };
+                connectionString = sqlConnectionStringBuilder.ConnectionString;
             }
 
             return Create(connectionString);
