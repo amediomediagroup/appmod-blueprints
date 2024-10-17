@@ -5,6 +5,32 @@
 Previously, rollouts would complete or fail without the capability to incorporate custom performance metrics, users can now integrate a load testing job during progressive delivery. Combined with existing metrics tracking, the load test results can determine the success or failure of a rollout 
 based on more granular performance data.
 
+## Summarized instruction for platform setup
+1) Edit the `opentelemetrycollector` in the `adot-collector-kubeprometheus` namespace to add the following `job_name`'s to `scrape_configs`
+``` YAML
+receivers:
+    prometheus:
+      config:
+        scrape_configs:
+          - job_name: 'otel-collector'
+            scrape_interval: 5s
+            static_configs:
+              - targets: ['0.0.0.0:8888']
+          - job_name: k8s
+            kubernetes_sd_configs:
+            - role: pod
+```
+2) Set up the trust relationship via an IRSA relationship to the service account associated with argo rollouts to the IAM Role that will grant `arn:aws:iam::aws:policy/AmazonPrometheusQueryAccess` permissions to argo rollouts. Ensure the associated pods are refreshed with the needed permissions as well.
+3) Each environment will have a different endpoint for the AMP, this will have to be specified in the rollout. Add the amp-workspace to match this formatting.
+    ``` YAML
+    spec:
+    args:
+    - name: amp-workspace
+        valueFrom:
+        secretKeyRef:
+            name: workspace-url
+            key: secretUrl
+    ```
 ## Prerequisite additions needed
 In order to scrape the needed metrics from workloads the OTEL collector needs to be modified to pull data from the pods that exponse metrics on the /metrics endpoint.
 
@@ -29,6 +55,7 @@ receivers:
             kubernetes_sd_configs:
             - role: pod
 ```
+
 ## Progressive Delivery Strategies
 While Argo Rollouts allows for BlueGreen Deployment and Canary Deployment the analysis section works the same. The following doc will break down how to create a Canary Deployment with Analysis Templates to add metric driven progressive delivery.
 
