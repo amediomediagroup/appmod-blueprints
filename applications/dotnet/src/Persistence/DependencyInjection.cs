@@ -27,11 +27,11 @@ namespace Northwind.Persistence
                 SqlConnectionStringBuilder sqlConnectionStringBuilder = new SqlConnectionStringBuilder()
                 {
 
-                    DataSource = configurationbuilder["dbendpoint"],
+                    DataSource = configurationbuilder["endpoint"],
                     InitialCatalog = "NorthwindTraders",
                     PersistSecurityInfo = true,
-                    UserID = configurationbuilder["dbusername"],
-                    Password = configurationbuilder["dbpassword"],
+                    UserID = configurationbuilder["username"],
+                    Password = configurationbuilder["password"],
                     MultipleActiveResultSets = true
                 };
                 connectionString = sqlConnectionStringBuilder.ConnectionString;
