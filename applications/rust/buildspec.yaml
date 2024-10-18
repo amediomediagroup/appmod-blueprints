@@ -8,11 +8,11 @@ phases:
   build:
     commands:
       - cd ./applications/rust/
-      - docker build -t $ECR_REGISTRY/app/rust-svc:$CODEBUILD_RESOLVED_SOURCE_VERSION .
-      - docker push $ECR_REGISTRY/app/rust-svc:$CODEBUILD_RESOLVED_SOURCE_VERSION
+      - docker build -t $ECR_REGISTRY/moderneng/rust-microservice:$CODEBUILD_RESOLVED_SOURCE_VERSION .
+      - docker push $ECR_REGISTRY/moderneng/rust-microservice:$CODEBUILD_RESOLVED_SOURCE_VERSION
       - cd integration
-      - docker build -f Dockerfile -t $ECR_REGISTRY/test/rust-svc:$CODEBUILD_RESOLVED_SOURCE_VERSION .
-      - docker push $ECR_REGISTRY/test/rust-svc:$CODEBUILD_RESOLVED_SOURCE_VERSION
+      - docker build -f Dockerfile -t $ECR_REGISTRY/moderneng/rust-test:$CODEBUILD_RESOLVED_SOURCE_VERSION .
+      - docker push $ECR_REGISTRY/moderneng/rust-test:$CODEBUILD_RESOLVED_SOURCE_VERSION
 
   integration:
     commands:
