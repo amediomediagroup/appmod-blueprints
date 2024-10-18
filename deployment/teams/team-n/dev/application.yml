@@ -28,3 +28,15 @@ spec:
             http:
               /northwind-app: 80
       
+        - type: storage
+          properties:
+            secret:
+              - name: northwinde-dbinstance-out
+                mountPath: /opt/secret-volume
+  policies: # adopting secret that was generated outside of the app as readonly
+    - type: read-only
+      name: read-only
+      properties:
+        rules:
+          - selector:
+              resourceTypes: ["Secret"]
