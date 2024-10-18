@@ -21,7 +21,7 @@ spec:
       key: password
       name: northwind-dbinstance
       namespace: team-n
-    publiclyAccessible: false
+    publiclyAccessible: true
     region: us-west-2
     skipFinalSnapshot: true
     username: adminuser

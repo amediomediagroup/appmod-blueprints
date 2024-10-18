@@ -11,7 +11,7 @@ phases:
       - docker build -t $ECR_REGISTRY/app/rust-microservice:$CODEBUILD_RESOLVED_SOURCE_VERSION .
       - docker push $ECR_REGISTRY/app/rust-microservice:$CODEBUILD_RESOLVED_SOURCE_VERSION
       - cd integration
-      - docker build -f Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION .
+      - docker build --platform linux/amd64 -t $ECR_REGISTRY/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION .
       - docker push $ECR_REGISTRY/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION
 
   integration:

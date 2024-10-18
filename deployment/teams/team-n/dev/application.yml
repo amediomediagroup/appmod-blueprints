@@ -11,6 +11,7 @@ spec:
         image_name: northwind
         port: 80
         targetPort: 80
+        replicas: 1
         # functionalGate:
         #   pause: "10s" 
         #   image: "public.ecr.aws/i8e1q7x5/appmod-javafunctest:latest"
@@ -27,3 +28,15 @@ spec:
             http:
               /northwind-app: 80
       
+        - type: storage
+          properties:
+            secret:
+              - name: northwinde-dbinstance-out
+                mountPath: /opt/secret-volume
+  policies: # adopting secret that was generated outside of the app as readonly
+    - type: read-only
+      name: read-only
+      properties:
+        rules:
+          - selector:
+              resourceTypes: ["Secret"]
