@@ -88,7 +88,7 @@ spec:
                           arguments:
                             parameters:
                               - name: image
-                                value: "{{tasks.get-ecr-repo.outputs.image}}"
+                                value: "{{tasks.get-ecr-repo.outputs.result}}"
                               - name: tag-version
                                 value: "{{workflow.parameters.tag-version}}"
                           depends: "get-ecr-repo"
