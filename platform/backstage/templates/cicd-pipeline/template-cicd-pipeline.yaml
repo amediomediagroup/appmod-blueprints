@@ -45,7 +45,7 @@ spec:
       id: apply-prov
       input:
         namespaced: true
-        manifestPath: ./provisioner/provisioner.yaml
+        manifestPath: provisioner.yaml
         clusterName: local
 
     - action: fetch:template
