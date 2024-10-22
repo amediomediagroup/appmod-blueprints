@@ -18,7 +18,7 @@ spec:
         valueFiles:
           - $values/packages/ingress-nginx/dev/values.yaml
     - repoURL: ${GITHUB_URL}
-      targetRevision: feature/upgradeToPathBasedRouting
+      targetRevision: feature/sync-packages-setups-for-public
       ref: values
   destination:
     server: "https://kubernetes.default.svc"

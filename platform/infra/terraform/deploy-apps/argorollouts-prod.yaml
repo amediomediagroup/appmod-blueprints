@@ -11,6 +11,18 @@ spec:
     targetRevision: 2.37.7
     helm:
       releaseName: argorollouts-prod
+      values:
+        controller:
+          serviceAccount:
+            create: true
+            name: argo-rollouts-controller
+            annotations:
+              eks.amazonaws.com/role-arn: PROD_ARGOROLL_ROLE_ARN
+        serviceAccount:
+          create: true
+          name: argo-rollouts
+          annotations:
+            eks.amazonaws.com/role-arn: PROD_ARGOROLL_ROLE_ARN
   destination:
     name: 'prod-cluster'
     namespace: argo-rollouts

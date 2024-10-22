@@ -18,6 +18,10 @@ spec:
             value: DEV_CLUSTER_NAME
           - name: serviceAccount.annotations.eks\.amazonaws\.com/role-arn
             value: DEV_LB_ROLE_ARN
+          - name: vpcId
+            value: DEV_EKS_VPC_ID
+          - name: region
+            value: DEV_EKS_REGION  
   destination:
     name: 'dev-cluster'
     namespace: aws-load-balancer-controller

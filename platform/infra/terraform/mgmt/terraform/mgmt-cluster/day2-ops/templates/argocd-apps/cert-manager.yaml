@@ -18,7 +18,7 @@ spec:
         valueFiles:
           - $values/packages/cert-manager/dev/values.yaml
     - repoURL: ${REPO_URL}
-      targetRevision: HEAD
+      targetRevision: feature/sync-packages-setups-for-public
       ref: values
   destination:
     server: "https://kubernetes.default.svc"

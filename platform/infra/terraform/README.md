@@ -2,9 +2,15 @@
 
 ## Prerequisites
 
-- AWS CLI 2.17+ (Needed for EKS Access Config)
-- Terraform CLI
-- kubectl
+- An existing EKS cluster version (1.30+)
+- AWS CLI (2.17+)
+- Kubectl CLI (1.30+)
+- jq
+- git
+- yq
+- curl
+- kustomize
+- envsubst
 
 ## Workshop Setup
 
@@ -75,6 +81,55 @@ To deploy sample app, refer to prod-public-apps.yaml to deploy applications. Ens
 
 Ensure the target cluster is mapped to the local management cluster and only the target cluster (Dev or Prod) is updated on the actual applications that will have the running applications. For Examples,refer to argo-examples folders to deploy applications or app-of-apps from public repo or integrated Gitea.
 
+## How to access the Components of the Platform?
+
+Once the setup is complete, use the URLs from the output to login to backstage, ArgoCD, Argo, KeyCloak, Argo Workflows and Gitea.
+
+#### ArgoCD
+
+Click on the ArgoCD URL to navigate to your browser to access the ArgoCD App. User is `Admin` and the password is available in the `argocd` namespace.
+
+```bash
+# Get the admin password 
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+
+### Argo Workflows:
+
+Click on the Argo Workflows URL to navigate to your browser to access the Argo Workflows App.  Two users are created during the installation process: `user1` and `user2`. Their passwords are available in the keycloak namespace.
+
+```bash
+kubectl get secrets -n keycloak keycloak-user-config -o go-template='{{range $k,$v := .data}}{{printf "%s: " $k}}{{if not $v}}{{$v}}{{else}}{{$v | base64decode}}{{end}}{{"\n"}}{{end}}'
+```
+
+### Backstage:
+
+Click on the Backstage URL to navigate to your browser to access the Backstage App.  Two users are created during the installation process: `user1` and `user2`. Their passwords are available in the keycloak namespace.
+
+```bash
+kubectl get secrets -n keycloak keycloak-user-config -o go-template='{{range $k,$v := .data}}{{printf "%s: " $k}}{{if not $v}}{{$v}}{{else}}{{$v | base64decode}}{{end}}{{"\n"}}{{end}}'
+```
+
+### Gitea:
+
+Click on the Gitea URL to navigate to your browser to access the Gitea App.  Please use the below command to obtain the username and password of Gitea user.
+
+```bash
+kubectl get secrets -n gitea gitea-credential -o go-template='{{range $k,$v := .data}}{{printf "%s: " $k}}{{if not $v}}{{$v}}{{else}}{{$v | base64decode}}{{end}}{{"\n"}}{{end}}'
+````
+
+### KeyCloak:
+
+Click on the KeyCloak URL to navigate to your browser to access the Backstage App.  `modernengg-admin` is the user and their passwords are available in the keycloak namespace under the data `KEYCLOAK_ADMIN_PASSWORD`.
+
+```bash
+kubectl get secrets -n keycloak keycloak-config -o go-template='{{range $k,$v := .data}}{{printf "%s: " $k}}{{if not $v}}{{$v}}{{else}}{{$v | base64decode}}{{end}}{{"\n"}}{{end}}'
+```
+
+### Grafana Access:
+
+At the end of the automation you will see Amazon Managed Grafana URL getting displayed along with passwords for `admin` and `editor` users. Please use this to access the Amazon Managed Grafana instance to monitor your Infrastructure and workloads.
+
 # Terraform Destroy
 
 ```bash
@@ -93,4 +148,3 @@ terraform -chdir=bootstrap destroy -auto-approve
 
 The bucket is intentionally not cleaned or removed to preserve the state files.
 There will be error at the end of the script that S3 bucket deletion failed due to objects in the bucket. You can manually remove the terraform state files and destroy the bucket.
-

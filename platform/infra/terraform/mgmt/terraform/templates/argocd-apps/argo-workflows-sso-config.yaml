@@ -11,7 +11,7 @@ spec:
   project: modern-engg
   sources:
     - repoURL: ${GITHUB_URL}
-      targetRevision: HEAD
+      targetRevision: feature/sync-packages-setups-for-public
       path: packages/argo-workflows-sso-config/dev
   destination:
     server: "https://kubernetes.default.svc"

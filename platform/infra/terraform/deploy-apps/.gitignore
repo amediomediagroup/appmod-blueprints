@@ -1,1 +1,3 @@
 *.yaml-e
+manifests/*.yml
+drc/*.yml

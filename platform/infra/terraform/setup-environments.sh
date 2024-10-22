@@ -42,7 +42,7 @@ export REPO_ROOT=$(git rev-parse --show-toplevel)
 source ${REPO_ROOT}/platform/infra/terraform/setup-keycloak.sh
 
 # Set Github URL for Management Cluster
-export GITHUB_URL='https://github.com/elamaran11/cnoe-appmod-implementation'
+export GITHUB_URL='https://github.com/aws-samples/appmod-blueprints'
 
 # Deploy the base cluster with prerequisites like ArgoCD and Ingress-nginx
 ${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/mgmt-cluster/install.sh
@@ -173,7 +173,8 @@ terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
   -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
   -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
-export DEV_ROLE_ARN=$(terraform -chdir=dev output -raw crossplane_dev_provider_role_arn)
+export DEV_CP_ROLE_ARN=$(terraform -chdir=dev output -raw crossplane_dev_provider_role_arn)
+export DEV_ARGOROLL_ROLE_ARN=$(terraform -chdir=dev output -raw argo_rollouts_dev_role_arn)
 export LB_DEV_ROLE_ARN=$(terraform -chdir=dev output -raw lb_controller_dev_role_arn)
 
 # Change IAM Access Configs for DEV Cluster
@@ -200,7 +201,8 @@ terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
   -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
   -var grafana_api_key="${AMG_API_KEY}" -auto-approve
 
-export PROD_ROLE_ARN=$(terraform -chdir=prod output -raw crossplane_prod_provider_role_arn)
+export PROD_CP_ROLE_ARN=$(terraform -chdir=prod output -raw crossplane_prod_provider_role_arn)
+export PROD_ARGOROLL_ROLE_ARN=$(terraform -chdir=prod output -raw argo_rollouts_prod_role_arn)
 export LB_PROD_ROLE_ARN=$(terraform -chdir=prod output -raw lb_controller_prod_role_arn)
 
 # Change IAM Access Configs for PROD Cluster
@@ -218,24 +220,21 @@ sleep 300
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluster_name
 
 # Setup Applications on Clusters using ArgoCD on the management cluster
+
 # Setup Kubevela on Management,Dev and Prod clusters and deploy crossplane AWS providers
-# sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-dev.yaml
-# sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-prod.yaml
 
-# sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-dev.yaml
-# sed -i -e "s#GITHUB_URL#${GITHUB_URL}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod.yaml
-
-sed -i -e "s#DEV_ROLE_ARN#${DEV_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-dev.yaml
-sed -i -e "s#PROD_ROLE_ARN#${PROD_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-prod.yaml
+sed -e "s#DEV_CP_ROLE_ARN#${DEV_CP_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-aws-drc-dev.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/crossplane-aws-drc-dev.yml
+sed -e "s#PROD_CP_ROLE_ARN#${PROD_CP_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-aws-drc-prod.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/crossplane-aws-drc-prod.yml
 
 # Setup AWS LB controller configs and roles
-sed -i -e "s#DEV_LB_ROLE_ARN#${LB_DEV_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-dev.yaml
-sed -i -e "s#PROD_LB_ROLE_ARN#${LB_PROD_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-prod.yaml
+sed -e "s#DEV_LB_ROLE_ARN#${LB_DEV_ROLE_ARN}#g" -e "s#DEV_CLUSTER_NAME#${TF_VAR_dev_cluster_name}#g" -e "s#DEV_EKS_VPC_ID#${TF_eks_cluster_vpc_id}#g" -e "s#DEV_EKS_REGION#${TF_VAR_aws_region}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-dev.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/aws-lb-controller-dev.yml
+sed -e "s#PROD_LB_ROLE_ARN#${LB_PROD_ROLE_ARN}#g" -e "s#PROD_CLUSTER_NAME#${TF_VAR_prod_cluster_name}#g" -e "s#PROD_EKS_VPC_ID#${TF_eks_cluster_vpc_id}#g" -e "s#PROD_EKS_REGION#${TF_VAR_aws_region}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-prod.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/aws-lb-controller-prod.yml
 
-sed -i -e "s#DEV_CLUSTER_NAME#${TF_VAR_dev_cluster_name}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-dev.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-dev.yaml
-sed -i -e "s#PROD_CLUSTER_NAME#${TF_VAR_prod_cluster_name}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-prod.yaml ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-prod.yaml
+# Setup Argo-Rollouts configs and roles
+sed -e "s#DEV_ARGOROLL_ROLE_ARN#${DEV_ARGOROLL_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/argorollouts-dev.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/argorollouts-dev.yml
+sed -e "s#PROD_ARGOROLL_ROLE_ARN#${PROD_ARGOROLL_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/argorollouts-prod.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/argorollouts-prod.yml
 
-kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/
+kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/
 
 # Connect ArgoCD on MGMT cluster to DEV and PROD target clusters
 terraform -chdir=post-deploy init -reconfigure -backend-config="key=post/argocd-connect-vpc.tfstate" \
@@ -259,11 +258,11 @@ sleep 120
 
 # Setup CrossPlane IRSA for DEV Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_dev_cluster_name
-kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-dev.yaml
+kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/crossplane-aws-drc-dev.yml
 
 # Setup CrossPlane IRSA for PROD Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_prod_cluster_name
-kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-aws-drc-prod.yaml
+kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/crossplane-aws-drc-prod.yml
 
 # Clean git folder inside the terraform folder to avoid conflicts
 rm -rf ${REPO_ROOT}/platform/infra/terraform/.git || true
@@ -272,6 +271,11 @@ echo "Terraform execution completed"
 
 # Cleanup Folders
 rm -rf terraform-aws-observability-accelerator/
+
+# Switching context to MGMT cluster
+aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluster_name
+
+# Print all Outputs
 
 echo "ArgoCD URL is: https://$DNS_HOSTNAME/argocd"
 

@@ -284,6 +284,25 @@ module "aws_load_balancer_dev_role" {
   tags = local.tags
 }
 
+module "argo_rollouts_dev_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.14"
+
+  role_name_prefix = "argorollout-dev-aws"
+  role_policy_arns = {
+    policy = "arn:aws:iam::aws:policy/AmazonPrometheusQueryAccess"
+  }
+
+  assume_role_condition_test = "StringLike"
+  oidc_providers = {
+    main = {
+      provider_arn  = module.eks_blueprints_dev.eks_oidc_provider_arn
+      namespace_service_accounts = ["argo-rollouts:argo-rollouts*"]
+    }
+  }
+  tags = local.tags
+}
+
 # resource "helm_release" "dev_argocd" {
 #   name             = "argocd"
 #   repository       = "https://argoproj.github.io/argo-helm"

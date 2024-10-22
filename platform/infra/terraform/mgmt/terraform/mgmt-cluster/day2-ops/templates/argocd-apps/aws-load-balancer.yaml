@@ -20,8 +20,10 @@ spec:
             value: aws-load-balancer-controller
           - name: clusterName
             value: ${CLUSTER_NAME}
-          - name: serviceAccount.annotations.eks\.amazonaws\.com/role-arn
-            value: ${ROLE_ARN}
+          - name: vpcId
+            value: ${EKS_VPC_ID}
+          - name: region
+            value: ${EKS_REGION}  
   destination:
     server: "https://kubernetes.default.svc"
     namespace: aws-load-balancer-controller
