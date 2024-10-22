@@ -1,6 +1,6 @@
 variable "repo_url" {
   description = "Repository URL where application definitions are stored"
-  default     = "https://github.com/aws-samples/appmod-blueprints"
+  default     = "https://github.com/hmuthusamy/appmod-blueprints"
   type        = string
 }
 
