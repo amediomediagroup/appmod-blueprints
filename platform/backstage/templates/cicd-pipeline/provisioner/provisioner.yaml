@@ -203,7 +203,7 @@ spec:
       - |
         apk add curl jq
         hooks_api_url="{{workflow.parameters.hostname}}"/gitea/api/v1/repos/giteaAdmin/"{{workflow.parameters.appname}}"/hooks
-        webhook_url="{{workflow.parameters.hostname}}"/argo-events/"{{workflow.parameters.appname}}"
+        webhook_url="http://{{workflow.parameters.hostname}}"/argo-events/"{{workflow.parameters.appname}}"
         webhook_details=$(curl -k -X 'GET' "${hooks_api_url}" -H "accept: application/json" -H "Authorization: token ${token}" -H "Content-Type: application/json" | jq '.[].config.url')
         if [ -z "$webhook_details" ]; then
           echo "Webhook is not found, creating webhook with $webhook_url"

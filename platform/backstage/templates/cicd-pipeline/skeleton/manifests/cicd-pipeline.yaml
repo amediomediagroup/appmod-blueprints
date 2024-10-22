@@ -240,7 +240,7 @@ spec:
             - src:
                 dependencyName: source-dep
                 dataTemplate: "{{ .Input.body.head_commit.id }}"
-              dest: spec.arguments.parameters.3.value
+              dest: spec.arguments.parameters.2.value
 ---
 apiVersion: v1
 kind: Service
