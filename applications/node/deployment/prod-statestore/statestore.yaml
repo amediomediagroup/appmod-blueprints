@@ -1,0 +1,24 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.aws.dynamodb
+  version: v1
+  metadata:
+    - name: table
+      value: "Orders"
+    - name: accessKey
+      secretKeyRef:
+        name: statestore-secrets
+        key: accessKey
+    - name: secretKey
+      secretKeyRef:
+        name: statestore-secrets
+        key: secretKey
+    - name: region
+      secretKeyRef:
+        name: statestore-secrets
+        key: region
+    - name: partitionKey
+      value: "orderId"

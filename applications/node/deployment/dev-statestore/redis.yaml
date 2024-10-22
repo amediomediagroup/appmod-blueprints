@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: redis-dapr
+  namespace: argocd
+  labels:
+    env: dev
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: 'registry-1.docker.io/bitnamicharts'
+    targetRevision: 19.6.4
+    helm:
+      values: |
+        architecture: standalone
+      releaseName: redis
+    chart: redis
+  destination:
+    name: 'dev-cluster'
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
