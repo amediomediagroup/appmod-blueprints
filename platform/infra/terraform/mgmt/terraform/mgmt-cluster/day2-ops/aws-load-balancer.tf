@@ -2,7 +2,7 @@ module "aws_load_balancer_role" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.14"
 
-  role_name_prefix = "modern-aws-load-balancer-controller-"
+  role_name_prefix = "modernengg-aws-lb-controller-"
 
   attach_load_balancer_controller_policy = true
 
@@ -19,7 +19,9 @@ resource "kubectl_manifest" "application_argocd_aws_load_balancer_controller" {
   depends_on = [ module.aws_load_balancer_role ]
   yaml_body = templatefile("${path.module}/templates/argocd-apps/aws-load-balancer.yaml", {
      CLUSTER_NAME = local.cluster_name
-     ROLE_ARN = module.aws_load_balancer_role.iam_role_arn
+     MGMT_ROLE_ARN = module.aws_load_balancer_role.iam_role_arn
+     EKS_VPC_ID =  data.aws_vpc.eks_vpc.id
+     EKS_REGION = var.region
     }
   )
 

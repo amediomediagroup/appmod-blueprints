@@ -27,7 +27,7 @@ kubectl create ns argocd || true
 #envsubst < github-secret.yaml  | kubectl apply -f -
 
 echo 'creating Argo CD resources'
-cd ${REPO_ROOT}/platform/infra/terraform/mgmt/
+cd ${REPO_ROOT}
 retry_count=0
 max_retries=2
 

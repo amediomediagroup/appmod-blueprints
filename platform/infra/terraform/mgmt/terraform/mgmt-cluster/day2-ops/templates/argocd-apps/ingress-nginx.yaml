@@ -12,13 +12,13 @@ spec:
   sources:
     - chart: ingress-nginx
       repoURL: https://kubernetes.github.io/ingress-nginx
-      targetRevision: 4.7.0
+      targetRevision: 4.10.0
       helm:
         releaseName: ingress-nginx
         valueFiles:
           - $values/packages/ingress-nginx/dev/values.yaml
     - repoURL: ${GITHUB_URL}
-      targetRevision: feature/upgradeToPathBasedRouting
+      targetRevision: HEAD
       ref: values
   destination:
     server: "https://kubernetes.default.svc"

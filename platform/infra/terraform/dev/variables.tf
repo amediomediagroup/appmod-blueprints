@@ -54,13 +54,13 @@ variable "managed_node_instance_type" {
 variable "managed_node_min_size" {
   description = "Minumum number of instances in the node group"
   type        = number
-  default     = 2
+  default     = 3
 }
 
 variable "eks_version" {
   type        = string
   description = "EKS Cluster version"
-  default     = "1.29"
+  default     = "1.30"
 }
 
 variable "vpc_id" {

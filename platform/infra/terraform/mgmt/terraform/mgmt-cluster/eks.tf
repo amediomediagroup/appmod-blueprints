@@ -7,7 +7,7 @@ module "eks" {
   version = "~> 20.10"
 
   cluster_name    = local.name
-  cluster_version = "1.29"
+  cluster_version = "1.30"
 
   # Give the Terraform identity admin access to the cluster
   # which will allow it to deploy resources into the cluster
@@ -117,7 +117,7 @@ resource "kubernetes_storage_class" "ebs-gp3-sc" {
 
 module "karpenter" {
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
-  version = "~> 20.9"
+  version = "~> 20.26.0"
 
   cluster_name = module.eks.cluster_name
 

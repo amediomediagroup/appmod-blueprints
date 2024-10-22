@@ -8,7 +8,7 @@ spec:
   sources:
     - chart: aws-load-balancer-controller
       repoURL: https://aws.github.io/eks-charts
-      targetRevision: 1.5.4
+      targetRevision: 1.9.0
       helm:
         releaseName: aws-load-balancer-controller-dev
         parameters:
@@ -18,6 +18,10 @@ spec:
             value: DEV_CLUSTER_NAME
           - name: serviceAccount.annotations.eks\.amazonaws\.com/role-arn
             value: DEV_LB_ROLE_ARN
+          - name: vpcId
+            value: DEV_EKS_VPC_ID
+          - name: region
+            value: DEV_EKS_REGION  
   destination:
     name: 'dev-cluster'
     namespace: aws-load-balancer-controller

@@ -11,7 +11,7 @@ spec:
   project: modern-engg
   source:
     repoURL: ${GITHUB_URL}
-    targetRevision: feature/upgradeToPathBasedRouting
+    targetRevision: HEAD
     path: packages/crossplane-provider/dev/
     parameters:
       - name: ROLE_ARN

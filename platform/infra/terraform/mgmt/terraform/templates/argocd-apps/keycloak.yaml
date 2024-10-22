@@ -11,7 +11,7 @@ spec:
   project: modern-engg
   sources:
     - repoURL: ${GITHUB_URL}
-      targetRevision: feature/upgradeToPathBasedRouting
+      targetRevision: HEAD
       path: ${PATH}
   destination:
     server: "https://kubernetes.default.svc"

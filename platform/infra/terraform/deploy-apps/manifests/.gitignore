@@ -1,3 +1,2 @@
 *.yaml-e
-crossplane-aws-drc-dev.yaml
-crossplane-aws-drc-prod.yaml
+*.yml
