@@ -11,11 +11,23 @@ spec:
       targetRevision: 4.7.0
       helm:
         releaseName: ingress-nginx-dev
-        valueFiles:
-          - $values/packages/ingress-nginx/dev/values.yaml
-    - repoURL: https://github.com/elamaran11/cnoe-appmod-implementation
-      targetRevision: feature/upgradeToPathBasedRouting
-      ref: values
+        parameters:
+          - name: controller.config.hsts
+            value: 'false'
+          - name: controller.service.type
+            value: LoadBalancer
+          - name: controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-name"
+            value: "modernengg-dev"
+          - name: controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"
+            value: "external"
+          - name: controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-scheme"
+            value: "internet-facing"
+          - name: controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-nlb-target-type"
+            value: "ip"
+          - name: controller.service.loadbalancerClass
+            value: "service.k8s.aws/nlb"
+          - name: controller.service.targetPorts.https
+            value: 'https'
   destination:
     name: 'dev-cluster'
     namespace: ingress-nginx
