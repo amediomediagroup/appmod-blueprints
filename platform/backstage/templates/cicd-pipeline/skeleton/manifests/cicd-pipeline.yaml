@@ -100,7 +100,7 @@ spec:
                               - name: env
                                 value: dev
                               - name: image
-                                value: "{{workflow.parameters.image}}"
+                                value: "{{tasks.get-ecr-repo.outputs.result}}"
                               - name: tag
                                 value: "{{workflow.parameters.tag-version}}"
                               - name: apprepo
