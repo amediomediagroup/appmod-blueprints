@@ -29,26 +29,6 @@ spec:
         - hostname
   steps:
     - action: fetch:template
-      name: Fetch Provisioner
-      id: fetch-provisioner
-      input:
-        url: ./provisioner/
-        values:
-          appname: ${{ parameters.appname }}
-          namespace: ${{ parameters.namespace }}
-          aws_region: ${{ parameters.aws_region }}
-          hostname: ${{parameters.hostname}}
-          gitea_user: giteaAdmin
-
-    - action: cnoe:kubernetes:apply
-      name: Apply Provisioner
-      id: apply-prov
-      input:
-        namespaced: true
-        manifestPath: provisioner.yaml
-        clusterName: local
-
-    - action: fetch:template
       name: Fetch Base
       id: fetch-base
       input:
@@ -68,6 +48,27 @@ spec:
         # Hard coded value for this demo purposes only.
         repoUrl: ${{parameters.hostname}}/gitea?repo=${{parameters.appname}}-cicd
         defaultBranch: main
+
+    - action: fetch:template
+      name: Fetch Provisioner
+      id: fetch-provisioner
+      input:
+        url: ./provisioner/
+        values:
+          appname: ${{ parameters.appname }}
+          namespace: ${{ parameters.namespace }}
+          aws_region: ${{ parameters.aws_region }}
+          hostname: ${{parameters.hostname}}
+          gitea_user: giteaAdmin
+
+    - action: cnoe:kubernetes:apply
+      name: Apply Provisioner
+      id: apply-prov
+      input:
+        namespaced: true
+        manifestPath: provisioner.yaml
+        clusterName: local
+
     - id: create-argocd-app
       name: Create ArgoCD App
       action: cnoe:create-argocd-app
