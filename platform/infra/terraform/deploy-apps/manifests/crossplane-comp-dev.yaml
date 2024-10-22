@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/aws-samples/appmod-blueprints
-    targetRevision: main
+    targetRevision: HEAD
     path: packages/crossplane-compositions/dev/
   destination:
     name: 'dev-cluster'

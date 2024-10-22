@@ -11,8 +11,10 @@ spec:
     targetRevision: 2.37.7
     helm:
       releaseName: argorollouts-dev
-      values:
+      values: |
         controller:
+          metrics:
+            enabled: true
           serviceAccount:
             create: true
             name: argo-rollouts-controller
@@ -23,6 +25,7 @@ spec:
           name: argo-rollouts
           annotations:
             eks.amazonaws.com/role-arn: DEV_ARGOROLL_ROLE_ARN
+  destination:          
     name: 'dev-cluster'
     namespace: argo-rollouts
   syncPolicy:

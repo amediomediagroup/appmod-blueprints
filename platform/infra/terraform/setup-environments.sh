@@ -219,8 +219,6 @@ sleep 300
 # Reconnect back to Management Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluster_name
 
-# Setup Applications on Clusters using ArgoCD on the management cluster
-
 # Setup Kubevela on Management,Dev and Prod clusters and deploy crossplane AWS providers
 
 sed -e "s#DEV_CP_ROLE_ARN#${DEV_CP_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-aws-drc-dev.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/crossplane-aws-drc-dev.yml
@@ -233,8 +231,6 @@ sed -e "s#PROD_LB_ROLE_ARN#${LB_PROD_ROLE_ARN}#g" -e "s#PROD_CLUSTER_NAME#${TF_V
 # Setup Argo-Rollouts configs and roles
 sed -e "s#DEV_ARGOROLL_ROLE_ARN#${DEV_ARGOROLL_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/argorollouts-dev.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/argorollouts-dev.yml
 sed -e "s#PROD_ARGOROLL_ROLE_ARN#${PROD_ARGOROLL_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/argorollouts-prod.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/argorollouts-prod.yml
-
-kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/
 
 # Connect ArgoCD on MGMT cluster to DEV and PROD target clusters
 terraform -chdir=post-deploy init -reconfigure -backend-config="key=post/argocd-connect-vpc.tfstate" \
@@ -249,6 +245,10 @@ terraform -chdir=post-deploy apply -var aws_region="${TF_VAR_aws_region}" \
   -var mgmt_cluster_gitea_url="${TF_VAR_GITEA_URL}" \
   -var dev_cluster_name="${TF_VAR_dev_cluster_name}" \
   -var prod_cluster_name="${TF_VAR_prod_cluster_name}" -auto-approve
+
+# Setup Applications on Clusters using ArgoCD on the management cluster
+
+kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/
 
 # Setup Gitea Repo
 ${REPO_ROOT}/platform/infra/terraform/giteaInit.sh

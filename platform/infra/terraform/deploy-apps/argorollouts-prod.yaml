@@ -11,8 +11,10 @@ spec:
     targetRevision: 2.37.7
     helm:
       releaseName: argorollouts-prod
-      values:
+      values: |
         controller:
+          metrics:
+            enabled: true
           serviceAccount:
             create: true
             name: argo-rollouts-controller
