@@ -285,6 +285,25 @@ module "aws_load_balancer_prod_role" {
   tags = local.tags
 }
 
+module "argo_rollouts_prod_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.14"
+
+  role_name_prefix = "argorollout-prod-aws"
+  role_policy_arns = {
+    policy = "arn:aws:iam::aws:policy/AmazonPrometheusQueryAccess"
+  }
+
+  assume_role_condition_test = "StringLike"
+  oidc_providers = {
+    main = {
+      provider_arn  = module.eks_blueprints_prod.eks_oidc_provider_arn
+      namespace_service_accounts = ["argo-rollouts:argo-rollouts*"]
+    }
+  }
+  tags = local.tags
+}
+
 # resource "helm_release" "app_of_apps" {
 #   name             = "app-of-apps"
 #   chart            = "../deployment/envs/prod"

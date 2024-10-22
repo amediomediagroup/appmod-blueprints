@@ -17,3 +17,8 @@ output "lb_controller_prod_role_arn" {
   description = "Provider role of the LB controller EKS PROD ServiceAccount for IRSA"
   value       = module.aws_load_balancer_prod_role.iam_role_arn
 }
+
+output "argo_rollouts_prod_role_arn" {
+  description = "Provider role of the Argo Rollouts EKS PROD ServiceAccount for IRSA"
+  value       = module.argo_rollouts_prod_role.iam_role_arn
+}

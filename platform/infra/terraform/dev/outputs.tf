@@ -17,3 +17,8 @@ output "lb_controller_dev_role_arn" {
   description = "Provider role of the LB controller EKS DEV ServiceAccount for IRSA"
   value       = module.aws_load_balancer_dev_role.iam_role_arn
 }
+
+output "argo_rollouts_dev_role_arn" {
+  description = "Provider role of the Argo Rollouts EKS DEV ServiceAccount for IRSA"
+  value       = module.argo_rollouts_dev_role.iam_role_arn
+}

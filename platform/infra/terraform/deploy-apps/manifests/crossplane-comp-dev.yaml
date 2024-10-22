@@ -6,8 +6,8 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/elamaran11/cnoe-appmod-implementation
-    targetRevision: feature/upgradeToPathBasedRouting
+    repoURL: https://github.com/aws-samples/appmod-blueprints
+    targetRevision: HEAD
     path: packages/crossplane-compositions/dev/
   destination:
     name: 'dev-cluster'

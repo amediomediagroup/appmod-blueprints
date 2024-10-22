@@ -1,16 +1,16 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: crossplane-compositions-prod
+  name: crossplane-provider-dev
   namespace: argocd
 spec:
   project: default
   source:
-    repoURL: https://github.com/elamaran11/cnoe-appmod-implementation
-    targetRevision: feature/upgradeToPathBasedRouting
-    path: packages/crossplane-compositions/dev/
+    repoURL: https://github.com/aws-samples/appmod-blueprints
+    targetRevision: HEAD
+    path: packages/crossplane-provider/dev/
   destination:
-    name: 'prod-cluster'
+    name: 'dev-cluster'
     namespace: crossplane-system
   syncPolicy:
     automated:
