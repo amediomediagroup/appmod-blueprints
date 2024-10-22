@@ -8,7 +8,7 @@ metadata:
     backstage.io/kubernetes-id: cicd-${{values.appname}}
     argocd/app-name: cicd-${{values.appname | dump}}
   links:
-    - url: https://${{values.repoUrl}}?repo=${{values.appname}}
+    - url: https://${{values.hostname}}/gitea?repo=${{values.appname}}
       title: Repo URL
       icon: github
 spec:
