@@ -259,10 +259,12 @@ sleep 120
 # Setup CrossPlane IRSA for DEV Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_dev_cluster_name
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/crossplane-aws-drc-dev.yml
+kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/cp-dev-env-config.yaml
 
 # Setup CrossPlane IRSA for PROD Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_prod_cluster_name
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/crossplane-aws-drc-prod.yml
+kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/cp-prod-env-config.yaml
 
 # Clean git folder inside the terraform folder to avoid conflicts
 rm -rf ${REPO_ROOT}/platform/infra/terraform/.git || true
