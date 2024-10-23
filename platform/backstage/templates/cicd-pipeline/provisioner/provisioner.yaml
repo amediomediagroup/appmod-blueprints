@@ -43,7 +43,7 @@ subjects:
   namespace: ${{values.namespace}}
 roleRef:
   kind: ClusterRole
-  name: argo-server-cluster-role
+  name: argo-workflows-server
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: argoproj.io/v1alpha1

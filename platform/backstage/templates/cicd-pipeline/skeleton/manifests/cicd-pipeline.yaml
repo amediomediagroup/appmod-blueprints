@@ -175,6 +175,9 @@ spec:
                         - name: docker-config
                           mountPath: /kaniko/.docker
                       workingDir: /workdir
+                      envFrom:
+                      - secretRef:
+                          name: aws-credentials
                       resources:
                         limits:
                           cpu: 1
