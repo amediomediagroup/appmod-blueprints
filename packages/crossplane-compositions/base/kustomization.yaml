@@ -1,3 +1,5 @@
 namespace: crossplane-system
 resources:
-  - https://github.com/aws-samples/appmod-blueprints/tree/main/platform/crossplane/compositions
+  - https://github.com/aws-samples/appmod-blueprints/tree/main/platform/crossplane/compositions/s3
+  - https://github.com/aws-samples/appmod-blueprints/tree/main/platform/crossplane/compositions/rds
+  - https://github.com/aws-samples/appmod-blueprints/tree/main/platform/crossplane/compositions/dynamodb
