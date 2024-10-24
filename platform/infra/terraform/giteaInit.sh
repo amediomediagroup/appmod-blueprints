@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # This script requires DOMAIN_NAME variable to be setup already
-# DOMAIN_NAME is the domain name of GITEA
+# DOMAIN_NAME is the domain name of the cluster
 
 export DOMAIN_NAME=$(kubectl get service ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
@@ -26,54 +26,58 @@ curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" 
 curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" -H "content-type: application/json" -H "Authorization: Basic $ENCODED_USER_PASS" --data '{"name":"terraform-eks"}'
 
 git config --global credential.helper store
-git config --global user.email "participants@workshops.aws"
-git config --global user.name "Workshop Participant"
+
 mkdir -p ${REPO_ROOT}/applications/gitea
 cd ${REPO_ROOT}/applications/gitea
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/dotnet.git
 cd dotnet
+git config user.email "participants@workshops.aws"
+git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/applications/dotnet ${REPO_ROOT}/applications/gitea/
 git add .
-git -c http.sslVerify=false commit -m "first commit"
+git -c http.sslVerify=false commit -m "first commit" --no-verify
 git remote remove origin
 git remote add origin https://$DOMAIN_NAME/gitea/$USERNAME/dotnet.git
-git -c http.sslVerify=false push -u origin main
+git -c http.sslVerify=false push -u origin main --no-verify
 
 cd ..
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/java.git
 cd java
+git config user.email "participants@workshops.aws"
+git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/applications/java ${REPO_ROOT}/applications/gitea/
 git add .
-git -c http.sslVerify=false commit -m "first commit"
+git -c http.sslVerify=false commit -m "first commit" --no-verify
 git remote remove origin
 git remote add origin https://$DOMAIN_NAME/gitea/$USERNAME/java.git
-git -c http.sslVerify=false push -u origin main
+git -c http.sslVerify=false push -u origin main --no-verify
 
 cd ..
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/golang.git
 cd golang
+git config user.email "participants@workshops.aws"
+git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/applications/golang ${REPO_ROOT}/applications/gitea/
 git add .
-git -c http.sslVerify=false commit -m "first commit"
+git -c http.sslVerify=false commit -m "first commit" --no-verify
 git remote remove origin
 git remote add origin https://$DOMAIN_NAME/gitea/$USERNAME/golang.git
-git -c http.sslVerify=false push -u origin main
+git -c http.sslVerify=false push -u origin main --no-verify
 
 cd ..
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/terraform-eks.git
 cd terraform-eks
+git config user.email "participants@workshops.aws"
+git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/platform/infra/terraform/dev ${REPO_ROOT}/applications/gitea/terraform-eks/
 cp -r ${REPO_ROOT}/platform/infra/terraform/prod ${REPO_ROOT}/applications/gitea/terraform-eks/
 cp ${REPO_ROOT}/platform/infra/terraform/.gitignore ${REPO_ROOT}/applications/gitea/terraform-eks/
 cp ${REPO_ROOT}/platform/infra/terraform/create-cluster.sh  ${REPO_ROOT}/applications/gitea/terraform-eks/
 git add .
-git -c http.sslVerify=false commit -m "first commit"
+git -c http.sslVerify=false commit -m "first commit" --no-verify
 git remote remove origin
 git remote add origin https://$DOMAIN_NAME/gitea/$USERNAME/terraform-eks.git
-git -c http.sslVerify=false push -u origin main
-
-git config --global --unset user.name
-git config --global --unset user.email
+git -c http.sslVerify=false push -u origin main --no-verify
 
 # cleanup temp gitea folder
 rm -rf ${REPO_ROOT}/applications/gitea
