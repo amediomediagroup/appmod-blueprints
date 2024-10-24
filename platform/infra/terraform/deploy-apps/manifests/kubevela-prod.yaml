@@ -11,6 +11,9 @@ spec:
     targetRevision: 1.9.11
     helm:
       releaseName: kubevela-prod
+      values: |
+        multicluster:
+          enabled: false
   destination:
     name: 'prod-cluster'
     namespace: vela-system
