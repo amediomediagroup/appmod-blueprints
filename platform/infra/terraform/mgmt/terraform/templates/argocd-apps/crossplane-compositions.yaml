@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: ${GITHUB_URL}
     targetRevision: HEAD
-    path: packages/crossplane-compositions/dev/
+    path: "platform/crossplane/compositions"
   destination:
     server: "https://kubernetes.default.svc"
     namespace: crossplane-system
