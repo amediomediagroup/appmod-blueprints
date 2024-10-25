@@ -83,7 +83,7 @@ resource "aws_cloudformation_stack" "usage_tracking" {
   on_failure = "DO_NOTHING"
   template_body = jsonencode({
     AWSTemplateFormatVersion = "2010-09-09",
-    Description              = "Usage telemetry for EKS Blueprints. (${var.usage_tracking_tag})",
+    Description              = "Usage telemetry for Modern Engineering. (${var.usage_tracking_tag})",
     Resources = {
       EmptyResource = {
         Type = "AWS::CloudFormation::WaitConditionHandle"
