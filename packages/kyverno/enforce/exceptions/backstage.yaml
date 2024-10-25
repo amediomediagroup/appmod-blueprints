@@ -29,7 +29,7 @@ spec:
             - Deployment
             - ReplicaSet
           namespaces:
-            - backstage
+            - aws-load-balancer-controller
           names:
             # TODO: this should be more targeted than blanket *
-            - backstage*
+            - aws-load-balancer*
