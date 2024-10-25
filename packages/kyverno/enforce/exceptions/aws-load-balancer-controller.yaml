@@ -29,7 +29,7 @@ spec:
             - Deployment
             - ReplicaSet
           namespaces:
-            - argocd
+            - aws-load-balancer-controller
           names:
             # TODO: this should be more targeted than blanket *
-            - argocd-*
+            - aws-load-balancer*
