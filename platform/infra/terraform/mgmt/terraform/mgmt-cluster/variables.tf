@@ -3,8 +3,8 @@
 # Usage Telemetry
 ################################################################################
 
-variable "observability_tag" {
-  description = "Tag to identify Modern Engineering on AWS usage within observability tools"
+variable "usage_tracking_tag" {
+  description = "Tag to identify Modern Engineering on AWS usage within tracking tools"
   type        = string
-  default     = "qs-1ubotj5kl"
+  default     = "qs-1uijcfop9"
 }
