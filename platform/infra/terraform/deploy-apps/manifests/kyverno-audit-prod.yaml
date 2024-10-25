@@ -1,5 +1,5 @@
-kind: Application
 apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
   name: kyverno-pss-policies-audit-prod
   namespace: argocd

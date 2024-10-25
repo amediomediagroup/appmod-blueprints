@@ -11,7 +11,7 @@ spec:
     targetRevision: 3.2.7
     helm:
       releaseName: kyverno-dev
-      valuesObject:
+      values: |
         kyverno.fullname: kyverno
   destination:
     name: 'dev-cluster'
