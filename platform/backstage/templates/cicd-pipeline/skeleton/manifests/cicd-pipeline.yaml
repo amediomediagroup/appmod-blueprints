@@ -49,11 +49,15 @@ spec:
                 arguments:
                   parameters:
                     - name: apprepo
-                      value: ${{values.hostname}}/gitea/${{values.gitea_user}}/${{values.appname}}
+                      value: ${{values.hostname}}/gitea/giteaAdmin/${{values.appname}}
                     - name: branch
                       value: main
                     - name: tag-version
                       value: 0.0.1
+                    - name: dockerfile-path
+                      value: ${{values.dockerfile_path}}
+                    - name: deployment-path
+                      value: ${{values.deployment_path}}
                 volumeClaimTemplates:
                 - metadata:
                     name: workdir
@@ -80,19 +84,15 @@ spec:
                                 value: "{{workflow.parameters.branch}}"
                           depends: "clean"
 
-                        - name: get-ecr-repo
-                          template: get-ecr-repo
-                          depends: "clone"
-                        
                         - name: build-and-push-image
                           template: build-image-kaniko
                           arguments:
                             parameters:
-                              - name: image
-                                value: "{{tasks.get-ecr-repo.outputs.result}}"
                               - name: tag-version
                                 value: "{{workflow.parameters.tag-version}}"
-                          depends: "get-ecr-repo"
+                              - name: dockerfile-path
+                                value: "{{workflow.parameters.dockerfile-path}}"
+                          depends: "clone"
 
                         - name: update-and-push-image-version
                           template: update-image-tag
@@ -106,6 +106,8 @@ spec:
                                 value: "{{workflow.parameters.tag-version}}"
                               - name: apprepo
                                 value: "{{workflow.parameters.apprepo}}"
+                              - name: deployment-path
+                                value: "{{workflow.parameters.deployment-path}}"
                           depends: "build-and-push-image"
                         
                   - name: cleandir 
@@ -148,22 +150,12 @@ spec:
                         - http.sslVerify=false
                         - .
 
-                  - name: get-ecr-repo
-                    container:
-                      image: amazon/aws-cli:latest
-                      command: ["/bin/bash", "-c"]
-                      envFrom:
-                      - secretRef:
-                          name: aws-credentials
-                      args:
-                        - |
-                          aws ecr describe-repositories --region ${{values.aws_region}} --repository-names "modengg/${{values.appname}}" --query 'repositories[0].repositoryUri' --output text
-                  
+
                   - name: build-image-kaniko
                     inputs:
                       parameters:
-                        - name: image
                         - name: tag-version
+                        - name: dockerfile-path
                     volumes:
                       - name: docker-config
                         secret:
@@ -177,8 +169,8 @@ spec:
                           mountPath: /kaniko/.docker
                       workingDir: /workdir
                       envFrom:
-                      - secretRef:
-                          name: aws-credentials
+                      - configMapRef:
+                          name: ecr-repo
                       resources:
                         limits:
                           cpu: 1
@@ -188,8 +180,8 @@ spec:
                           value: /kaniko/.docker
                       args:
                       - --dockerfile=Dockerfile
-                      - --context=.
-                      - --destination={{inputs.parameters.image}}:{{inputs.parameters.tag-version}}
+                      - --context={{inputs.parameters.dockerfile-path}}
+                      - --destination=${image}:{{inputs.parameters.tag-version}}
                       - --skip-tls-verify
                       - --cache=false
 
@@ -200,35 +192,28 @@ spec:
                         - name: image
                         - name: tag
                         - name: apprepo
+                        - name: deployment-path
                     container:
+                      envFrom:
+                      - secretRef:
+                          name: gitea-token
                       volumeMounts:
                         - mountPath: /workdir
                           name: workdir
                       image: alpine/git:v2.45.2
-                      env:
-                      - name: GITEA_USER
-                        valueFrom:
-                          secretKeyRef:
-                            name: gitea-credential
-                            key: username
-                      - name: GITEA_PWD
-                        valueFrom:
-                          secretKeyRef:
-                            name: gitea-credential
-                            key: password 
                       workingDir: /workdir
                       command: ['/bin/sh']
                       args:
                         - -c
                         - |
                           set -ex
-                          mkdir -p deployment/"{{inputs.parameters.env}}"
+                          mkdir -p "{{inputs.parameters.deployment-path}}/{{inputs.parameters.env}}"
                           echo "{{inputs.parameters.image}}:{{inputs.parameters.tag}}" > ./deployment/"{{inputs.parameters.env}}"/image.txt
                           m_count=$(git status -s | wc -l)
                           if [ $m_count == 1 ]; then
                             git config --global user.email "noreply@aws.com" 
                             git config --global user.name ARGO
-                            git remote set-url origin https://$GITEA_USER:$GITEA_PWD@"{{inputs.parameters.apprepo}}".git
+                            git remote set-url origin https://giteaAdmin:${token}@"{{inputs.parameters.apprepo}}".git
                             git add ./deployment
                             image_version="{{inputs.parameters.tag}}"
                             git commit -m "[SKIP CI] Updated image version to $image_version"
@@ -236,9 +221,6 @@ spec:
                           else
                             echo "No updates to values file, skipping git push"
                           fi
-
-
-                        
 
           parameters:
             - src:

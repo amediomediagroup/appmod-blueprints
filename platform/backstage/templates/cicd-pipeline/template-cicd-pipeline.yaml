@@ -19,6 +19,18 @@ spec:
           default: us-west-2
           title: aws region for ecr repo
           type: string
+        gitea_token:
+          title: personal gitea token to create webhook (must have write:repository privilege)
+          type: string
+          ui:field: Secret
+        dockerfile_path:
+          title: Relative path to directory containing Dockerfile
+          type: string
+          default: .
+        deployment_path:
+          default: ./deployment
+          title: Relative path to deployment directory in repo
+          type: string
         hostname:
           title: URL of management cluster
           type: string
@@ -27,6 +39,7 @@ spec:
         - appname
         - namespace
         - hostname
+        - gitea_token
   steps:
     - action: fetch:template
       name: Fetch Base
@@ -38,7 +51,6 @@ spec:
           namespace: ${{ parameters.namespace }}
           aws_region: ${{ parameters.aws_region }}
           hostname: ${{parameters.hostname}}
-          gitea_user: giteaAdmin
 
     - id: publish
       name: Publishing to a gitea git repository
@@ -48,7 +60,7 @@ spec:
         # Hard coded value for this demo purposes only.
         repoUrl: ${{parameters.hostname}}/gitea?repo=${{parameters.appname}}-cicd
         defaultBranch: main
-
+    
     - action: fetch:template
       name: Fetch Provisioner
       id: fetch-provisioner
@@ -59,7 +71,20 @@ spec:
           namespace: ${{ parameters.namespace }}
           aws_region: ${{ parameters.aws_region }}
           hostname: ${{parameters.hostname}}
-          gitea_user: giteaAdmin
+          gitea_token: ${{secrets.gitea_token}}
+
+    - action: cnoe:kubernetes:apply
+      name: Apply Provisioner IAM
+      id: apply-prov-iam
+      input:
+        namespaced: true
+        manifestPath: podidentity.yaml
+        clusterName: local
+    
+    - action: debug:wait
+      name: Wait for IAM
+      input:
+        seconds: 15
 
     - action: cnoe:kubernetes:apply
       name: Apply Provisioner
