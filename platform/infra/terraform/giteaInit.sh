@@ -26,10 +26,13 @@ curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" 
 curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" -H "content-type: application/json" -H "Authorization: Basic $ENCODED_USER_PASS" --data '{"name":"terraform-eks"}'
 
 git config --global credential.helper store
+
 mkdir -p ${REPO_ROOT}/applications/gitea
 cd ${REPO_ROOT}/applications/gitea
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/dotnet.git
 cd dotnet
+git config user.email "participants@workshops.aws"
+git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/applications/dotnet ${REPO_ROOT}/applications/gitea/
 git add .
 git -c http.sslVerify=false commit -m "first commit" --no-verify
@@ -40,6 +43,8 @@ git -c http.sslVerify=false push -u origin main --no-verify
 cd ..
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/java.git
 cd java
+git config user.email "participants@workshops.aws"
+git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/applications/java ${REPO_ROOT}/applications/gitea/
 git add .
 git -c http.sslVerify=false commit -m "first commit" --no-verify
@@ -50,6 +55,8 @@ git -c http.sslVerify=false push -u origin main --no-verify
 cd ..
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/golang.git
 cd golang
+git config user.email "participants@workshops.aws"
+git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/applications/golang ${REPO_ROOT}/applications/gitea/
 git add .
 git -c http.sslVerify=false commit -m "first commit" --no-verify
@@ -60,6 +67,8 @@ git -c http.sslVerify=false push -u origin main --no-verify
 cd ..
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/terraform-eks.git
 cd terraform-eks
+git config user.email "participants@workshops.aws"
+git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/platform/infra/terraform/dev ${REPO_ROOT}/applications/gitea/terraform-eks/
 cp -r ${REPO_ROOT}/platform/infra/terraform/prod ${REPO_ROOT}/applications/gitea/terraform-eks/
 cp ${REPO_ROOT}/platform/infra/terraform/.gitignore ${REPO_ROOT}/applications/gitea/terraform-eks/

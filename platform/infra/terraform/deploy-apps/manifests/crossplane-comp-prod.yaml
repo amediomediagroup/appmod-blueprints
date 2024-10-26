@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://github.com/aws-samples/appmod-blueprints
     targetRevision: HEAD
-    path: packages/crossplane-compositions/dev/
+    path: "platform/crossplane/compositions"
   destination:
     name: 'prod-cluster'
     namespace: crossplane-system
