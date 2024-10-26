@@ -75,7 +75,7 @@ metadata:
 spec:
   forProvider:
     description: ECR Access Policy
-    policyDocument: |
+    policy: |
       {
         "Version": "2012-10-17",
         "Statement": [
