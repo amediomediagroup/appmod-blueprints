@@ -11,7 +11,7 @@ metadata:
   namespace: ${{ values.namespace }}
 subjects:
 - kind: ServiceAccount
-  name: ${{values.appnam}}-cicd-sa
+  name: ${{values.appname}}-cicd-sa
 roleRef:
   kind: ClusterRole
   name: argo-workflow-runner
