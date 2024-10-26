@@ -18,6 +18,8 @@ struct CSVProduct {
     name: String,
     image_number: u32,
     file: String,
+    image_height: u32,
+    image_width: u32
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -131,12 +133,12 @@ fn csv_to_data() -> (Vec<Product>, HashMap<String, Category>) {
     let mut csv_products: Vec<CSVProduct> = Vec::new();
     let mut csv_options: Vec<CSVOptions> = Vec::new();
 
-    let products_file = match File::open("./src/api/res/products.csv") {
+    let products_file = match File::open("products.csv") {
         Ok(file) => file,
         Err(e) => panic!("Required file not found: {}", e),
     };
 
-    let variants_file = match File::open("./src/api/res/variants.csv") {
+    let variants_file = match File::open("variants.csv") {
         Ok(file) => file,
         Err(e) => panic!("Required file not found: {}", e),
     };
@@ -211,15 +213,14 @@ fn csv_to_data() -> (Vec<Product>, HashMap<String, Category>) {
                 prod_imgs
                     .iter()
                     .map(|image| {
-                        let (width, height) = get_image_dimensions(image);
                         Image {
                             url: format!(
                                 "/images/{}",
                                 image.to_string()
                             ),
                             alt_text: format!("{} image", csv_product.name),
-                            width,
-                            height,
+                            width: csv_product.image_width as usize,
+                            height: csv_product.image_height as usize,
                         }
                     })
                     .collect()
