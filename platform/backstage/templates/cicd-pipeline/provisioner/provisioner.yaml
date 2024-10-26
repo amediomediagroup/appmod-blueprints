@@ -70,7 +70,7 @@ spec:
           arguments:
             parameters:
             - name: image
-              value: "{{tasks.create-ecr-repository.outputs.results}}"
+              value: "{{tasks.create-ecr-repository.outputs.result}}"
           depends: "create-ecr-repository"
 
         - name: create-gitea-webhook
