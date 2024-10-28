@@ -21,7 +21,7 @@ spec:
           title: aws region with codebuild project
           type: string
         repoUrl:
-          title: URL of Gitea on management cluster
+          title: DNS of Gitea that was setup. Example - modern-engg-XXXXXXXXXX.elb.us-west-2.amazonaws.com
           type: string
       title: Configuration Options
       required:
