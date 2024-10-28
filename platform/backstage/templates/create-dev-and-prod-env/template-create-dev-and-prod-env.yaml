@@ -21,7 +21,7 @@ spec:
           title: aws region with codebuild project
           type: string
         repoUrl:
-          title: URL of gitea on management cluster
+          title: URL of Gitea on management cluster
           type: string
       title: Configuration Options
       required:
@@ -35,6 +35,7 @@ spec:
           name: ${{ parameters.name }}
           namespace: ${{ parameters.namespace }}
           aws_region: ${{ parameters.aws_region }}
+          repoUrl: ${{ parameters.repoUrl }}
       name: Fetch Base
     - id: publish
       name: Publishing to a gitea git repository
