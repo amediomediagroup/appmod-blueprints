@@ -44,7 +44,7 @@ spec:
                   env: dev
                   entity-id: ${{values.appname}}-cicd
               spec:
-                serviceAccountName: admin
+                serviceAccountName: ${{values.appname}}-cicd-sa
                 entrypoint: ci-build
                 arguments:
                   parameters:
@@ -100,8 +100,6 @@ spec:
                             parameters:
                               - name: env
                                 value: dev
-                              - name: image
-                                value: "{{tasks.get-ecr-repo.outputs.result}}"
                               - name: tag
                                 value: "{{workflow.parameters.tag-version}}"
                               - name: apprepo
@@ -161,16 +159,13 @@ spec:
                         secret:
                           secretName: regcred
                     container:
-                      image: gcr.io/kaniko-project/executor:latest
+                      image: gcr.io/kaniko-project/executor:debug
                       volumeMounts:
                         - name: workdir
                           mountPath: /workdir
                         - name: docker-config
                           mountPath: /kaniko/.docker
                       workingDir: /workdir
-                      envFrom:
-                      - configMapRef:
-                          name: ecr-repo
                       resources:
                         limits:
                           cpu: 1
@@ -178,18 +173,25 @@ spec:
                       env:
                         - name: DOCKER_CONFIG
                           value: /kaniko/.docker
-                      args:
-                      - --dockerfile=Dockerfile
-                      - --context={{inputs.parameters.dockerfile-path}}
-                      - --destination=${image}:{{inputs.parameters.tag-version}}
-                      - --skip-tls-verify
-                      - --cache=false
+                        - name: ECR_REPO
+                          valueFrom:
+                            configMapKeyRef:
+                              name: ecr-repo
+                              key: image
+                      command: [
+                                "/busybox/sh",
+                                "-c",
+                                "/kaniko/executor \
+                                --dockerfile=Dockerfile \
+                                --context={{inputs.parameters.dockerfile-path}} \
+                                --destination=${ECR_REPO}:{{inputs.parameters.tag-version}} \
+                                --skip-tls-verify"
+                                ]
 
                   - name: update-image-tag
                     inputs:
                       parameters:
                         - name: env 
-                        - name: image
                         - name: tag
                         - name: apprepo
                         - name: deployment-path
@@ -197,6 +199,8 @@ spec:
                       envFrom:
                       - secretRef:
                           name: gitea-token
+                      - configMapRef:
+                          name: ecr-repo
                       volumeMounts:
                         - mountPath: /workdir
                           name: workdir
@@ -208,7 +212,7 @@ spec:
                         - |
                           set -ex
                           mkdir -p "{{inputs.parameters.deployment-path}}/{{inputs.parameters.env}}"
-                          echo "{{inputs.parameters.image}}:{{inputs.parameters.tag}}" > ./deployment/"{{inputs.parameters.env}}"/image.txt
+                          echo "$image:{{inputs.parameters.tag}}" > ./deployment/"{{inputs.parameters.env}}"/image.txt
                           m_count=$(git status -s | wc -l)
                           if [ $m_count == 1 ]; then
                             git config --global user.email "noreply@aws.com" 

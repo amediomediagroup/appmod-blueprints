@@ -51,6 +51,8 @@ spec:
           namespace: ${{ parameters.namespace }}
           aws_region: ${{ parameters.aws_region }}
           hostname: ${{parameters.hostname}}
+          dockerfile_path: ${{parameters.dockerfile_path}}
+          deployment_path: ${{parameters.deployment_path}}
 
     - id: publish
       name: Publishing to a gitea git repository
