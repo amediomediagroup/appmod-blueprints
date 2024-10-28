@@ -10,7 +10,7 @@ spec:
   parameters:
     - properties:
         name:
-          title: name of the component
+          title: Name of the component
           type: string
         namespace:
           default: flux-system
