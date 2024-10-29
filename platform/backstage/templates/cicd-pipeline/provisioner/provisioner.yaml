@@ -117,10 +117,10 @@ spec:
       command: ["/bin/bash", "-c"]
       args:
       - |
-        aws ecr describe-repositories --repository-names "modengg/{{workflow.parameters.appname}}" --region "{{workflow.parameters.aws_region}}" 2>&1 > /dev/null
+        output=$(aws ecr describe-repositories --repository-names "modengg/{{workflow.parameters.appname}}" --region "{{workflow.parameters.aws_region}}" 2>&1)
         status=$?
         if [[ ! "${status}" -eq 0 ]]; then
-            aws ecr create-repository --repository-name "modengg/{{workflow.parameters.appname}}" --region "{{workflow.parameters.aws_region}}" 2>&1 > /dev/null
+            output=$(aws ecr create-repository --repository-name "modengg/{{workflow.parameters.appname}}" --region "{{workflow.parameters.aws_region}}" 2>&1)
         fi
         aws ecr describe-repositories --repository-names "modengg/{{workflow.parameters.appname}}" --region "{{workflow.parameters.aws_region}}" --query "repositories[0].repositoryUri" --output text
 
