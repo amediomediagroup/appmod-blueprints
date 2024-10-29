@@ -53,3 +53,95 @@ rules:
   - get
   - watch
   - list
+---
+# PodIdentityAssociation
+apiVersion: eks.aws.upbound.io/v1beta1
+kind: PodIdentityAssociation
+metadata:
+  name: "${{values.appname}}-cicd-podidentity"
+  namespace: ${{values.namespace}}
+spec:
+  forProvider:
+    clusterName: "modern-engineering"
+    namespace: "${{values.namespace}}"
+    region: "${{values.aws_region}}"
+    roleArnRef:
+      name: "${{values.appname}}-cicd-iam-role"
+    serviceAccount: "${{values.appname}}-cicd-sa"
+
+---
+# IAM Role
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Role
+metadata:
+  name: "${{values.appname}}-cicd-iam-role"
+spec:
+  forProvider:
+    assumeRolePolicy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "pods.eks.amazonaws.com"
+            },
+            "Action": [
+              "sts:AssumeRole",
+              "sts:TagSession"
+            ]
+          }
+        ]
+      }
+
+---
+# IAM Policy
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Policy
+metadata:
+  name: "${{values.appname}}-cicd-ecr-access-policy"
+spec:
+  forProvider:
+    description: ECR Access Policy
+    policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": [
+                "ecr:GetAuthorizationToken",
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:GetDownloadUrlForLayer",
+                "ecr:GetRepositoryPolicy",
+                "ecr:DescribeRepositories",
+                "ecr:ListImages",
+                "ecr:DescribeImages",
+                "ecr:BatchGetImage",
+                "ecr:GetLifecyclePolicy",
+                "ecr:GetLifecyclePolicyPreview",
+                "ecr:ListTagsForResource",
+                "ecr:DescribeImageScanFindings",
+                "ecr:InitiateLayerUpload",
+                "ecr:UploadLayerPart",
+                "ecr:CompleteLayerUpload",
+                "ecr:PutImage"
+            ],
+            "Resource": "*"
+          }
+        ]
+      }
+
+---
+# IAM Policy Attachment
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: RolePolicyAttachment
+metadata:
+  name: "${{values.appname}}-cicd-ecr-access-policy-attachment"
+spec:
+  forProvider:
+    policyArnRef:
+      name: "${{values.appname}}-cicd-ecr-access-policy"
+    roleRef:
+      name: "${{values.appname}}-cicd-iam-role"
+
