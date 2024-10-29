@@ -169,5 +169,3 @@ resource "aws_secretsmanager_secret_version" "db_credentials_updated" {
       dbname          = aws_rds_cluster.rds_cluster_mod_engg_wksp.database_name
     })
   }
-  
-  
