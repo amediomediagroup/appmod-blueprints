@@ -7,6 +7,8 @@ ROLE_MAX_SESSION_DURATION=43200
 SESSION_DURATION=18000
 SESSION_NAME="workshop"
 
+export REPO_ROOT=$(git rev-parse --show-toplevel)
+
 if ! aws iam get-user --user-name "$IAM_USER_NAME" &>/dev/null; then
   aws iam create-user --user-name "$IAM_USER_NAME"
   ACCESS_KEY_OUTPUT=$(aws iam create-access-key --user-name "$IAM_USER_NAME")
@@ -114,4 +116,5 @@ export AWS_SESSION_TOKEN=$(echo $ASSUME_ROLE_OUTPUT | jq -r '.Credentials.Sessio
 echo "Running script with assumed role credentials"
 echo $(aws sts get-caller-identity)
 
+cd $REPO_ROOT/platform/infra/terraform
 ./setup-environments.sh

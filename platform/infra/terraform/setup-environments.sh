@@ -167,7 +167,7 @@ terraform -chdir=dev/db init -reconfigure -backend-config="key=dev/db/db-ec2-clu
   -backend-config="region=$TF_VAR_aws_region" \
   -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
-# Apply the infrastructure changes to deploy DB DEV cluster 
+# Apply the infrastructure changes to deploy DB DEV cluster
 terraform -chdir=dev/db apply -var aws_region="${TF_VAR_aws_region}" \
   -var vpc_id="${TF_eks_cluster_vpc_id}" \
   -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
@@ -209,7 +209,7 @@ terraform -chdir=prod/db init -reconfigure -backend-config="key=prod/db/db-ec2-c
   -backend-config="region=$TF_VAR_aws_region" \
   -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
-# Apply the infrastructure changes to deploy DB DEV cluster 
+# Apply the infrastructure changes to deploy DB DEV cluster
 terraform -chdir=prod/db apply -var aws_region="${TF_VAR_aws_region}" \
   -var vpc_id="${TF_eks_cluster_vpc_id}" \
   -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
@@ -242,10 +242,9 @@ export PROD_ACCESS_CONF=$(aws eks describe-cluster --region $TF_VAR_aws_region -
 if [[ "$PROD_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
   echo "Changing IAM access configs for PROD cluster: $PROD_ACCESS_CONF"
   aws eks update-cluster-config --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP || true
+  echo "Sleeping for 3 minutes to allow cluster to change auth mode"
+  sleep 180
 fi
-
-echo "Sleeping for 5 minutes to allow cluster to change auth mode"
-sleep 300
 
 # Reconnect back to Management Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluster_name
