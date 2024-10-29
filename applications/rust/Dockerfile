@@ -22,12 +22,19 @@ COPY src/api/ ./src/api/
 # Required for Rocket
 RUN update-ca-certificates
 
-RUN cargo build --bin api --target x86_64-unknown-linux-musl --release && exit 0
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/app/target \
+    cargo build --bin api --target x86_64-unknown-linux-musl --release && \
+    # Copy executable out of the cache so it is available in the final image.
+    cp target/x86_64-unknown-linux-musl/release/api ./api
+
 
 # Copy the statically-linked binary into a scratch container.
 FROM scratch
 
-COPY --from=build /usr/app/target/x86_64-unknown-linux-musl/release/api .
+COPY --from=build /usr/app/api .
+COPY --from=build /usr/app/src/api/res/products.csv .
+COPY --from=build /usr/app/src/api/res/variants.csv .
 
 # steal the CA certs from our builder in production
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
@@ -37,4 +44,4 @@ USER 1000
 ENV ROCKET_ADDRESS=0.0.0.0
 ENV ROCKET_PORT=8080
 
-CMD ["./lambda"]
+CMD ["./api"]
