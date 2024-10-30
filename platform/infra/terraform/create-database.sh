@@ -8,8 +8,8 @@ terraform -chdir=dev/db init -reconfigure -backend-config="key=dev/db/db-ec2-clu
 
 # Apply the infrastructure changes to deploy DB DEV cluster 
 terraform -chdir=dev/db apply -var aws_region="${TF_VAR_aws_region}" \
-  -var vpc_id="${TF_eks_cluster_vpc_id}" \
-  -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
+  -var vpc_id="${TF_VAR_vpc_id}" \
+  -var vpc_private_subnets="${TF_VAR_vpc_private_subnets}" \
   -var availability_zones="${TF_eks_cluster_private_az}" \
   -var vpc_cidr="${TF_eks_cluster_vpc_cidr}" \
   -var key_name="ws-default-keypair" -auto-approve
@@ -23,8 +23,8 @@ terraform -chdir=prod/db init -reconfigure -backend-config="key=prod/db/db-ec2-c
 
 # Apply the infrastructure changes to deploy DB DEV cluster 
 terraform -chdir=prod/db apply -var aws_region="${TF_VAR_aws_region}" \
-  -var vpc_id="${TF_eks_cluster_vpc_id}" \
-  -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
+  -var vpc_id="${TF_VAR_vpc_id}" \
+  -var vpc_private_subnets="${TF_VAR_vpc_private_subnets}" \
   -var availability_zones="${TF_eks_cluster_private_az}" \
   -var vpc_cidr="${TF_eks_cluster_vpc_cidr}" \
   -var key_name="ws-default-keypair" -auto-approve
