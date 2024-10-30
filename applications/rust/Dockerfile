@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/app/target \
     cargo build --bin api --target x86_64-unknown-linux-musl && \
     # Copy executable out of the cache so it is available in the final image.
-    cp target/x86_64-unknown-linux-musl/release/api ./api
+    cp target/x86_64-unknown-linux-musl/debug/api ./api
 
 
 # Copy the statically-linked binary into a scratch container.
