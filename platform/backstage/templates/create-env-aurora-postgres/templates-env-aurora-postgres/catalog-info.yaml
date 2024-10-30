@@ -1,0 +1,19 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: create-env-aurora-postgres-${{values.name}}
+  description: Create Aurora DB Clusters ${{ values.name }}
+  annotations:
+    backstage.io/kubernetes-namespace: ${{values.namespace}}
+    backstage.io/kubernetes-id: create-env-aurora-postgres-${{values.name}}
+    argocd/app-name: ${{values.name | dump}}
+  links:
+    - url: https://${{values.repoUrl}}?repo=${{values.name}}
+      title: Repo URL
+      icon: github
+spec:
+  type: service
+  lifecycle: experimental
+  owner: guest
+  system: ${{values.name | dump}}
+

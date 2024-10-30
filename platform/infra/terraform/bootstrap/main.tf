@@ -29,6 +29,18 @@ locals {
   }
 }
 
+resource "aws_ssm_parameter" "argorollouts_amp_ws" {
+  name  = "/platform/amp-workspace"
+  value = module.managed_service_prometheus.workspace_prometheus_endpoint
+  type  = "SecureString"
+}
+
+resource "aws_ssm_parameter" "argorollouts_amp_region" {
+  name  = "/platform/amp-region"
+  value = var.aws_region
+  type  = "SecureString"
+}
+
 module "managed_grafana" {
   source  = "terraform-aws-modules/managed-service-grafana/aws"
 

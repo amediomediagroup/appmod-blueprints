@@ -59,7 +59,10 @@ ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/install.sh
 cd ${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/mgmt-cluster/
 export TF_eks_cluster_vpc_id=$(terraform output -raw eks_cluster_vpc_id)
 export TF_eks_cluster_private_subnets=$(terraform output -json eks_cluster_private_subnets)
-
+echo "private subnets are : " $TF_eks_cluster_private_subnets
+# For Database and EC2 database
+export TF_eks_cluster_vpc_cidr=$(terraform output -raw vpc_cidr) 
+export TF_eks_cluster_private_az=$(terraform output -json availability_zones)
 export KEYCLOAK_NAMESPACE=keycloak
 export KEYCLOAK_REALM=modernengg
 export KEYCLOAK_USER_ADMIN_PASSWORD=$(openssl rand -base64 8)
@@ -110,7 +113,7 @@ echo "Github Source Repo for Management EKS Cluster =" $GITHUB_URL
 cd "${REPO_ROOT}/platform/infra/terraform/"
 
 rm -rf terraform-aws-observability-accelerator/
-git clone https://github.com/aws-observability/terraform-aws-observability-accelerator.git
+git clone https://github.com/hmuthusamy/terraform-aws-observability-accelerator.git -b feature/enable-polyglot-otel-config
 
 echo "bootstrapping Terraform"
 terraform -chdir=bootstrap init -reconfigure
@@ -158,6 +161,20 @@ echo "Managed Grafana Workspace ID = "$TF_VAR_managed_grafana_workspace_id
 echo "Following Amazon Managed Prometheus Workspace will be used for Observability accelerator for both DEV and PROD:"
 echo "Managed Prometheus Workspace ID = "$TF_VAR_managed_prometheus_workspace_id
 
+# Initialize backend for DB DEV cluster
+terraform -chdir=dev/db init -reconfigure -backend-config="key=dev/db/db-ec2-cluster.tfstate" \
+  -backend-config="bucket=$TF_VAR_state_s3_bucket" \
+  -backend-config="region=$TF_VAR_aws_region" \
+  -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
+
+# Apply the infrastructure changes to deploy DB DEV cluster
+terraform -chdir=dev/db apply -var aws_region="${TF_VAR_aws_region}" \
+  -var vpc_id="${TF_eks_cluster_vpc_id}" \
+  -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
+  -var availability_zones="${TF_eks_cluster_private_az}" \
+  -var vpc_cidr="${TF_eks_cluster_vpc_cidr}" \
+  -var key_name="ws-default-keypair" -auto-approve
+
 # Initialize backend for DEV cluster
 terraform -chdir=dev init -reconfigure -backend-config="key=dev/eks-accelerator-vpc.tfstate" \
   -backend-config="bucket=$TF_VAR_state_s3_bucket" \
@@ -186,6 +203,20 @@ if [[ "$DEV_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
   aws eks update-cluster-config --region $TF_VAR_aws_region --name ${TF_VAR_dev_cluster_name} --access-config authenticationMode=API_AND_CONFIG_MAP || true
 fi
 
+# Initialize backend for DB Prod cluster
+terraform -chdir=prod/db init -reconfigure -backend-config="key=prod/db/db-ec2-cluster.tfstate" \
+  -backend-config="bucket=$TF_VAR_state_s3_bucket" \
+  -backend-config="region=$TF_VAR_aws_region" \
+  -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
+
+# Apply the infrastructure changes to deploy DB DEV cluster
+terraform -chdir=prod/db apply -var aws_region="${TF_VAR_aws_region}" \
+  -var vpc_id="${TF_eks_cluster_vpc_id}" \
+  -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
+  -var availability_zones="${TF_eks_cluster_private_az}" \
+  -var vpc_cidr="${TF_eks_cluster_vpc_cidr}" \
+  -var key_name="ws-default-keypair" -auto-approve
+
 # Initialize backend for PROD cluster
 terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerator-vpc.tfstate" \
   -backend-config="bucket=$TF_VAR_state_s3_bucket" \
@@ -211,10 +242,9 @@ export PROD_ACCESS_CONF=$(aws eks describe-cluster --region $TF_VAR_aws_region -
 if [[ "$PROD_ACCESS_CONF" != "API_AND_CONFIG_MAP" ]]; then
   echo "Changing IAM access configs for PROD cluster: $PROD_ACCESS_CONF"
   aws eks update-cluster-config --region $TF_VAR_aws_region --name $TF_VAR_prod_cluster_name --access-config authenticationMode=API_AND_CONFIG_MAP || true
+  echo "Sleeping for 3 minutes to allow cluster to change auth mode"
+  sleep 180
 fi
-
-echo "Sleeping for 5 minutes to allow cluster to change auth mode"
-sleep 300
 
 # Reconnect back to Management Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluster_name
