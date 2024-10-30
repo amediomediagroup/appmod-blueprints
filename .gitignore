@@ -1,4 +1,6 @@
 .vscode
+.DS_Store
+.idea
 # Logs
 logs
 *.log
@@ -145,3 +147,18 @@ workshop/cdk.out
 
 # Gradle build files
 .gradle/
+
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# Ignore transient lock info files created by terraform apply
+.terraform.tfstate.lock.info
+
+# Terraform build files
+.terraform.lock.hcl
+
+platform/infra/terraform/terraform-aws-observability-accelerator

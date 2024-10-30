@@ -104,6 +104,7 @@ template: {
 						containerPort: parameter.targetPort
 					}]
 				}]
+				spec: serviceAccountName: parameter.serviceAccount
 			}
 		}
 	}
@@ -224,6 +225,7 @@ template: {
         replicas: *3 | int
         port: *80 | int
         targetPort: *8080 | int
+		serviceAccount: *"default" | string
 		functionalGate?: #QualityGate
 		performanceGate?: #QualityGate
     }
