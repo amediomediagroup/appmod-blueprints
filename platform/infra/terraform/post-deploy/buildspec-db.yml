@@ -20,7 +20,7 @@ phases:
       # Get vpc private subnets
       - export TF_VAR_vpc_private_subnets=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$TF_VAR_vpc_id" "Name=tag:Name,Values=*private*" --query "Subnets[*].SubnetId" --output json)
       # Get AZs
-      - export TF_eks_cluster_private_az=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=vpc-02e943fa69c205c3e" --query 'Subnets[*].AvailabilityZone' --output json)
+      - export TF_eks_cluster_private_az=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$TF_VAR_vpc_id" --query 'Subnets[*].AvailabilityZone' --output json)
       # Get VPC CIDR
       - export TF_eks_cluster_vpc_cidr=$(aws ec2 describe-vpcs --vpc-ids $TF_VAR_vpc_id --query 'Vpcs[0].CidrBlock' --output text)
       
