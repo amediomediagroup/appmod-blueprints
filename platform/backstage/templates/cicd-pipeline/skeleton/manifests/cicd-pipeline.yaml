@@ -168,8 +168,8 @@ spec:
                       workingDir: /workdir
                       resources:
                         limits:
-                          cpu: 1
-                          memory: 2Gi
+                          cpu: 4
+                          memory: 4Gi
                       env:
                         - name: DOCKER_CONFIG
                           value: /kaniko/.docker
