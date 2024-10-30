@@ -16,7 +16,7 @@ spec:
       namespace: backstage
   project: modern-engg
   sources:
-    - repoURL: "https://github.com/hmuthusamy/appmod-blueprints"
+    - repoURL: ${GITHUB_URL}
       targetRevision: HEAD
       path: packages/backstage/dev/
   destination:
