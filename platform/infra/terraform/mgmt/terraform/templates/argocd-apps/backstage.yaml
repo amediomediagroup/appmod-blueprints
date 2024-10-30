@@ -16,8 +16,8 @@ spec:
       namespace: backstage
   project: modern-engg
   sources:
-    - repoURL: "https://github.com/aws-samples/appmod-blueprints"
-      targetRevision: feature/db-rds-ec2-changes
+    - repoURL: "https://github.com/hmuthusamy/appmod-blueprints"
+      targetRevision: HEAD
       path: packages/backstage/dev/
   destination:
     server: "https://kubernetes.default.svc"
