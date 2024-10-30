@@ -29,7 +29,7 @@ spec:
           title: Relative path to deployment directory in repo
           type: string
         hostname:
-          title: domain of management cluster
+          title: DNS of management cluster. Example - modern-engg-XXXXXXXXXX.elb.us-west-2.amazonaws.com
           type: string
       title: Configuration Options
       required:

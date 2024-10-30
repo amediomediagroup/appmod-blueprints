@@ -168,7 +168,7 @@ spec:
                       workingDir: /workdir
                       resources:
                         limits:
-                          cpu: 1
+                          cpu: 4
                           memory: 2Gi
                       env:
                         - name: DOCKER_CONFIG
