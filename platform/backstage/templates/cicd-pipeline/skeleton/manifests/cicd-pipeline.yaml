@@ -23,7 +23,7 @@ metadata:
   namespace: ${{values.namespace}}
 spec:
   template:
-    serviceAccountName: operate-workflow-sa
+    serviceAccountName: ${{values.appname}}-operate-workflow-sa
   dependencies:
     - name: source-dep
       eventSourceName: ${{values.appname}}-cicd
@@ -212,13 +212,13 @@ spec:
                         - |
                           set -ex
                           mkdir -p "{{inputs.parameters.deployment-path}}/{{inputs.parameters.env}}"
-                          echo "$image:{{inputs.parameters.tag}}" > ./deployment/"{{inputs.parameters.env}}"/image.txt
+                          echo "$image:{{inputs.parameters.tag}}" > "{{inputs.parameters.deployment-path}}/{{inputs.parameters.env}}"/image.txt
                           m_count=$(git status -s | wc -l)
                           if [ $m_count == 1 ]; then
                             git config --global user.email "noreply@aws.com" 
                             git config --global user.name ARGO
                             git remote set-url origin https://giteaAdmin:${token}@"{{inputs.parameters.apprepo}}".git
-                            git add ./deployment
+                            git add "{{inputs.parameters.deployment-path}}"
                             image_version="{{inputs.parameters.tag}}"
                             git commit -m "[SKIP CI] Updated image version to $image_version"
                             git push --set-upstream origin main

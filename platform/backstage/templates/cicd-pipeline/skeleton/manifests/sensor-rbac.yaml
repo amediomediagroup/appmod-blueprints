@@ -2,17 +2,17 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: operate-workflow-sa
+  name: ${{values.appname}}-operate-workflow-sa
   namespace: ${{values.namespace}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: operate-workflow-sa-binding
+  name: ${{values.appname}}-operate-workflow-sa-binding
   namespace: ${{values.namespace}}
 subjects:
 - kind: ServiceAccount
-  name: operate-workflow-sa
+  name: ${{values.appname}}-operate-workflow-sa
   namespace: ${{values.namespace}}
 roleRef:
   kind: ClusterRole

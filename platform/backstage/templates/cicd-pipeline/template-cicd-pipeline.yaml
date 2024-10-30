@@ -12,9 +12,6 @@ spec:
         appname:
           title: name of app for cicd
           type: string
-        namespace:
-          title: namespace within the kubernetes cluster to deploy this
-          type: string
         aws_region:
           default: us-west-2
           title: aws region for ecr repo
@@ -32,12 +29,11 @@ spec:
           title: Relative path to deployment directory in repo
           type: string
         hostname:
-          title: URL of management cluster
+          title: DNS of management cluster. Example - modern-engg-XXXXXXXXXX.elb.us-west-2.amazonaws.com
           type: string
       title: Configuration Options
       required:
         - appname
-        - namespace
         - hostname
         - gitea_token
   steps:
@@ -48,7 +44,7 @@ spec:
         url: ./skeleton/
         values:
           appname: ${{ parameters.appname }}
-          namespace: ${{ parameters.namespace }}
+          namespace: argo-events
           aws_region: ${{ parameters.aws_region }}
           hostname: ${{parameters.hostname}}
           dockerfile_path: ${{parameters.dockerfile_path}}
@@ -70,7 +66,7 @@ spec:
         url: ./provisioner/
         values:
           appname: ${{ parameters.appname }}
-          namespace: ${{ parameters.namespace }}
+          namespace: argo-events
           aws_region: ${{ parameters.aws_region }}
           hostname: ${{parameters.hostname}}
           gitea_token: ${{secrets.gitea_token}}
@@ -101,7 +97,7 @@ spec:
       action: cnoe:create-argocd-app
       input:
         appName: ${{parameters.appname}}-cicd
-        appNamespace: ${{parameters.namespace}}
+        appNamespace: argo-events
         argoInstance: in-cluster
         projectName: default
         # necessary until we generate our own cert
