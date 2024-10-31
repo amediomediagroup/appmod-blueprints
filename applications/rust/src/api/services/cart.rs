@@ -2,7 +2,6 @@ use crate::types::{Cart, CartProduct, Product, UIResponder};
 use crate::utils::{query_ddb, reconstruct_result};
 use aws_sdk_dynamodb as ddb;
 use aws_sdk_dynamodb::operation::put_item::PutItemOutput;
-use opentelemetry::global;
 use rocket::serde::json::Json;
 use rocket::{error, get, post, State};
 use serde_dynamo::to_item;

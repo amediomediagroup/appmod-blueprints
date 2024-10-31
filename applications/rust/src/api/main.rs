@@ -7,7 +7,6 @@ mod setup;
 #[macro_use]
 extern crate tracing;
 
-use std::time::Duration;
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::default_provider::region::DefaultRegionChain;
 use aws_sdk_dynamodb as ddb;
@@ -17,9 +16,6 @@ use services::product::*;
 use aws_config::Region;
 use services::cart::*;
 use services::ui::*;
-use opentelemetry::{global, trace::{TraceContextExt, Tracer}, KeyValue};
-use opentelemetry_otlp::{WithExportConfig};
-use crate::utils::{init_tracing_subscriber, TracingFairing};
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
@@ -52,7 +48,7 @@ async fn main() -> Result<(), rocket::Error> {
 
     let prometheus = PrometheusMetrics::new();
 
-    let tracing = init_tracing_subscriber();
+    // let tracing = init_tracing_subscriber();
 
     setup::setup(config.clone(), table_name.clone()).await;
 
@@ -60,7 +56,6 @@ async fn main() -> Result<(), rocket::Error> {
         .manage(ddb::Client::new(&config))
         .manage(table_name)
         .attach(prometheus.clone())
-        .attach(TracingFairing)
         .mount(
             "/",
             routes![
