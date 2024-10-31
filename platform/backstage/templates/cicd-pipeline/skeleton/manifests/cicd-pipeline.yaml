@@ -161,14 +161,14 @@ spec:
                     container:
                       image: gcr.io/kaniko-project/executor:debug
                       volumeMounts:
-                        - name: workdir
+                        - name: repo-root
                           mountPath: /workdir
                         - name: docker-config
                           mountPath: /kaniko/.docker
                       workingDir: /workdir
                       resources:
                         limits:
-                          cpu: 4
+                          cpu: 2
                           memory: 4Gi
                       env:
                         - name: DOCKER_CONFIG
@@ -210,11 +210,18 @@ spec:
                       args:
                         - -c
                         - |
+                          apk add --no-cache sed
                           set -ex
-                          mkdir -p "{{inputs.parameters.deployment-path}}/{{inputs.parameters.env}}"
+                          DEPLOY_PATH="{{inputs.parameters.deployment-path}}/{{inputs.parameters.env}}"
+                          tag="{{inputs.parameters.env}}"
+                          mkdir -p $DEPLOY_PATH
                           echo "$image:{{inputs.parameters.tag}}" > ./deployment/"{{inputs.parameters.env}}"/image.txt
+                          if [ -f $DEPLOY_PATH/application.yml ]; then
+                            sed  -i 's+image: <image>.*+image: '"${image}:${tag}"'+g' "${DEPLOY_PATH}/application.yml"
+                            sed  -i 's+image: '"$image"'.*+image: '"${image}:${tag}"'+g' "${DEPLOY_PATH}/application.yml"
+                          fi
                           m_count=$(git status -s | wc -l)
-                          if [ $m_count == 1 ]; then
+                          if [ $m_count -ge 1 ]; then
                             git config --global user.email "noreply@aws.com" 
                             git config --global user.name ARGO
                             git remote set-url origin https://giteaAdmin:${token}@"{{inputs.parameters.apprepo}}".git
