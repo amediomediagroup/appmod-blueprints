@@ -213,7 +213,7 @@ spec:
                           apk add --no-cache sed
                           set -ex
                           DEPLOY_PATH="{{inputs.parameters.deployment-path}}/{{inputs.parameters.env}}"
-                          tag="{{inputs.parameters.env}}"
+                          tag="{{inputs.parameters.tag}}"
                           mkdir -p $DEPLOY_PATH
                           echo "$image:{{inputs.parameters.tag}}" > ./deployment/"{{inputs.parameters.env}}"/image.txt
                           if [ -f $DEPLOY_PATH/application.yml ]; then
