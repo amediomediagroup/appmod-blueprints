@@ -1,5 +1,5 @@
 use crate::types::{Product, UIResponder};
-use crate::utils::{reconstruct_result, reconstruct_results, TracingSpan};
+use crate::utils::{reconstruct_result, reconstruct_results};
 use aws_sdk_dynamodb as ddb;
 use aws_sdk_dynamodb::types::AttributeValue;
 use rocket::serde::json::Json;

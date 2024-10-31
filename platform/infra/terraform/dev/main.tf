@@ -109,6 +109,7 @@ module "eks_dev_monitoring" {
   enable_cert_manager    = true
   enable_java            = true
   enable_nginx           = true
+  enable_polyglot        = true
 
   # This configuration section results in actions performed on AMG and AMP; and it needs to be done just once
   # And hence, this in performed in conjunction with the setup of the eks_cluster_1 EKS cluster
