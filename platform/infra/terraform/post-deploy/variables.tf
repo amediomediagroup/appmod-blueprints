@@ -27,3 +27,9 @@ variable "codebuild_project_name" {
   type        = string
   default     = "modernengg-codebuild"
 }
+
+variable "codebuild_project_name_db_ec2" {
+  description = "DB CodeBuild Project Name"
+  type        = string
+  default     = "modernengg-codebuild-ec2-db"
+}

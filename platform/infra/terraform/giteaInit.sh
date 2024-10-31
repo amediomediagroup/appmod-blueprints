@@ -84,8 +84,12 @@ git config user.email "participants@workshops.aws"
 git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/platform/infra/terraform/dev ${REPO_ROOT}/applications/gitea/terraform-eks/
 cp -r ${REPO_ROOT}/platform/infra/terraform/prod ${REPO_ROOT}/applications/gitea/terraform-eks/
+# Added for Aurora and DB Setup
+cp -r ${REPO_ROOT}/platform/infra/terraform/database ${REPO_ROOT}/applications/gitea/terraform-eks/
 cp ${REPO_ROOT}/platform/infra/terraform/.gitignore ${REPO_ROOT}/applications/gitea/terraform-eks/
 cp ${REPO_ROOT}/platform/infra/terraform/create-cluster.sh  ${REPO_ROOT}/applications/gitea/terraform-eks/
+cp ${REPO_ROOT}/platform/infra/terraform/create-database.sh ${REPO_ROOT}/applications/gitea/terraform-eks/
+
 git add .
 git -c http.sslVerify=false commit -m "first commit" --no-verify
 git remote remove origin

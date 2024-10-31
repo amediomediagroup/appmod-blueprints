@@ -48,7 +48,7 @@ variable "grafana_api_key" {
 variable "managed_node_instance_type" {
   description = "Instance type for the cluster managed node groups"
   type        = string
-  default     = "t3.xlarge"
+  default     = "t3.2xlarge"
 }
 
 variable "managed_node_min_size" {

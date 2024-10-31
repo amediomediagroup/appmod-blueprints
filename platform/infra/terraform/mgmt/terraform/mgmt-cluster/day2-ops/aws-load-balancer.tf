@@ -26,7 +26,7 @@ resource "kubectl_manifest" "application_argocd_aws_load_balancer_controller" {
   )
 
   provisioner "local-exec" {
-    command = "kubectl wait --for=jsonpath=.status.health.status=Healthy -n argocd application/aws-load-balancer-controller"
+    command = "kubectl wait --for=jsonpath=.status.health.status=Healthy -n argocd application/aws-load-balancer-controller --timeout=300s"
 
     interpreter = ["/bin/bash", "-c"]
   }

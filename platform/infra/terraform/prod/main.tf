@@ -109,6 +109,7 @@ module "eks_prod_monitoring" {
   enable_cert_manager    = true
   enable_java            = true
   enable_nginx           = true
+  enable_polyglot        = true
 
   # Since the following were enabled in conjunction with the set up of the
   # eks_cluster_1 EKS cluster, we will skip them with the eks_cluster_2 EKS cluster
