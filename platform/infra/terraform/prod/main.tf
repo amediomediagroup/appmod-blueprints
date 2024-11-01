@@ -144,6 +144,8 @@ module "eks_prod_monitoring" {
     polyglot_app_config = {
         enableBasicAuth       = false
         path                  = "/metrics"
+        basicAuthUsername     = "username"
+        basicAuthPassword     = "password"
         ports                 = ".*:(8080)$"
         droppedSeriesPrefixes = "(unspecified.*)$"
     }
