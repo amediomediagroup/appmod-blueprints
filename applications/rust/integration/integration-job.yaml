@@ -9,5 +9,3 @@ spec:
   containers:
     - name: artillery-container
       image: 779846826726.dkr.ecr.us-west-2.amazonaws.com/test/rust-svc # TODO: Use the integration image here
-      # <service-name>.<namespace>.svc.cluster.local:<service-port>
-      command: ["run", "run", "-t", "http://rust-app-svc.rust-msvc.svc.cluster.local", "/scripts/benchmark.yaml"]
