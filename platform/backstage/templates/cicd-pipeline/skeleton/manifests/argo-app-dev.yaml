@@ -9,7 +9,7 @@ spec:
   project: default
   destination:
     namespace: ${{values.namespace}}
-    name: dev-server
+    name: dev-cluster
   source:
     repoURL: http://${{values.hostname}}/gitea/giteaAdmin/${{values.appname}}
     targetRevision: main
