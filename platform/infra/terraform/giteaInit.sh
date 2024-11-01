@@ -25,6 +25,7 @@ curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" 
 curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" -H "content-type: application/json" -H "Authorization: Basic $ENCODED_USER_PASS" --data '{"name":"java"}'
 curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" -H "content-type: application/json" -H "Authorization: Basic $ENCODED_USER_PASS" --data '{"name":"rust"}'
 curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" -H "content-type: application/json" -H "Authorization: Basic $ENCODED_USER_PASS" --data '{"name":"terraform-eks"}'
+curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" -H "content-type: application/json" -H "Authorization: Basic $ENCODED_USER_PASS" --data '{"name":"next-js"}'
 
 git config --global credential.helper store
 
@@ -63,6 +64,18 @@ git add .
 git -c http.sslVerify=false commit -m "first commit" --no-verify
 git remote remove origin
 git remote add origin https://$DOMAIN_NAME/gitea/$USERNAME/golang.git
+git -c http.sslVerify=false push -u origin main --no-verify
+
+cd ..
+git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/next-js.git
+cd next-js
+git config user.email "participants@workshops.aws"
+git config user.name "Workshop Participant"
+cp -r ${REPO_ROOT}/applications/next-js ${REPO_ROOT}/applications/gitea/
+git add .
+git -c http.sslVerify=false commit -m "first commit" --no-verify
+git remote remove origin
+git remote add origin https://$DOMAIN_NAME/gitea/$USERNAME/next-js.git
 git -c http.sslVerify=false push -u origin main --no-verify
 
 cd ..
