@@ -75,7 +75,8 @@ spec:
       command: ["/bin/bash", "-c"]
       args:
       - |
-        kubectl create secret docker-registry regcred -n "{{workflow.parameters.namespace}}" \
+        kubectl delete secret "{{workflow.parameters.aws_region}}"-regcred --ignore-not-found
+        kubectl create secret docker-registry "{{workflow.parameters.aws_region}}"-regcred -n "{{workflow.parameters.namespace}}" \
           --docker-server="{{workflow.parameters.aws_region}}".amazonaws.com \
           --docker-username=AWS \
           --docker-password="{{inputs.parameters.ecr_secret}}"
@@ -89,7 +90,8 @@ spec:
       command: ["/bin/bash", "-c"]
       args:
       - |
-        kubectl create secret generic gitea-token -n "{{workflow.parameters.namespace}}" --from-literal=token="{{inputs.parameters.token}}"
+        kubectl delete secret "{{workflow.parameters.appname}}"-gitea-token --ignore-not-found
+        kubectl create secret generic "{{workflow.parameters.appname}}"-gitea-token -n "{{workflow.parameters.namespace}}" --from-literal=token="{{inputs.parameters.token}}"
 
   - name: create-ecr-repository
     container:
@@ -113,7 +115,8 @@ spec:
       command: ["/bin/bash", "-c"]
       args:
       - |
-        kubectl create configmap ecr-repo -n "{{workflow.parameters.namespace}}" --from-literal=image="{{inputs.parameters.image}}"
+        kubectl delete configmap "{{workflow.parameters.appname}}"-ecr-repo --ignore-not-found
+        kubectl create configmap "{{workflow.parameters.appname}}"-ecr-repo -n "{{workflow.parameters.namespace}}" --from-literal=image="{{inputs.parameters.image}}"
 
   - name: create-gitea-webhook
     container:
@@ -121,7 +124,7 @@ spec:
       command: ["/bin/sh", "-c"]
       envFrom:
       - secretRef:
-          name: gitea-token
+          name: "{{workflow.parameters.appname}}-gitea-token"
       args:
       - |
         apk add curl jq

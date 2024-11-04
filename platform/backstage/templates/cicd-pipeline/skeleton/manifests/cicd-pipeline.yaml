@@ -67,6 +67,9 @@ spec:
                     resources:
                       requests:
                         storage: 256Mi
+                volumes:
+                  persistentVolumeClaim:
+                    claimName: ${{values.appname}}-cache-vol
                 templates:
                   - name: ci-build
                     dag:
@@ -161,10 +164,12 @@ spec:
                     container:
                       image: gcr.io/kaniko-project/executor:debug
                       volumeMounts:
-                        - name: repo-root
+                        - name: workdir
                           mountPath: /workdir
                         - name: docker-config
                           mountPath: /kaniko/.docker
+                        - name: ${{values.appname}}-cache-vol
+                          mountPath: /cache
                       workingDir: /workdir
                       resources:
                         limits:
@@ -185,6 +190,8 @@ spec:
                                 --dockerfile=Dockerfile \
                                 --context={{inputs.parameters.dockerfile-path}} \
                                 --destination=${ECR_REPO}:{{inputs.parameters.tag-version}} \
+                                --cache=true \
+                                --cache-dir=/cache \
                                 --skip-tls-verify"
                                 ]
 

@@ -1,0 +1,121 @@
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: ${{values.appname}}-cache-vol
+  namespace: ${{values.namespace}}
+spec:
+  accessModes: [ "ReadWriteOnce" ]
+  storageClassName: gp2
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: cicd-warmup-${{values.appname}}
+  namespace: ${{values.namespace}}
+spec:
+  volumeClaimTemplates:
+  - metadata:
+      name: workdir
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: gp2
+      resources:
+        requests:
+          storage: 256Mi
+  volumes:
+    persistentVolumeClaim:
+      claimName: ${{values.appname}}-cache-vol
+  entrypoint: cicd-warmup
+  serviceAccountName: ${{values.appname}}-cicd-provisioner
+  arguments:
+    parameters:
+    - name: appname
+      value: ${{values.appname}}
+    - name: apprepo
+      value: ${{values.hostname}}/gitea/giteaAdmin/${{values.appname}}
+
+  templates:
+  - name: cicd-warmup
+    dag:
+      tasks:
+        - name: clean
+          template: cleandir
+
+        - name: clone
+          template: clonerepo
+          arguments:
+            parameters:
+              - name: apprepo
+                value: "{{workflow.parameters.apprepo}}"
+              - name: branch
+                value: main
+          depends: "clean"
+
+        - name: warmup
+          template: warmup-cache
+          arguments:
+            parameters:
+              - name: dockerfile-path
+                value: ${{values.dockerfile_path}}
+          depends: "clone"
+
+  - name: cleandir 
+    container:
+      volumeMounts:
+        - mountPath: /workdir
+          name: workdir
+      image: alpine:3.20
+      workingDir: /workdir
+      args:
+        - /bin/sh
+        - -c
+        - |
+          set -ex
+          if [ "$(ls -A /workdir)" ]; then
+            echo "Directory /workdir is not empty. Removing contents..."
+            rm -rf /workdir/*
+          fi
+
+  - name: clonerepo
+    inputs:
+      parameters:
+      - name: apprepo
+      - name: branch
+    container:
+      volumeMounts:
+      - mountPath: /workdir
+        name: workdir
+      image: alpine/git:v2.45.1
+      workingDir: /workdir
+      args:
+        - clone
+        - --depth
+        - "1"
+        - --branch
+        - "{{inputs.parameters.branch}}"
+        - --single-branch
+        - "https://{{inputs.parameters.apprepo}}"
+        - -c
+        - http.sslVerify=false
+        - .
+
+
+  - name: warmup-cache
+    inputs:
+      parameters:
+      - name: dockerfile-path
+    container:
+      image: gcr.io/kaniko-project/warmer:latest
+      args: ["--cache-dir=/cache",
+           "--dockerfile={{inputs.parameters.dockerfile-path}}/Dockerfile"]
+      workingDir: /workdir
+      volumeMounts:
+      - name: workdir
+        mountPath: /workdir
+      - name: cache
+        mountPath: /cache
+

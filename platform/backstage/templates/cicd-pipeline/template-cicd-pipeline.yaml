@@ -58,7 +58,7 @@ spec:
         # Hard coded value for this demo purposes only.
         repoUrl: ${{parameters.hostname}}/gitea?repo=${{parameters.appname}}-cicd
         defaultBranch: main
-    
+
     - action: fetch:template
       name: Fetch Provisioner
       id: fetch-provisioner
@@ -71,12 +71,32 @@ spec:
           hostname: ${{parameters.hostname}}
           gitea_token: ${{secrets.gitea_token}}
 
+    - action: fetch-template
+      name: Fetch Cache Warmer
+      id: fetch-cache
+      input:
+        url: ./cache/
+        values:
+          appname: ${{ parameters.appname }}
+          namespace:  argo-events
+          hostname: ${{parameters.hostname}}
+          dockerfile_path: ${{parameters.dockerfile_path}}
+
+
     - action: cnoe:kubernetes:apply
       name: Apply Provisioner IAM
       id: apply-prov-iam
       input:
         namespaced: true
         manifestPath: podidentity.yaml
+        clusterName: local
+
+    - action: cnoe:kubernetes:apply
+      name: Apply Cache workflow
+      id: apply-cache
+      input:
+        namespaced: true
+        manifestPath: cache.yaml
         clusterName: local
     
     - action: debug:wait
