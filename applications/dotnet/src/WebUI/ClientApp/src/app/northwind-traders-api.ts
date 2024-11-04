@@ -711,7 +711,7 @@ export interface IProductsClient {
 @Injectable()
 export class ProductsClient implements IProductsClient {
     private http: HttpClient;
-    private : string;baseUrl
+    private baseUrl: string;
     protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
 
     constructor(@Inject(HttpClient) http: HttpClient, @Optional() @Inject(API_BASE_URL) baseUrl?: string) {
