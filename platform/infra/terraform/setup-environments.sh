@@ -113,7 +113,7 @@ echo "Github Source Repo for Management EKS Cluster =" $GITHUB_URL
 cd "${REPO_ROOT}/platform/infra/terraform/"
 
 rm -rf terraform-aws-observability-accelerator/
-git clone https://github.com/hmuthusamy/terraform-aws-observability-accelerator.git -b feature/enable-polyglot-otel-config
+git clone https://github.com/aws-observability/terraform-aws-observability-accelerator.git
 
 echo "bootstrapping Terraform"
 terraform -chdir=bootstrap init -reconfigure
