@@ -11,7 +11,7 @@ const routes: Routes = [
   { path: '', component: HomeComponent, pathMatch: 'full' },
   { path: 'northwind-app', component: HomeComponent},
   { path: 'customers', component: CustomersComponent, canActivate: [AuthorizeGuard] },
-  { path: 'northwind-app/customers', component: CustomersComponent, canActivate: [AuthorizeGuard] },
+  { path: 'northwind-app/customers', component: CustomersComponent },
   { path: 'products', component: ProductsComponent },
   { path: 'northwind-app/products', component: ProductsComponent },
   { path: 'orders', component: OrdersComponent },
