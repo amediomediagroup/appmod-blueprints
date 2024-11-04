@@ -71,7 +71,7 @@ spec:
           hostname: ${{parameters.hostname}}
           gitea_token: ${{secrets.gitea_token}}
 
-    - action: fetch-template
+    - action: fetch:template
       name: Fetch Cache Warmer
       id: fetch-cache
       input:
