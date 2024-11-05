@@ -79,6 +79,7 @@ spec:
         values:
           appname: ${{ parameters.appname }}
           namespace:  argo-events
+          aws_region: ${{ parameters.aws_region }}
           hostname: ${{parameters.hostname}}
           dockerfile_path: ${{parameters.dockerfile_path}}
 

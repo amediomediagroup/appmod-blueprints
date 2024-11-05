@@ -6,6 +6,8 @@ metadata:
   namespace: ${{values.namespace}}
 spec:
   entrypoint: cicd-provisioner
+  nodeSelector:
+    topology.kubernetes.io/zone: ${{values.aws_region}}a
   serviceAccountName: ${{values.appname}}-cicd-provisioner
   arguments:
     parameters:

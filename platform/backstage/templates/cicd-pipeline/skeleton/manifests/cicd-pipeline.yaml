@@ -73,6 +73,8 @@ spec:
                 - name: cache
                   persistentVolumeClaim:
                     claimName: ${{values.appname}}-cache-vol
+                nodeSelector:
+                  topology.kubernetes.io/zone: ${{values.aws_region}}a
                 templates:
                   - name: ci-build
                     dag:
@@ -184,7 +186,7 @@ spec:
                         - name: ECR_REPO
                           valueFrom:
                             configMapKeyRef:
-                              name: ecr-repo
+                              name: "{{workflow.parameters.aws_region}}-ecr-repo"
                               key: image
                       command: [
                                 "/busybox/sh",
