@@ -32,7 +32,7 @@ export class CategoriesClient implements ICategoriesClient {
     }
 
     getAll(): Observable<CategoriesListVm> {
-        let url_ = this.baseUrl + "/api/Categories/GetAll";
+        let url_ = this.baseUrl + "api/Categories/GetAll";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -80,7 +80,7 @@ export class CategoriesClient implements ICategoriesClient {
     }
 
     upsert(command: UpsertCategoryCommand): Observable<void> {
-        let url_ = this.baseUrl + "/api/Categories/Upsert";
+        let url_ = this.baseUrl + "api/Categories/Upsert";
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(command);
@@ -130,7 +130,7 @@ export class CategoriesClient implements ICategoriesClient {
     }
 
     delete(id: number): Observable<void> {
-        let url_ = this.baseUrl + "/api/Categories/Delete/{id}";
+        let url_ = this.baseUrl + "api/Categories/Delete/{id}";
         if (id === undefined || id === null)
             throw new Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id)); 
@@ -204,7 +204,7 @@ export class CustomersClient implements ICustomersClient {
     }
 
     getAll(): Observable<CustomersListVm> {
-        let url_ = this.baseUrl + "/api/Customers/GetAll";
+        let url_ = this.baseUrl + "api/Customers/GetAll";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -252,7 +252,7 @@ export class CustomersClient implements ICustomersClient {
     }
 
     get(id: string | null): Observable<CustomerDetailVm> {
-        let url_ = this.baseUrl + "/api/Customers/Get/{id}";
+        let url_ = this.baseUrl + "api/Customers/Get/{id}";
         if (id === undefined || id === null)
             throw new Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id)); 
@@ -310,7 +310,7 @@ export class CustomersClient implements ICustomersClient {
     }
 
     create(command: CreateCustomerCommand): Observable<void> {
-        let url_ = this.baseUrl + "/api/Customers/Create";
+        let url_ = this.baseUrl + "api/Customers/Create";
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(command);
@@ -360,7 +360,7 @@ export class CustomersClient implements ICustomersClient {
     }
 
     update(id: string, command: UpdateCustomerCommand): Observable<void> {
-        let url_ = this.baseUrl + "/api/Customers/Update/{id}";
+        let url_ = this.baseUrl + "api/Customers/Update/{id}";
         if (id === undefined || id === null)
             throw new Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id)); 
@@ -418,7 +418,7 @@ export class CustomersClient implements ICustomersClient {
     }
 
     delete(id: string | null): Observable<void> {
-        let url_ = this.baseUrl + "/api/Customers/Delete/{id}";
+        let url_ = this.baseUrl + "api/Customers/Delete/{id}";
         if (id === undefined || id === null)
             throw new Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id)); 
@@ -491,7 +491,7 @@ export class EmployeesClient implements IEmployeesClient {
     }
 
     getAll(): Observable<EmployeeLookupDto[]> {
-        let url_ = this.baseUrl + "/api/Employees/GetAll";
+        let url_ = this.baseUrl + "api/Employees/GetAll";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -544,7 +544,7 @@ export class EmployeesClient implements IEmployeesClient {
     }
 
     get(id: number): Observable<EmployeeDetailVm> {
-        let url_ = this.baseUrl + "/api/Employees/Get/{id}";
+        let url_ = this.baseUrl + "api/Employees/Get/{id}";
         if (id === undefined || id === null)
             throw new Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id)); 
@@ -595,7 +595,7 @@ export class EmployeesClient implements IEmployeesClient {
     }
 
     upsert(command: UpsertEmployeeCommand): Observable<void> {
-        let url_ = this.baseUrl + "/api/Employees/Upsert";
+        let url_ = this.baseUrl + "api/Employees/Upsert";
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(command);
@@ -645,7 +645,7 @@ export class EmployeesClient implements IEmployeesClient {
     }
 
     delete(id: number): Observable<void> {
-        let url_ = this.baseUrl + "/api/Employees/Delete/{id}";
+        let url_ = this.baseUrl + "api/Employees/Delete/{id}";
         if (id === undefined || id === null)
             throw new Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id)); 
@@ -720,7 +720,7 @@ export class ProductsClient implements IProductsClient {
     }
 
     getAll(): Observable<ProductsListVm> {
-        let url_ = this.baseUrl + "/api/Products/GetAll";
+        let url_ = this.baseUrl + "api/Products/GetAll";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -768,7 +768,7 @@ export class ProductsClient implements IProductsClient {
     }
 
     get(id: number): Observable<ProductDetailVm> {
-        let url_ = this.baseUrl + "/api/Products/Get/{id}";
+        let url_ = this.baseUrl + "api/Products/Get/{id}";
         if (id === undefined || id === null)
             throw new Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id)); 
@@ -819,7 +819,7 @@ export class ProductsClient implements IProductsClient {
     }
 
     create(command: CreateProductCommand): Observable<number> {
-        let url_ = this.baseUrl + "/api/Products/Create";
+        let url_ = this.baseUrl + "api/Products/Create";
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(command);
@@ -871,7 +871,7 @@ export class ProductsClient implements IProductsClient {
     }
 
     update(command: UpdateProductCommand): Observable<void> {
-        let url_ = this.baseUrl + "/api/Products/Update";
+        let url_ = this.baseUrl + "api/Products/Update";
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(command);
@@ -921,7 +921,7 @@ export class ProductsClient implements IProductsClient {
     }
 
     delete(id: number): Observable<void> {
-        let url_ = this.baseUrl + "/api/Products/Delete/{id}";
+        let url_ = this.baseUrl + "api/Products/Delete/{id}";
         if (id === undefined || id === null)
             throw new Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id)); 
@@ -970,7 +970,7 @@ export class ProductsClient implements IProductsClient {
     }
 
     download(): Observable<FileResponse> {
-        let url_ = this.baseUrl + "/api/Products/Download";
+        let url_ = this.baseUrl + "api/Products/Download";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -1034,7 +1034,7 @@ export class OrdersClient implements IOrdersClient {
   }
 
   getAll(): Observable<OrdersListVm> {
-    let url_ = this.baseUrl + "/api/Orders/GetAll";
+    let url_ = this.baseUrl + "api/Orders/GetAll";
     url_ = url_.replace(/[?&]$/, "");
 
     let options_: any = {
@@ -1082,7 +1082,7 @@ export class OrdersClient implements IOrdersClient {
   }
 
   get(id: number): Observable<OrderDetailVm> {
-    let url_ = this.baseUrl + "/api/Orders/Get/{id}";
+    let url_ = this.baseUrl + "api/Orders/Get/{id}";
     if (id === undefined || id === null)
       throw new Error("The parameter 'id' must be defined.");
     url_ = url_.replace("{id}", encodeURIComponent("" + id));
