@@ -68,6 +68,7 @@ spec:
                       requests:
                         storage: 256Mi
                 volumes:
+                - name: cache
                   persistentVolumeClaim:
                     claimName: ${{values.appname}}-cache-vol
                 templates:
@@ -168,7 +169,7 @@ spec:
                           mountPath: /workdir
                         - name: docker-config
                           mountPath: /kaniko/.docker
-                        - name: ${{values.appname}}-cache-vol
+                        - name: cache
                           mountPath: /cache
                       workingDir: /workdir
                       resources:

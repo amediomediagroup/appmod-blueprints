@@ -27,6 +27,7 @@ spec:
         requests:
           storage: 256Mi
   volumes:
+  - name: cache
     persistentVolumeClaim:
       claimName: ${{values.appname}}-cache-vol
   entrypoint: cicd-warmup
