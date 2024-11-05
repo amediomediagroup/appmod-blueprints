@@ -65,7 +65,6 @@ apiVersion: eks.aws.upbound.io/v1beta1
 kind: PodIdentityAssociation
 metadata:
   name: "${{values.appname}}-cicd-podidentity"
-  namespace: ${{values.namespace}}
 spec:
   forProvider:
     clusterName: "modern-engineering"
