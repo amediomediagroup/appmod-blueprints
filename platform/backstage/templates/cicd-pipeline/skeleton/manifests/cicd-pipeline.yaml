@@ -54,6 +54,8 @@ spec:
                       value: main
                     - name: tag-version
                       value: 0.0.1
+                    - name: aws_region
+                      value: ${{values.aws_region}}
                     - name: dockerfile-path
                       value: ${{values.dockerfile_path}}
                     - name: deployment-path
@@ -161,7 +163,7 @@ spec:
                     volumes:
                       - name: docker-config
                         secret:
-                          secretName: regcred
+                          secretName: "{{workflow.parameters.aws_region}}-regcred"
                     container:
                       image: gcr.io/kaniko-project/executor:debug
                       volumeMounts:
