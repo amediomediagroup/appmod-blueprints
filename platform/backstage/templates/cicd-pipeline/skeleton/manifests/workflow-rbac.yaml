@@ -1,4 +1,9 @@
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-${{values.appname}}
+---
+apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ${{values.appname}}-cicd-sa
@@ -60,7 +65,6 @@ apiVersion: eks.aws.upbound.io/v1beta1
 kind: PodIdentityAssociation
 metadata:
   name: "${{values.appname}}-cicd-podidentity"
-  namespace: ${{values.namespace}}
 spec:
   forProvider:
     clusterName: "modern-engineering"
