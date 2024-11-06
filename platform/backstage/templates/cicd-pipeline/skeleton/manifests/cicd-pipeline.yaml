@@ -212,7 +212,7 @@ spec:
                     container:
                       envFrom:
                       - secretRef:
-                          name: gitea-token
+                          name: "{{workflow.parameters.appname}}-gitea-token"
                       - configMapRef:
                           name: "{{workflow.parameters.appname}}-ecr-repo"
                       volumeMounts:
