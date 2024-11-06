@@ -8,4 +8,4 @@ spec:
   instanceSelector:
     matchLabels:
       dashboards: "external-grafana"
-  url: "https://raw.githubusercontent.com/aws-samples/appmod-blueprints/refs/heads/main/packages/grafana-dashboards/dashboards/rust.json"
+  url: "https://raw.githubusercontent.com/aws-samples/appmod-blueprints/refs/heads/main/packages/grafana/dashboards/rust.json"
