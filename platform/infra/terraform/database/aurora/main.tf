@@ -62,7 +62,7 @@ resource "random_integer" "suffix" {
 }
 
 resource "aws_secretsmanager_secret" "db_credentials" {
-  name = "mod-engg-workshop-db-credentials"
+  name = "modern-engg-aurora"
 }
 
 resource "random_password" "db_password" {
