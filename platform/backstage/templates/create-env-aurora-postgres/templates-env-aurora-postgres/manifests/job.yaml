@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-env-aurora-postgres-${{values.name}}
+  namespace: ${{values.namespace}}
+spec:
+  template:
+    spec:
+      serviceAccountName: tf-runner
+      containers:
+      - name: trigger
+        image: amazon/aws-cli:latest
+        command:
+        - /bin/bash
+        - -c
+        - |
+          aws --region ${{values.aws_region}} codebuild start-build --project-name modernengg-codebuild-ec2-db
+      restartPolicy: Never
+

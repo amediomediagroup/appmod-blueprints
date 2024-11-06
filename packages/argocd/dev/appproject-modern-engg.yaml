@@ -10,6 +10,8 @@ spec:
   description: For the modern-engg project
   sourceRepos:
     - '*'
+  sourceNamespaces:
+    - team-*
   clusterResourceWhitelist:
     - group: '*'
       kind: '*'
@@ -23,6 +25,8 @@ spec:
     - namespace: ingress-nginx
       server: https://kubernetes.default.svc
     - namespace: kyverno
+      server: https://kubernetes.default.svc
+    - namespace: argo-events
       server: https://kubernetes.default.svc
     - namespace: aws-load-balancer-controller
       server: https://kubernetes.default.svc
@@ -46,3 +50,7 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: tf-eks-observability
       server: https://kubernetes.default.svc
+    - name: dev-cluster
+      namespace: team-*
+    - name: prod-cluster
+      namespace: team-*

@@ -47,9 +47,9 @@ module "eks" {
       launch_template_name       = ""
       instance_types             = ["m5.large"]
 
-      min_size     = 3
+      min_size     = 2
       max_size     = 6
-      desired_size = 4
+      desired_size = 2
       disk_size    = 100
 
       block_device_mappings = {

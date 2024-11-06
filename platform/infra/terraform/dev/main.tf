@@ -109,6 +109,7 @@ module "eks_dev_monitoring" {
   enable_cert_manager    = true
   enable_java            = true
   enable_nginx           = true
+  enable_custom_metrics  = true
 
   # This configuration section results in actions performed on AMG and AMP; and it needs to be done just once
   # And hence, this in performed in conjunction with the setup of the eks_cluster_1 EKS cluster
@@ -136,6 +137,17 @@ module "eks_dev_monitoring" {
     global_scrape_interval = "60s"
     global_scrape_timeout  = "15s"
     scrape_sample_limit    = 2000
+  }
+
+  custom_metrics_config = {
+    polyglot_app_config = {
+        enableBasicAuth       = false
+        path                  = "/metrics"
+        basicAuthUsername     = "username"
+        basicAuthPassword     = "password"
+        ports                 = ".*:(8080)$"
+        droppedSeriesPrefixes = "(unspecified.*)$"
+    }
   }
 }
 

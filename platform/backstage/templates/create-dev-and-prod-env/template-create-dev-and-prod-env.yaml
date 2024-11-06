@@ -10,18 +10,18 @@ spec:
   parameters:
     - properties:
         name:
-          title: name of this entry
+          title: Name of the component
           type: string
         namespace:
           default: flux-system
-          title: namespace within the kubernetes cluster to deploy this
+          title: Enter namespace within the EKS cluster to deploy this
           type: string
         aws_region:
           default: us-west-2
-          title: aws region with codebuild project
+          title: Region
           type: string
         repoUrl:
-          title: URL of gitea on management cluster
+          title: DNS of Gitea that was setup. Example - modern-engg-XXXXXXXXXX.elb.us-west-2.amazonaws.com
           type: string
       title: Configuration Options
       required:
@@ -35,6 +35,7 @@ spec:
           name: ${{ parameters.name }}
           namespace: ${{ parameters.namespace }}
           aws_region: ${{ parameters.aws_region }}
+          repoUrl: ${{ parameters.repoUrl }}
       name: Fetch Base
     - id: publish
       name: Publishing to a gitea git repository

@@ -1,8 +1,11 @@
 #![allow(warnings)]
-
 mod services;
 mod types;
 mod utils;
+mod setup;
+
+#[macro_use]
+extern crate tracing;
 
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::default_provider::region::DefaultRegionChain;
@@ -35,11 +38,21 @@ async fn main() -> Result<(), rocket::Error> {
         .load()
         .await;
 
-    let table_name = std::env::var("TABLE_NAME").unwrap_or(String::from("q-apps-table"));
+    let rocket_address = std::env::var("ROCKET_ADDRESS").unwrap_or(String::from("0.0.0.0"));
+    let rocket_port = std::env::var("ROCKET_PORT").unwrap_or(String::from("8080"));
+    let table_name = std::env::var("TABLE_NAME").unwrap_or(String::from("rust-service-table"));
+
+    let rocket_config = rocket::Config::figment()
+        .merge(("address", rocket_address))
+        .merge(("port", rocket_port.parse::<u16>().unwrap()));
 
     let prometheus = PrometheusMetrics::new();
 
-    let rocket = rocket::build()
+    // let tracing = init_tracing_subscriber();
+
+    setup::setup(config.clone(), table_name.clone()).await;
+
+    let rocket = rocket::custom(rocket_config)
         .manage(ddb::Client::new(&config))
         .manage(table_name)
         .attach(prometheus.clone())
@@ -62,13 +75,6 @@ async fn main() -> Result<(), rocket::Error> {
             ],
         )
         .mount("/metrics", prometheus);
-    // if is_running_on_lambda() {
-    //     // Launch on AWS Lambda
-    //     launch_rocket_on_lambda(rocket).await?;
-    // } else {
-    //     // Launch local server
-    //     let _ = rocket.launch().await?;
-    // }
 
     let _rocket = rocket.launch().await?;
 

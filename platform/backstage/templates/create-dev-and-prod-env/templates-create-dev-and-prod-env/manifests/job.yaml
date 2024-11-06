@@ -2,10 +2,11 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: create-dev-and-prod-env-${{values.name}}
-  namespace: ${{values.namespace}}
+  namespace: flux-system
 spec:
   template:
     spec:
+      serviceAccountName: tf-runner
       containers:
       - name: trigger
         image: amazon/aws-cli:latest
@@ -14,8 +15,4 @@ spec:
         - -c
         - |
           aws --region ${{values.aws_region}} codebuild start-build --project-name modernengg-codebuild
-        envFrom:
-        - secretRef:
-            name: aws-credentials
       restartPolicy: Never
-

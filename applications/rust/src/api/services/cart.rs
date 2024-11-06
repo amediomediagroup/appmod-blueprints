@@ -7,6 +7,7 @@ use rocket::{error, get, post, State};
 use serde_dynamo::to_item;
 use uuid::Uuid;
 
+#[instrument]
 #[post("/cart/create_cart", format = "json", data = "<cart_id>")]
 pub async fn create_cart(
     cart_id: Json<&str>,
@@ -39,6 +40,7 @@ pub async fn create_cart(
     }
 }
 
+#[instrument]
 #[get("/cart/get_cart/<cart_id>")]
 pub async fn get_cart(
     cart_id: &str,
@@ -56,6 +58,7 @@ pub async fn get_cart(
     }
 }
 
+#[instrument]
 #[post(
     "/cart/add_to_cart/<cart_id>",
     format = "json",
@@ -94,6 +97,7 @@ pub async fn add_to_cart(
     }
 }
 
+#[instrument]
 #[post(
     "/cart/remove_from_cart/<cart_id>",
     format = "json",
@@ -101,7 +105,7 @@ pub async fn add_to_cart(
 )]
 pub async fn remove_from_cart(
     cart_id: &str,
-    delete_from_cart: Json<CartProduct>,
+    delete_from_cart: String,
     db: &State<ddb::Client>,
     table_name: &State<String>,
 ) -> UIResponder<Cart> {
@@ -113,7 +117,7 @@ pub async fn remove_from_cart(
                 cart.products = cart
                     .products
                     .into_iter()
-                    .filter(|p| p.product.id != delete_from_cart.product.id)
+                    .filter(|p| p.product.id != delete_from_cart)
                     .collect();
 
                 let item = to_item(cart.clone()).expect("Failed to turn cart into item");
@@ -136,6 +140,7 @@ pub async fn remove_from_cart(
     }
 }
 
+#[instrument]
 #[post("/cart/update_cart/<cart_id>", format = "json", data = "<cart_update>")]
 pub async fn update_cart(
     cart_id: &str,
