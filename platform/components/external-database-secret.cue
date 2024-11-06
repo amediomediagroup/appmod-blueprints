@@ -29,20 +29,15 @@ template: {
 
 				},
 				{
-					secretKey: "endpoint"
-					remoteRef: {key: parameter.secret_name, property: "endpoint"}
+					secretKey: "host"
+					remoteRef: {key: parameter.secret_name, property: "host"}
 
-				},
-				{
-					secretKey: "port"
-					remoteRef: {key: parameter.secret_name, property: "port"}
-
-				},
+				}
 			]
 			refreshInterval: "1h"
 			secretStoreRef: {
 				kind: "ClusterSecretStore"
-				name: " secrets-manager-cs"
+				name: "secrets-manager-cs"
 			}
 			target: {
 				name:           parameter.secret_name
