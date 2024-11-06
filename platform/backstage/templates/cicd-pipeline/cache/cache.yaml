@@ -33,7 +33,7 @@ spec:
   entrypoint: cicd-warmup
   serviceAccountName: ${{values.appname}}-cicd-provisioner
   nodeSelector:
-    topology.kubernetes.io/zone: ${{values.aws_region}}a
+    topology.kubernetes.io/zone: ${{ values.aws_region }}a
   arguments:
     parameters:
     - name: appname
