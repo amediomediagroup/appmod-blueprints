@@ -103,19 +103,19 @@ module "eks_blueprints_addons_prod" {
 # }
 
 module "eks_prod_monitoring" {
-  source                 = "../terraform-aws-observability-accelerator/modules/eks-monitoring"
-  eks_cluster_id         = module.eks_blueprints_prod.eks_cluster_id
-  enable_amazon_eks_adot = true
-  enable_cert_manager    = true
-  enable_java            = true
-  enable_nginx           = true
-  enable_custom_metrics  = true
+  source                  = "../terraform-aws-observability-accelerator/modules/eks-monitoring"
+  eks_cluster_id          = module.eks_blueprints_prod.eks_cluster_id
+  enable_amazon_eks_adot  = true
+  enable_cert_manager     = true
+  enable_java             = true
+  enable_nginx            = true
+  enable_custom_metrics   = true
+  enable_external_secrets = true
+  enable_fluxcd           = true
 
   # Since the following were enabled in conjunction with the set up of the
   # eks_cluster_1 EKS cluster, we will skip them with the eks_cluster_2 EKS cluster
   enable_dashboards       = false
-  enable_external_secrets = false
-  enable_fluxcd           = false
   enable_alerting_rules   = false
   enable_recording_rules  = false
 

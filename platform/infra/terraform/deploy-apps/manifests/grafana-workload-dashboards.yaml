@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana-workload-dashboards
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/aws-samples/appmod-blueprints
+    targetRevision: HEAD
+    path: "packages/grafana-dashboards/manifests/"
+  destination:
+    name: 'dev-cluster'
+    namespace: grafana-operator
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions: []
