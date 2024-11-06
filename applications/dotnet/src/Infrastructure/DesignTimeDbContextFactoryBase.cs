@@ -40,7 +40,7 @@ namespace Northwind.Infrastructure
                 {
 
                     DataSource = configurationbuilder["host"],
-                    InitialCatalog = "NorthwindTraders",
+                    InitialCatalog = "Northwind",
                     PersistSecurityInfo = true,
                     UserID = configurationbuilder["username"],
                     Password = configurationbuilder["password"],
