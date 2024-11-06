@@ -198,22 +198,6 @@ export DEV_CP_ROLE_ARN=$(terraform -chdir=dev output -raw crossplane_dev_provide
 export DEV_ARGOROLL_ROLE_ARN=$(terraform -chdir=dev output -raw argo_rollouts_dev_role_arn)
 export LB_DEV_ROLE_ARN=$(terraform -chdir=dev output -raw lb_controller_dev_role_arn)
 
-# Initialize backend for DB Prod cluster
-terraform -chdir=prod/db init -reconfigure -backend-config="key=prod/db/db-ec2-cluster.tfstate" \
-  -backend-config="bucket=$TF_VAR_state_s3_bucket" \
-  -backend-config="region=$TF_VAR_aws_region" \
-  -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
-
-# Apply the infrastructure changes to deploy DB DEV cluster
-terraform -chdir=prod/db apply -var aws_region="${TF_VAR_aws_region}" \
-  -var vpc_id="${TF_eks_cluster_vpc_id}" \
-  -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
-  -var availability_zones="${TF_eks_cluster_private_az}" \
-  -var vpc_cidr="${TF_eks_cluster_vpc_cidr}" \
-  -var key_name="ws-default-keypair" -auto-approve &
-
-export PROD_DB_PROCESS=$!
-
 # Initialize backend for PROD cluster
 terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerator-vpc.tfstate" \
   -backend-config="bucket=$TF_VAR_state_s3_bucket" \
@@ -233,9 +217,8 @@ export PROD_EKS_PROCESS=$!
 # Wait for both processes to complete
 echo "DEV DB Process PID: $DEV_DB_PROCESS"
 echo "DEV EKS Process PID: $DEV_EKS_PROCESS"
-echo "PROD DB Process PID: $PROD_DB_PROCESS"
 echo "PROD EKS Process PID: $PROD_EKS_PROCESS"
-wait $DEV_DB_PROCESS $DEV_EKS_PROCESS $PROD_DB_PROCESS $PROD_EKS_PROCESS
+wait $DEV_DB_PROCESS $DEV_EKS_PROCESS $PROD_EKS_PROCESS
 
 export PROD_CP_ROLE_ARN=$(terraform -chdir=prod output -raw crossplane_prod_provider_role_arn)
 export PROD_ARGOROLL_ROLE_ARN=$(terraform -chdir=prod output -raw argo_rollouts_prod_role_arn)
