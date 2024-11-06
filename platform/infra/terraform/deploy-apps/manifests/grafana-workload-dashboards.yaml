@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://github.com/aws-samples/appmod-blueprints
     targetRevision: HEAD
-    path: "packages/grafana-dashboards/manifests/"
+    path: "packages/grafana/manifests/"
   destination:
     name: 'dev-cluster'
     namespace: grafana-operator
