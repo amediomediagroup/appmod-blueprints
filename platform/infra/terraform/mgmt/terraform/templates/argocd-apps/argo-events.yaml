@@ -9,12 +9,15 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: modern-engg 
-  source:
-    repoURL: ${GITHUB_URL}
-    targetRevision: 2.4.8
-    chart: argo-events
-    helm:
-      releaseName: argo-events
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      targetRevision: 2.4.8
+      chart: argo-events
+      helm:
+        releaseName: argo-events
+    - repoURL: ${GITHUB_URL}
+      targetRevision: HEAD
+      path: packages/argo-events/dev/
   destination:
     server: "https://kubernetes.default.svc"
     namespace: argo-events

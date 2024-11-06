@@ -4,10 +4,8 @@ apiVersion: v1
 metadata:
   name: ${{values.appname}}-cache-vol
   namespace: ${{values.namespace}}
-  annotations:
-    topology.kubernetes.io/zone: ${{values.aws_region}}a
 spec:
-  accessModes: [ "ReadWriteMany" ]
+  accessModes: [ "ReadWriteOnce" ]
   storageClassName: gp2
   resources:
     requests:
