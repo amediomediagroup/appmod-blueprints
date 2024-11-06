@@ -6,6 +6,11 @@ metadata:
     awsblueprints.io/provider: aws
     awsblueprints.io/environment: dev
 spec:
+  environment:
+    environmentConfigs:
+    - type: Reference
+      ref:
+        name: dev-environment
   writeConnectionSecretsToNamespace: crossplane-system
   compositeTypeRef:
     apiVersion: awsblueprints.io/v1alpha1

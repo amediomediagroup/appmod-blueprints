@@ -4,6 +4,10 @@ metadata:
   name: northwind
 spec:
   components:
+    - name: aurora-postgres-external
+      type: external-database-secret
+      properties:
+        secret_name: northwind-aurora-postgress
     - name: northwind-ux 
       type: appmod-service
       properties:
@@ -20,6 +24,8 @@ spec:
         #   pause: "10s"
         #   image: "public.ecr.aws/i8e1q7x5/javaperftest:latest"
         #   extraArgs: "160"
+      dependsOn:
+        - name: aurora-postgres-external
       traits: 
         - type: path-based-ingress
           properties:

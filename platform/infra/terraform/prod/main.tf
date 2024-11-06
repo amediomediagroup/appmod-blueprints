@@ -316,27 +316,3 @@ module "argo_rollouts_prod_role" {
   }
   tags = local.tags
 }
-
-resource "kubectl_manifest" "secrets_manager_cs" {
-  yaml_body = <<YAML
-    apiVersion: external-secrets.io/v1beta1
-    kind: ClusterSecretStore
-    metadata: 
-      name: secrets-manager-cs
-    spec:
-      provider:
-        aws:
-          service: SecretsManager
-          region: ${local.region}
-          auth:
-            jwt:
-              serviceAccountRef:
-                name: external-secrets-sa
-                namespace: external-secrets
-  YAML
-
-  depends_on = [module.eks_blueprints_kubernetes_addons]
-}
-
-
-
