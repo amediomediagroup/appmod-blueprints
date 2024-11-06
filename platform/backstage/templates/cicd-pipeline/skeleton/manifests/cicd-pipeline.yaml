@@ -60,6 +60,8 @@ spec:
                       value: ${{values.dockerfile_path}}
                     - name: deployment-path
                       value: ${{values.deployment_path}}
+                    - name: appname
+                      value: ${{values.appname}}
                 volumeClaimTemplates:
                 - metadata:
                     name: workdir
@@ -186,7 +188,7 @@ spec:
                         - name: ECR_REPO
                           valueFrom:
                             configMapKeyRef:
-                              name: "{{workflow.parameters.aws_region}}-ecr-repo"
+                              name: "{{workflow.parameters.appname}}-ecr-repo"
                               key: image
                       command: [
                                 "/busybox/sh",
@@ -212,7 +214,7 @@ spec:
                       - secretRef:
                           name: gitea-token
                       - configMapRef:
-                          name: ecr-repo
+                          name: "{{workflow.parameters.appname}}-ecr-repo"
                       volumeMounts:
                         - mountPath: /workdir
                           name: workdir
