@@ -58,14 +58,7 @@ spec:
           bucket_name: ${{ parameters.bucket_name }}
           environment: ${{ parameters.environment }}
           region: ${{ parameters.region }}
-    - id: publish
-      name: Publish
-      action: publish:github
-      input:
-        allowedHosts: ['github.com']
-        description: This is ${{ parameters.bucket_name }}
-        repoUrl: 'github.com?owner=platform-team&repo=${{ parameters.bucket_name }}'
-        repoVisibility: private
+          repoUrl: ${{ parameters.repoUrl }}
     - id: publish
       name: Publishing to a gitea git repository
       action: publish:gitea
