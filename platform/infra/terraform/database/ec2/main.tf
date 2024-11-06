@@ -29,7 +29,7 @@ resource "random_integer" "suffix" {
 }
 
 resource "aws_secretsmanager_secret" "ec2_credentials" {
-  name = "mod-engg-workshop-ec2-credentials-${random_integer.suffix.result}"
+  name = "modern-engg-sqlserver"
 }
 
 resource "random_password" "ec2_password" {
@@ -43,6 +43,7 @@ resource "aws_secretsmanager_secret_version" "ec2_credentials" {
   secret_string = jsonencode({
     username = "Administrator"
     password = random_password.ec2_password.result
+    hostname = aws_instance.sql_server_instance.private_ip
   })
 }
 
