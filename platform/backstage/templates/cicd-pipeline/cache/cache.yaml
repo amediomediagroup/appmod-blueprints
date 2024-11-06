@@ -112,6 +112,11 @@ spec:
       parameters:
       - name: dockerfile-path
     container:
+    resources:
+      limits:
+        cpu: 2
+        memory: 4Gi
+
       image: gcr.io/kaniko-project/warmer:latest
       args: ["--cache-dir=/cache",
            "--dockerfile={{inputs.parameters.dockerfile-path}}/Dockerfile"]
