@@ -29,7 +29,7 @@ resource "random_integer" "suffix" {
 }
 
 resource "aws_secretsmanager_secret" "ec2_credentials" {
-  name = "modern-engg-sqlserver"
+  name = "mod-engg-workshop-ec2-credentials"
 }
 
 resource "random_password" "ec2_password" {
@@ -49,9 +49,10 @@ resource "aws_secretsmanager_secret_version" "ec2_credentials" {
 
 resource "aws_instance" "sql_server_instance" {
   ami           = "ami-0848f4d849e5b4667"
-  instance_type = "c5.2xlarge"
+  instance_type = "c5.xlarge"
   #subnet_id     = var.vpc_private_subnets[0]
   subnet_id     = length(var.vpc_private_subnets) > 0 ? var.vpc_private_subnets[0] : null
+  key_name      = var.key_name
 
 
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
