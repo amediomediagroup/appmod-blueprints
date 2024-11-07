@@ -315,35 +315,3 @@ module "argo_rollouts_dev_role" {
   tags = local.tags
 }
 
-# resource "helm_release" "dev_argocd" {
-#   name             = "argocd"
-#   repository       = "https://argoproj.github.io/argo-helm"
-#   chart            = "argo-cd"
-#   version          = "7.3.10"
-#   namespace        = "argocd"
-#   create_namespace = true
-
-#   set {
-#     name  = "server.service.type"
-#     value = "LoadBalancer"
-#   }
-
-#   set {
-#     name  = "server.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-type"
-#     value = "nlb"
-#   }
-# }
-
-# data "kubernetes_service" "argocd_dev_server" {
-#   metadata {
-#     name      = "argocd-server"
-#     namespace = helm_release.dev_argocd.namespace
-#   }
-# }
-
-# resource "helm_release" "app_of_apps" {
-#   name             = "app-of-apps"
-#   chart            = "../deployment/envs/dev"
-#   create_namespace = true
-#   depends_on       = [helm_release.argocd]
-# }

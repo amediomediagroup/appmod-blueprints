@@ -7,7 +7,7 @@ spec:
     - name: northwind-ux 
       type: appmod-service
       properties:
-        image:  929819487611.dkr.ecr.us-west-2.amazonaws.com/moderneng/northwind:latest
+        image:  <image>
         image_name: northwind
         port: 80
         targetPort: 80
