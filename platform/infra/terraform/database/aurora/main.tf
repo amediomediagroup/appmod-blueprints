@@ -62,7 +62,7 @@ resource "random_integer" "suffix" {
 }
 
 resource "aws_secretsmanager_secret" "db_credentials" {
-  name = "mod-engg-workshop-db-credentials-${random_integer.suffix.result}"
+  name = "modern-engg-aurora"
 }
 
 resource "random_password" "db_password" {
@@ -122,6 +122,13 @@ resource "aws_rds_cluster" "rds_cluster_mod_engg_wksp" {
   preferred_maintenance_window = "sun:01:00-sun:02:00"
 
   vpc_security_group_ids = [aws_security_group.rds_mod_engg_wksp_sg.id]
+
+  lifecycle {
+    ignore_changes = [
+      master_password,
+      availability_zones,
+    ]
+  }
 
   tags = {
     Application = "MODERN ENGG WORKSHOP DATABASE"

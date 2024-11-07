@@ -109,7 +109,7 @@ module "eks_dev_monitoring" {
   enable_cert_manager    = true
   enable_java            = true
   enable_nginx           = true
-  enable_polyglot        = true
+  enable_custom_metrics  = true
 
   # This configuration section results in actions performed on AMG and AMP; and it needs to be done just once
   # And hence, this in performed in conjunction with the setup of the eks_cluster_1 EKS cluster
@@ -137,6 +137,17 @@ module "eks_dev_monitoring" {
     global_scrape_interval = "60s"
     global_scrape_timeout  = "15s"
     scrape_sample_limit    = 2000
+  }
+
+  custom_metrics_config = {
+    polyglot_app_config = {
+        enableBasicAuth       = false
+        path                  = "/metrics"
+        basicAuthUsername     = "username"
+        basicAuthPassword     = "password"
+        ports                 = ".*:(8080)$"
+        droppedSeriesPrefixes = "(unspecified.*)$"
+    }
   }
 }
 
@@ -304,35 +315,3 @@ module "argo_rollouts_dev_role" {
   tags = local.tags
 }
 
-# resource "helm_release" "dev_argocd" {
-#   name             = "argocd"
-#   repository       = "https://argoproj.github.io/argo-helm"
-#   chart            = "argo-cd"
-#   version          = "7.3.10"
-#   namespace        = "argocd"
-#   create_namespace = true
-
-#   set {
-#     name  = "server.service.type"
-#     value = "LoadBalancer"
-#   }
-
-#   set {
-#     name  = "server.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-type"
-#     value = "nlb"
-#   }
-# }
-
-# data "kubernetes_service" "argocd_dev_server" {
-#   metadata {
-#     name      = "argocd-server"
-#     namespace = helm_release.dev_argocd.namespace
-#   }
-# }
-
-# resource "helm_release" "app_of_apps" {
-#   name             = "app-of-apps"
-#   chart            = "../deployment/envs/dev"
-#   create_namespace = true
-#   depends_on       = [helm_release.argocd]
-# }

@@ -103,19 +103,19 @@ module "eks_blueprints_addons_prod" {
 # }
 
 module "eks_prod_monitoring" {
-  source                 = "../terraform-aws-observability-accelerator/modules/eks-monitoring"
-  eks_cluster_id         = module.eks_blueprints_prod.eks_cluster_id
-  enable_amazon_eks_adot = true
-  enable_cert_manager    = true
-  enable_java            = true
-  enable_nginx           = true
-  enable_polyglot        = true
+  source                  = "../terraform-aws-observability-accelerator/modules/eks-monitoring"
+  eks_cluster_id          = module.eks_blueprints_prod.eks_cluster_id
+  enable_amazon_eks_adot  = true
+  enable_cert_manager     = true
+  enable_java             = true
+  enable_nginx            = true
+  enable_custom_metrics   = true
+  enable_external_secrets = true
+  enable_fluxcd           = true
 
   # Since the following were enabled in conjunction with the set up of the
   # eks_cluster_1 EKS cluster, we will skip them with the eks_cluster_2 EKS cluster
   enable_dashboards       = false
-  enable_external_secrets = false
-  enable_fluxcd           = false
   enable_alerting_rules   = false
   enable_recording_rules  = false
 
@@ -138,6 +138,17 @@ module "eks_prod_monitoring" {
     global_scrape_interval = "60s"
     global_scrape_timeout  = "15s"
     scrape_sample_limit    = 2000
+  }
+
+  custom_metrics_config = {
+    polyglot_app_config = {
+        enableBasicAuth       = false
+        path                  = "/metrics"
+        basicAuthUsername     = "username"
+        basicAuthPassword     = "password"
+        ports                 = ".*:(8080)$"
+        droppedSeriesPrefixes = "(unspecified.*)$"
+    }
   }
 }
 
@@ -304,36 +315,3 @@ module "argo_rollouts_prod_role" {
   }
   tags = local.tags
 }
-
-# resource "helm_release" "app_of_apps" {
-#   name             = "app-of-apps"
-#   chart            = "../deployment/envs/prod"
-#   create_namespace = true
-#   depends_on       = [helm_release.argocd]
-# }
-
-# resource "helm_release" "prod_argocd" {
-#   name             = "argocd"
-#   repository       = "https://argoproj.github.io/argo-helm"
-#   chart            = "argo-cd"
-#   version          = "7.3.10"
-#   namespace        = "argocd"
-#   create_namespace = true
-
-#   set {
-#     name  = "server.service.type"
-#     value = "LoadBalancer"
-#   }
-
-#   set {
-#     name  = "server.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-type"
-#     value = "nlb"
-#   }
-# }
-
-# data "kubernetes_service" "argocd_prod_server" {
-#   metadata {
-#     name      = "argocd-server"
-#     namespace = helm_release.prod_argocd.namespace
-#   }
-# }

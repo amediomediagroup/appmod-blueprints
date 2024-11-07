@@ -1,0 +1,33 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: northwind
+spec:
+  components:
+    - name: northwind-aurora-postgres
+      type: external-database-secret
+      properties:
+        secret_name: northwind-aurora-postgres
+    - name: northwind-ux 
+      type: appmod-service
+      properties:
+        image: <image>
+        image_name: northwind
+        port: 80
+        targetPort: 80
+        replicas: 1
+      dependsOn:
+        - name: aurora-postgres-external
+      traits: 
+        - type: path-based-ingress
+          properties:
+            domain: "*.elb.us-west-2.amazonaws.com"
+            rewritePath: true 
+            http:
+              /northwind-app: 80
+      
+        - type: storage
+          properties:
+            secret:
+              - name: northwind-aurora-postgres
+                mountPath: /opt/secret-volume
