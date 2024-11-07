@@ -24,7 +24,6 @@ locals {
     Blueprint  = var.cluster_name
     GithubRepo = "github.com/aws-observability/terraform-aws-observability-accelerator"
   }
-  region    = "us-west-2"
 }
 
 #---------------------------------------------------------------
