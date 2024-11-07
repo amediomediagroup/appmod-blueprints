@@ -71,10 +71,10 @@ spec:
                     resources:
                       requests:
                         storage: 256Mi
-                volumes:
-                - name: cache
-                  persistentVolumeClaim:
-                    claimName: ${{values.appname}}-cache-vol
+                #volumes:
+                #- name: cache
+                #  persistentVolumeClaim:
+                #    claimName: ${{values.appname}}-cache-vol
                 nodeSelector:
                   topology.kubernetes.io/zone: ${{values.aws_region}}a
                 templates:
@@ -175,13 +175,13 @@ spec:
                           mountPath: /workdir
                         - name: docker-config
                           mountPath: /kaniko/.docker
-                        - name: cache
-                          mountPath: /cache
+                      # - name: cache
+                      #    mountPath: /cache
                       workingDir: /workdir
                       resources:
                         limits:
                           cpu: 2
-                          memory: 4Gi
+                          memory: 5Gi
                       env:
                         - name: DOCKER_CONFIG
                           value: /kaniko/.docker
@@ -198,7 +198,6 @@ spec:
                                 --context={{inputs.parameters.dockerfile-path}} \
                                 --destination=${ECR_REPO}:{{inputs.parameters.tag-version}} \
                                 --cache=true \
-                                --cache-dir=/cache \
                                 --skip-tls-verify"
                                 ]
 

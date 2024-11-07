@@ -92,13 +92,13 @@ spec:
         manifestPath: podidentity.yaml
         clusterName: local
 
-    - action: cnoe:kubernetes:apply
-      name: Apply Cache workflow
-      id: apply-cache
-      input:
-        namespaced: true
-        manifestPath: cache.yaml
-        clusterName: local
+    #- action: cnoe:kubernetes:apply
+    #  name: Apply Cache workflow
+    #  id: apply-cache
+    #  input:
+    #    namespaced: true
+    #    manifestPath: cache.yaml
+    #    clusterName: local
     
     - action: debug:wait
       name: Wait for IAM

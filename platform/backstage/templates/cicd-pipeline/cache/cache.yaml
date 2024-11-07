@@ -9,7 +9,7 @@ spec:
   storageClassName: gp2
   resources:
     requests:
-      storage: 10Gi
+      storage: 2Gi
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
@@ -112,10 +112,6 @@ spec:
       parameters:
       - name: dockerfile-path
     container:
-      resources:
-        limits:
-          cpu: 2
-          memory: 4Gi
       image: gcr.io/kaniko-project/warmer:latest
       args: ["--cache-dir=/cache",
            "--dockerfile={{inputs.parameters.dockerfile-path}}/Dockerfile"]
