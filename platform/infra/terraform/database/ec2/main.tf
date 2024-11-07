@@ -43,6 +43,7 @@ resource "aws_secretsmanager_secret_version" "ec2_credentials" {
   secret_string = jsonencode({
     username = "Administrator"
     password = random_password.ec2_password.result
+    hostname = aws_instance.sql_server_instance.private_ip
   })
 }
 

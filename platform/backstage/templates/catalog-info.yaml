@@ -22,4 +22,3 @@ spec:
     - ./create-dev-and-prod-env/template-create-dev-and-prod-env.yaml
     - ./cicd-pipeline/template-cicd-pipeline.yaml
     - ./create-env-aurora-postgres/template-env-aurora-postgres.yaml
-    - ./create-env-prod-ec2-sql/template-env-ec2-sql.yaml

@@ -22,8 +22,8 @@ spec:
           - dynamodb-table
         clusterName: modernengg-dev
         clusterRegion: us-west-2
-        dependsOn:
-          - dynamodb-table
+      dependsOn:
+        - dynamodb-table
     - name: rust-backend
       type: appmod-service
       properties:

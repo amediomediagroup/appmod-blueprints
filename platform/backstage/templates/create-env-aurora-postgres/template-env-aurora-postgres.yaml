@@ -1,16 +1,16 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  description: Deploys Aurora Postgres DB
+  description: Creates an RDS Aurora Postgres DB
   name: create-env-aurora-postgres
-  title: Create Aurora Postgres DB
+  title: Create RDS Aurora Postgres Database
 spec:
   owner: guest
   type: service
   parameters:
     - properties:
         name:
-          title: Name of the component
+          title: Unique Name of the Database
           type: string
         namespace:
           default: flux-system

@@ -24,7 +24,7 @@ template: {
 		}
 	}
 	parameter: {
-    name: string
-    region: string
+      name: string
+      region: string
   }
 }

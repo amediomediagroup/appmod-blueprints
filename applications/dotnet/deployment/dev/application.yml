@@ -4,6 +4,10 @@ metadata:
   name: northwind
 spec:
   components:
+    - name: northwind-aurora-postgres
+      type: external-database-secret
+      properties:
+        secret_name: northwind-aurora-postgres
     - name: northwind-ux 
       type: appmod-service
       properties:
@@ -12,14 +16,8 @@ spec:
         port: 80
         targetPort: 80
         replicas: 1
-        # functionalGate:
-        #   pause: "10s" 
-        #   image: "public.ecr.aws/i8e1q7x5/appmod-javafunctest:latest"
-        #   extraArgs: "red"
-        # performanceGate:
-        #   pause: "10s"
-        #   image: "public.ecr.aws/i8e1q7x5/javaperftest:latest"
-        #   extraArgs: "160"
+      dependsOn:
+        - name: aurora-postgres-external
       traits: 
         - type: path-based-ingress
           properties:
@@ -31,12 +29,5 @@ spec:
         - type: storage
           properties:
             secret:
-              - name: northwinde-dbinstance-out
+              - name: northwind-aurora-postgres
                 mountPath: /opt/secret-volume
-  policies: # adopting secret that was generated outside of the app as readonly
-    - type: read-only
-      name: read-only
-      properties:
-        rules:
-          - selector:
-              resourceTypes: ["Secret"]
