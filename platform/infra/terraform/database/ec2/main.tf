@@ -58,7 +58,7 @@ resource "aws_secretsmanager_secret_version" "ec2_credentials" {
     sa_password = random_password.sa_password.result
     netappuser_username = "netappuser"
     netappuser_password = random_password.netappuser_password.result
-    hostname = aws_instance.sql_server_instance.private_ip
+    host = aws_instance.sql_server_instance.private_ip
   })
 
   lifecycle {
