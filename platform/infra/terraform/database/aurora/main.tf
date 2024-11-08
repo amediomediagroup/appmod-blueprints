@@ -105,22 +105,20 @@ resource "aws_rds_cluster" "rds_cluster_mod_engg_wksp" {
   master_username = local.db_creds.username
   master_password = local.db_creds.password
 
-  backup_retention_period = 3
-  copy_tags_to_snapshot   = true
+  # Serverless v2 configuration
+  serverlessv2_scaling_configuration {
+    min_capacity = 2
+    max_capacity = 16
+  }
 
+  copy_tags_to_snapshot   = true
   db_cluster_parameter_group_name = aws_rds_cluster_parameter_group.rds_mod_engg_wksp_pg.name
   db_subnet_group_name            = aws_db_subnet_group.rds_cluster_mod_engg_wksp_sng.name
   deletion_protection             = false
   enabled_cloudwatch_logs_exports = ["postgresql"]
-
   skip_final_snapshot       = true
   final_snapshot_identifier = "mod-engg-wksp-cluster-final-snapshot"
-
   iam_database_authentication_enabled = false
-
-  preferred_backup_window      = "23:00-00:00"
-  preferred_maintenance_window = "sun:01:00-sun:02:00"
-
   vpc_security_group_ids = [aws_security_group.rds_mod_engg_wksp_sg.id]
 
   lifecycle {
@@ -138,18 +136,13 @@ resource "aws_rds_cluster" "rds_cluster_mod_engg_wksp" {
 
 resource "aws_rds_cluster_instance" "rds_cluster_mod_engg_wksp_writer" {
   cluster_identifier = aws_rds_cluster.rds_cluster_mod_engg_wksp.id
-  instance_class     = "db.r6g.2xlarge"
+  instance_class     = "db.serverless"
   identifier         = "${var.name_prefix}mod-engg-wksp-writer"
 
   engine         = aws_rds_cluster.rds_cluster_mod_engg_wksp.engine
   engine_version = aws_rds_cluster.rds_cluster_mod_engg_wksp.engine_version
-
-  auto_minor_version_upgrade  = true
   copy_tags_to_snapshot       = true
   db_subnet_group_name        = aws_db_subnet_group.rds_cluster_mod_engg_wksp_sng.name
-  monitoring_interval         = 0
-  performance_insights_enabled = true
-  preferred_maintenance_window = "sun:01:00-sun:02:00"
   publicly_accessible         = false
 
   tags = {

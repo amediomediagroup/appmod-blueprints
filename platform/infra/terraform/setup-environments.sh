@@ -173,7 +173,7 @@ terraform -chdir=dev/db apply -var aws_region="${TF_VAR_aws_region}" \
   -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
   -var availability_zones="${TF_eks_cluster_private_az}" \
   -var vpc_cidr="${TF_eks_cluster_vpc_cidr}" \
-  -var key_name="ws-default-keypair" -auto-approve &
+  -var key_name="ws-default-keypair" -var region="${TF_VAR_aws_region}" -auto-approve &
 
 export DEV_DB_PROCESS=$!
 
