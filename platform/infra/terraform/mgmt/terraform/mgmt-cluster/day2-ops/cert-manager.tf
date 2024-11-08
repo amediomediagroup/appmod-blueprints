@@ -4,7 +4,7 @@ resource "kubectl_manifest" "application_argocd_cert_manager" {
   })
 
   provisioner "local-exec" {
-    command = "kubectl wait --for=jsonpath=.status.health.status=Healthy -n argocd application/cert-manager && kubectl wait --for=jsonpath=.status.sync.status=Synced --timeout=900s -n argocd application/cert-manager"
+    command = "kubectl wait --for=jsonpath=.status.health.status=Healthy --timeout=300s -n argocd application/cert-manager"
 
     interpreter = ["/bin/bash", "-c"]
   }
