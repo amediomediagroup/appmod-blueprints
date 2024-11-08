@@ -56,8 +56,8 @@ resource "aws_secretsmanager_secret_version" "ec2_credentials" {
   secret_string = jsonencode({
     sa_username = "sa"
     sa_password = random_password.sa_password.result
-    netappuser_username = "netappuser"
-    netappuser_password = random_password.netappuser_password.result
+    username = "netappuser"
+    password = random_password.netappuser_password.result
     host = aws_instance.sql_server_instance.private_ip
   })
 
