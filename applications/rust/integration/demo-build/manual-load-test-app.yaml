@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rust-svc-load-test
+  labels:
+    workload: rust-backend
+spec:
+  containers:
+    - name: artillery-container
+      image: 183631316431.dkr.ecr.us-west-2.amazonaws.com/modernengg/rust-test:latest # TODO: Use the integration image here

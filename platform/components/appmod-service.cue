@@ -13,6 +13,9 @@
 template: {
 
     let previewService = "\(context.name)-preview"
+	let ampWorkspaceUrl = "{{args.amp-workspace-url}}"
+	let ampWorkspaceRegion = "{{args.amp-workspace-region}}"
+	let prometheusTargetQuery = "k8s_container_name=\"\(parameter.image_name)\", k8s_namespace_name=\"\(context.namespace)\""
 
 	output: {
 		apiVersion: "argoproj.io/v1alpha1"
@@ -32,42 +35,30 @@ template: {
 						setWeight: 20
 					},
 					if parameter.functionalGate != _|_ {
-					{
-						pause: duration: parameter.functionalGate.pause
-					},
+						{
+							pause: duration: parameter.functionalGate.pause
+						},
 					},
 					if parameter.functionalGate != _|_ {
-					{
-						analysis: {
-							templates: [
-								{
-									templateName: "functional-gate-\(context.name)"
-								}
-							],
-							args: [
-								{
-									name: "service-name",
-									value: previewService
-								}
-							]
-						}
-					},
+						{
+							analysis: {
+								templates: [
+									{
+										templateName: "functional-gate-\(context.name)"
+									}
+								],
+								args: [
+									{
+										name: "service-name",
+										value: previewService
+									}
+								]
+							}
+						},
 					},
 					{
 						setWeight: 40
 					},
-					{
-						pause: duration: "15s"
-					},
-					{
-						setWeight: 60
-					},
-					{
-						pause: duration: "15s"
-					},
-					{
-						setWeight: 80
-					}, 			
 					if parameter.performanceGate != _|_ {
 						{
 							pause: {
@@ -91,6 +82,32 @@ template: {
 								]
 							}
 						}
+					},
+					if parameter.functionalMetric !=  _|_ {
+					{
+						analysis: {
+							templates: [
+								{
+									templateName: "functional-metric-\(context.name)"
+								}
+							],
+							args: [
+								{
+									name: "service-name"
+									value: previewService
+								}
+							]
+						}
+					}
+					},
+					{
+						setWeight: 60
+					},
+					{
+						pause: duration: "1s"
+					},
+					{
+						setWeight: 80
 					}
 				]
 			}
@@ -102,6 +119,10 @@ template: {
 					name:            parameter.image_name
 					ports: [{
 						containerPort: parameter.targetPort
+					}]
+					env: [{
+					name:  "dummy-variable"
+					value: parameter.dummyTestVariable
 					}]
 				}]
 				spec: serviceAccountName: parameter.serviceAccount
@@ -132,7 +153,91 @@ template: {
 					targetPort: parameter.targetPort
 				}]
             }
-        }, 
+        },
+		"amp-workspace-secrets": {
+			apiVersion: "external-secrets.io/v1beta1"
+			kind:       "ExternalSecret"
+			metadata: {
+				name:      "amp-workspace-secrets"
+				namespace: context.namespace
+			}
+			spec: {
+				secretStoreRef: {
+					name: "cluster-secretstore-sm"
+					kind: "ClusterSecretStore"
+				}
+				target: {
+					name: "amp-workspace"
+					template: type: "Opaque"
+				}
+				data: [
+					{
+						secretKey: "amp-workspace-url"
+						remoteRef: {
+							key: "/platform/amp-workspace"
+						}
+					},
+					{
+						secretKey: "amp-workspace-region"
+						remoteRef: {
+							key: "/platform/amp-region"
+						}
+					}
+				]
+			}
+		}
+		if parameter.functionalMetric != _|_ {
+			"success-rate-analysis-template": {
+				apiVersion: "argoproj.io/v1alpha1"
+				kind:       "AnalysisTemplate"
+				metadata: {
+					name:      "functional-metric-\(context.name)"
+				}
+				spec: {
+					args: [{
+						name: "amp-workspace-url"
+						valueFrom: secretKeyRef: {
+							name: "amp-workspace"
+							key: "amp-workspace-url"
+						}
+					}, {
+						name: "amp-workspace-region"
+						valueFrom: secretKeyRef: {
+							name: "amp-workspace"
+							key: "amp-workspace-region"
+						}
+					}]
+					metrics: 
+					[
+						for idx, criteria in parameter.functionalMetric.evaluationCriteria {
+							name: "metric[\(idx)]-\(context.name): \(criteria.metric)"
+							if criteria.successOrFailCondition == "success" {
+								interval: criteria.interval
+								count: criteria.count
+								successCondition: "result[0] \(criteria.comparisonType) \(criteria.threshold)"
+							}
+							if criteria.successOrFailCondition == "fail" {
+								interval: criteria.interval
+								count: criteria.count
+								failureCondition: "result[0] \(criteria.comparisonType) \(criteria.threshold)"
+							}
+							provider: prometheus: {
+								address: ampWorkspaceUrl
+								query: [
+									if criteria.function != _|_ {
+										"\(criteria.function)(\(criteria.metric){\(prometheusTargetQuery)})"
+									}
+									if criteria.function == _|_ {
+										"\(criteria.metric){\(prometheusTargetQuery)}"
+									}
+								][0]
+								authentication: sigv4: region: ampWorkspaceRegion
+							}
+						}
+					]
+				}
+			}
+		},
 		if parameter.functionalGate != _|_ {
 			"appmod-functional-analysis-template": {
 				kind: "AnalysisTemplate",
@@ -190,11 +295,11 @@ template: {
 											"spec": {
 												"containers": [
 													{
-														"name": "test",
+														"name": "artillery-container",
 														"image": parameter.performanceGate.image,
 														"args": [
 															"\(previewService):\(parameter.port)",
-															"\(parameter.performanceGate.extraArgs)"
+															"\(parameter.functionalGate.extraArgs)"
 															
 														]
 													}
@@ -219,6 +324,19 @@ template: {
 		extraArgs: *"" | string 
 	}
 
+	#MetricGate: {
+		evaluationCriteria:
+		[...{
+				interval: *"1s" | string
+				count: *1 | int
+				function?: "sum" | "avg" | "max" | "min" | "count"
+				successOrFailCondition: *"success" | "fail"
+				metric: string
+				comparisonType: *">" | ">=" | "<" | "<=" | "==" | "!="
+				threshold: *0 | number
+			}]
+	}
+
 	parameter: {
         image_name: string
         image: string
@@ -226,8 +344,9 @@ template: {
         port: *80 | int
         targetPort: *8080 | int
 		serviceAccount: *"default" | string
+		dummyTestVariable?: string
 		functionalGate?: #QualityGate
 		performanceGate?: #QualityGate
+		functionalMetric?: #MetricGate
     }
 }
-
