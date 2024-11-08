@@ -1,15 +1,15 @@
----
-kind: PersistentVolumeClaim
-apiVersion: v1
-metadata:
-  name: ${{values.appname}}-cache-vol
-  namespace: ${{values.namespace}}
-spec:
-  accessModes: [ "ReadWriteOnce" ]
-  storageClassName: gp2
-  resources:
-    requests:
-      storage: 2Gi
+#---
+#kind: PersistentVolumeClaim
+#apiVersion: v1
+#metadata:
+#  name: ${{values.appname}}-cache-vol
+#  namespace: ${{values.namespace}}
+#spec:
+#  accessModes: [ "ReadWriteOnce" ]
+#  storageClassName: gp2
+#  resources:
+#    requests:
+#      storage: 2Gi
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
@@ -32,14 +32,17 @@ spec:
   #    claimName: ${{values.appname}}-cache-vol
   entrypoint: cicd-warmup
   serviceAccountName: ${{values.appname}}-cicd-provisioner
-  nodeSelector:
-    topology.kubernetes.io/zone: ${{ values.aws_region }}a
   arguments:
     parameters:
     - name: appname
       value: ${{values.appname}}
     - name: apprepo
       value: ${{values.hostname}}/gitea/giteaAdmin/${{values.appname}}
+    - name: aws_region
+      value: ${{values.aws_region}}
+    - name: dockerfile_path
+      value: ${{values.dockerfile_path}}
+
 
   templates:
   - name: cicd-warmup
@@ -63,7 +66,9 @@ spec:
           arguments:
             parameters:
               - name: dockerfile-path
-                value: ${{values.dockerfile_path}}
+                value: "{{workflow.parameters.dockerfile_path}}"
+              - name: tag-version
+                value: cache-init
           depends: "clone"
 
   - name: cleandir 

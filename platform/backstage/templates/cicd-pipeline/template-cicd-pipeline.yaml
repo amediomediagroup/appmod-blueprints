@@ -109,7 +109,7 @@ spec:
     - action: debug:wait
       name: Wait for Provisioner
       input:
-        seconds: 60
+        seconds: 100
 
 
     - action: cnoe:kubernetes:apply
