@@ -78,7 +78,7 @@ spec:
         url: ./cache/
         values:
           appname: ${{ parameters.appname }}
-          namespace:  argo-events
+          namespace: team-${{ parameters.appname }}
           aws_region: ${{ parameters.aws_region }}
           hostname: ${{parameters.hostname}}
           dockerfile_path: ${{parameters.dockerfile_path}}
