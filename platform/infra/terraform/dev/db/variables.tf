@@ -51,5 +51,5 @@ variable "key_name" {
 variable "region" {
   description = "Name of the region"
   type        = string
-  deafult     = "us-west-2"
+  default    = "us-west-2"
 }
