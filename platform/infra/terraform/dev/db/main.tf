@@ -20,4 +20,5 @@ module "ec2" {
   vpc_cidr    = var.vpc_cidr
   name_prefix = var.name_prefix
   key_name    = var.key_name
+  region      = var.aws_region
 }
