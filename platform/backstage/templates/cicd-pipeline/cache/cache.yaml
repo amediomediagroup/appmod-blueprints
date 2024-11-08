@@ -62,7 +62,7 @@ spec:
           depends: "clean"
 
         - name: warmup
-          template: warmup-cache
+          template: build-image-for-cache
           arguments:
             parameters:
               - name: dockerfile-path
