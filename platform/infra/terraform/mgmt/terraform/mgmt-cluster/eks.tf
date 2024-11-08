@@ -45,7 +45,7 @@ module "eks" {
     static_ng = {
       use_custom_launch_template = false
       launch_template_name       = ""
-      instance_types             = ["m5.large"]
+      instance_types             = ["m5.2xlarge"]
 
       min_size     = 2
       max_size     = 6
@@ -163,4 +163,7 @@ resource "helm_release" "karpenter" {
       repository_password
     ]
   }
+
 }
+
+

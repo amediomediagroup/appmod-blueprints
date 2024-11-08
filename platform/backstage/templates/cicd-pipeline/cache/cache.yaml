@@ -26,10 +26,10 @@ spec:
       resources:
         requests:
           storage: 256Mi
-  volumes:
-  - name: cache
-    persistentVolumeClaim:
-      claimName: ${{values.appname}}-cache-vol
+  #volumes:
+  #- name: cache
+  #  persistentVolumeClaim:
+  #    claimName: ${{values.appname}}-cache-vol
   entrypoint: cicd-warmup
   serviceAccountName: ${{values.appname}}-cicd-provisioner
   nodeSelector:
@@ -106,19 +106,45 @@ spec:
         - http.sslVerify=false
         - .
 
-
-  - name: warmup-cache
+  - name: build-image-for-cache
     inputs:
       parameters:
-      - name: dockerfile-path
+        - name: tag-version
+        - name: dockerfile-path
+    volumes:
+      - name: docker-config
+        secret:
+          secretName: "{{workflow.parameters.aws_region}}-regcred"
     container:
-      image: gcr.io/kaniko-project/warmer:latest
-      args: ["--cache-dir=/cache",
-           "--dockerfile={{inputs.parameters.dockerfile-path}}/Dockerfile"]
-      workingDir: /workdir
+      image: gcr.io/kaniko-project/executor:debug
       volumeMounts:
-      - name: workdir
-        mountPath: /workdir
-      - name: cache
-        mountPath: /cache
+        - name: workdir
+          mountPath: /workdir
+        - name: docker-config
+          mountPath: /kaniko/.docker
+        # - name: cache
+        #    mountPath: /cache
+      workingDir: /workdir
+      resources:
+        limits:
+          cpu: 2
+          memory: 5Gi
+      env:
+        - name: DOCKER_CONFIG
+          value: /kaniko/.docker
+        - name: ECR_REPO
+          valueFrom:
+            configMapKeyRef:
+              name: "{{workflow.parameters.appname}}-ecr-repo"
+              key: image
+      command: [
+                "/busybox/sh",
+                "-c",
+                "/kaniko/executor \
+                --dockerfile=Dockerfile \
+                --context={{inputs.parameters.dockerfile-path}} \
+                --destination=${ECR_REPO}:{{inputs.parameters.tag-version}} \
+                --cache=true \
+                --skip-tls-verify"
+                ]
 

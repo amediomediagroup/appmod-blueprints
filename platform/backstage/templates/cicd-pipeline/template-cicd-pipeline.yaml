@@ -92,13 +92,6 @@ spec:
         manifestPath: podidentity.yaml
         clusterName: local
 
-    #- action: cnoe:kubernetes:apply
-    #  name: Apply Cache workflow
-    #  id: apply-cache
-    #  input:
-    #    namespaced: true
-    #    manifestPath: cache.yaml
-    #    clusterName: local
     
     - action: debug:wait
       name: Wait for IAM
@@ -112,6 +105,21 @@ spec:
         namespaced: true
         manifestPath: provisioner.yaml
         clusterName: local
+
+    - action: debug:wait
+      name: Wait for Provisioner
+      input:
+        seconds: 60
+
+
+    - action: cnoe:kubernetes:apply
+      name: Apply Cache workflow
+      id: apply-cache
+      input:
+        namespaced: true
+        manifestPath: cache.yaml
+        clusterName: local
+
 
     - id: create-argocd-app
       name: Create ArgoCD App
