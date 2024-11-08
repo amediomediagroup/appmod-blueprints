@@ -20,6 +20,7 @@ variable "name_prefix" {
 variable "key_name" {
   description = "The name of the key pair to use for the EC2 instance"
   type        = string
+  default     = "ws-default-keypair"
 }
 
 variable "region" {
