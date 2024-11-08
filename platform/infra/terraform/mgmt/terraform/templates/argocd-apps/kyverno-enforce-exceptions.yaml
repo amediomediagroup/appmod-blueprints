@@ -1,0 +1,27 @@
+kind: Application
+apiVersion: argoproj.io/v1alpha1
+metadata:
+  name: kyverno-pss-policies-enforce-exceptions
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: ${GITHUB_URL}
+    targetRevision: HEAD
+    path: "packages/kyverno/enforce/exceptions"
+    directory:
+      recurse: true
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: kyverno
+  syncPolicy:
+    syncOptions:
+      - Replace=true
+    automated:
+      selfHeal: true
+    retry:
+      limit: 30
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s
