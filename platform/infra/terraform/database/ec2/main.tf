@@ -289,7 +289,7 @@ resource "aws_instance" "sql_server_instance" {
               }
 
               # Retrieve the secret from AWS Secrets Manager
-              $secret = Get-SECSecretValue -SecretId arn:aws:secretsmanager:us-west-2:312554664505:secret:modern-engg-sqlserver-ugxUoU
+              $secret = Get-SECSecretValue -SecretId ${aws_secretsmanager_secret.ec2_credentials.id}
 
               # Parse the JSON content
               $secretData = $secret.SecretString | ConvertFrom-Json
