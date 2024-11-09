@@ -281,7 +281,7 @@ resource "aws_instance" "sql_server_instance" {
                   Invoke-WebRequest -Uri $downloadUrl -OutFile $outFile
 
                   # Expand the archive
-                  Expand-Archive -Path $outFile -DestinationPath "C:\BabelfishCompass" -Force
+                  Expand-Archive -Path $outFile -DestinationPath "C:\" -Force
 
                   Write-Host "Babelfish Compass has been downloaded and extracted to C:\BabelfishCompass"
               } else {
@@ -289,14 +289,16 @@ resource "aws_instance" "sql_server_instance" {
               }
 
               # Retrieve the secret from AWS Secrets Manager
-              $secret = Get-SECSecretValue -SecretId ${aws_secretsmanager_secret.ec2_credentials.id}
+              $secret = Get-SECSecretValue -SecretId arn:aws:secretsmanager:us-west-2:312554664505:secret:modern-engg-sqlserver-ugxUoU
 
               # Parse the JSON content
               $secretData = $secret.SecretString | ConvertFrom-Json
 
-              # Extract passwords from the secret
-              $saPassword = $secretData.sa_password
-              $netappuserPassword = $secretData.netappuser_password
+              # Extract passwords from the secret and convert to plain text safely
+              $BSTR_sa = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR(($secretData.sa_password | ConvertTo-SecureString -AsPlainText -Force))
+              $BSTR_netapp = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR(($secretData.password | ConvertTo-SecureString -AsPlainText -Force))
+              $saPasswordPlain = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR_sa)
+              $netappuserPasswordPlain = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR_netapp)
 
               # Create Northwind database and configure users
               $sqlCommand = @"
@@ -311,17 +313,17 @@ resource "aws_instance" "sql_server_instance" {
               GO
 
               -- Check if Northwind database exists, if not create it
-              IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'NorthwindTest')
+              IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'Northwind')
               BEGIN
-                  CREATE DATABASE NorthwindTest;
+                  CREATE DATABASE Northwind;
               END
               GO
 
-              USE NorthwindTest;
+              USE Northwind;
               GO
 
               -- Set password for 'sa' account
-              ALTER LOGIN sa WITH PASSWORD = '$saPassword';
+              ALTER LOGIN sa WITH PASSWORD = '$(${saPasswordPlain})'
               GO
 
               -- Ensure 'sa' has sysadmin role
@@ -334,7 +336,11 @@ resource "aws_instance" "sql_server_instance" {
               -- Create login for application user if it doesn't exist
               IF NOT EXISTS (SELECT * FROM sys.server_principals WHERE name = 'netappuser')
               BEGIN
-                  CREATE LOGIN netappuser WITH PASSWORD = '$netappuserPassword';
+                  CREATE LOGIN netappuser WITH PASSWORD = '$(${netappuserPasswordPlain})'
+              END
+              ELSE
+              BEGIN
+                  ALTER LOGIN netappuser WITH PASSWORD = '$(${netappuserPasswordPlain})'
               END
               GO
 
@@ -367,7 +373,15 @@ resource "aws_instance" "sql_server_instance" {
               Write-Host "Stopping SQL Server service forcefully..."
               Stop-Service -Name MSSQLSERVER -Force
               Write-Host "Starting SQL Server service..."
-              Start-Service -Name MSSQLSERVER
+              Start-Service -Name MSSQLSERVER 
+
+              # Clean up sensitive data
+              Remove-Variable saPasswordPlain
+              Remove-Variable netappuserPasswordPlain
+              Remove-Variable BSTR_sa
+              Remove-Variable BSTR_netapp
+              Remove-Variable secretData
+              Remove-Variable secret
 
               Write-Host "SQL Server has been configured for mixed mode authentication, sa account enabled, and Northwind database setup completed."
               Write-Host "Please restart your computer to ensure all changes take effect."
