@@ -163,7 +163,7 @@ namespace Northwind.WebUI
             // specifying the Swagger JSON endpoint.
             app.UseSwaggerUI(c =>
             {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "Northwind Traders API V1");
+                c.SwaggerEndpoint("/northwind-app/swagger/v1/swagger.json", "Northwind Traders API V1");
             });
 
             

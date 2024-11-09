@@ -4,10 +4,10 @@ metadata:
   name: northwind
 spec:
   components:
-    - name: northwind-aurora-postgres
+    - name: modern-engg-sqlserver
       type: external-database-secret
       properties:
-        secret_name: northwind-aurora-postgres
+        secret_name: modern-engg-sqlserver
     - name: northwind-ux 
       type: appmod-service
       properties:
@@ -17,7 +17,7 @@ spec:
         targetPort: 80
         replicas: 1
       dependsOn:
-        - name: aurora-postgres-external
+        - modern-engg-sqlserver
       traits: 
         - type: path-based-ingress
           properties:
@@ -25,9 +25,8 @@ spec:
             rewritePath: true 
             http:
               /northwind-app: 80
-      
         - type: storage
           properties:
             secret:
-              - name: northwind-aurora-postgres
+              - name: modern-engg-sqlserver
                 mountPath: /opt/secret-volume
