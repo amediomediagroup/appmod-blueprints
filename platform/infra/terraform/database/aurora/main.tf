@@ -101,7 +101,7 @@ resource "aws_rds_cluster" "rds_cluster_mod_engg_wksp" {
   engine_mode    = "provisioned"
   engine_version = "16.3"
 
-  database_name   = "NorthWind"
+  database_name   = "northwind"
   master_username = local.db_creds.username
   master_password = local.db_creds.password
 

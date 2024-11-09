@@ -11,6 +11,14 @@ resource "aws_security_group" "ec2_sg" {
     cidr_blocks = [var.vpc_cidr]
   }
 
+  ingress {
+    description = "EKS Application connection"
+    from_port   = 1433
+    to_port     = 1433
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -59,6 +67,7 @@ resource "aws_secretsmanager_secret_version" "ec2_credentials" {
     username = "netappuser"
     password = random_password.netappuser_password.result
     host = aws_instance.sql_server_instance.private_ip
+    port = 1433
   })
 
   lifecycle {
@@ -207,15 +216,7 @@ resource "aws_instance" "sql_server_instance" {
 
   user_data = <<-EOF
               <powershell>
-              # Set Administrator password
-              #  $password = (Get-SECSecretValue -SecretId ${aws_secretsmanager_secret.ec2_credentials.id}).SecretString | ConvertFrom-Json
-              #  net user Administrator $password.password
-
-              # Create a new user for RDP access
-              #  $password = (Get-SECSecretValue -SecretId ${aws_secretsmanager_secret.ec2_credentials.id}).SecretString | ConvertFrom-Json
-              #  New-LocalUser -Name "ec2-user" -Password ($password.password | ConvertTo-SecureString -AsPlainText -Force) -PasswordNeverExpires
-              #  Add-LocalGroupMember -Group "Administrators" -Member "ec2-user"
-
+ 
               # Configure Windows Firewall
               New-NetFirewallRule -DisplayName "Allow SSM" -Direction Inbound -LocalPort 443 -Protocol TCP -Action Allow
               New-NetFirewallRule -DisplayName "Allow RDP" -Direction Inbound -LocalPort 3389 -Protocol TCP -Action Allow
@@ -231,18 +232,16 @@ resource "aws_instance" "sql_server_instance" {
               $installer = "https://awscli.amazonaws.com/AWSCLIV2.msi"
               $logFile = "C:\Windows\Temp\awscli_install.log"
               Write-Output "Installing $($installer) ..."
-              Start-Process -FilePath "C:\Windows\System32\msiexec.exe" -ArgumentList "/i $installer /passive /norestart /log `"$logFile`"" -Wait
+              Start-Process -FilePath "C:\Windows\System32\msiexec.exe" -ArgumentList "/i $installer /qn /norestart /log `"$logFile`"" -Wait
               Write-Output "Done installing $($installer)"
 
               # Update SSM Agent
               $SSMAgentUrl = "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/windows_amd64/AmazonSSMAgentSetup.exe"
-              Start-Sleep -Seconds 60
               Invoke-WebRequest -Uri $SSMAgentUrl -OutFile "C:\AmazonSSMAgentSetup.exe"
               Start-Process -FilePath "C:\AmazonSSMAgentSetup.exe" -ArgumentList "/S" -Wait
               Restart-Service AmazonSSMAgent
 
               # Verify SSM Agent status
-              Start-Sleep -Seconds 60
               $ssmagentService = Get-Service -Name "AmazonSSMAgent"
               if ($ssmagentService.Status -ne "Running") {
                   Write-Output "SSM Agent is not running. Attempting to start..."
@@ -258,33 +257,36 @@ resource "aws_instance" "sql_server_instance" {
                   Write-Output "SSM Agent is already running."
               }
 
-              # Configure SSM Agent for debugging 
-              #$SSMAgentConfigPath = "C:\ProgramData\Amazon\SSM\seelog.xml"
-              #$SSMAgentConfig = Get-Content $SSMAgentConfigPath
-              #$SSMAgentConfig = $SSMAgentConfig -replace '<seelog minlevel="info">', '<seelog minlevel="debug">'
-              #Set-Content -Path $SSMAgentConfigPath -Value $SSMAgentConfig
-              #Restart-Service AmazonSSMAgent
-
-              # Install EC2 Instance Connect
-              #$url = "https://s3.amazonaws.com/ec2-windows-ec2instanceconnect/EC2-Windows-EC2InstanceConnect.zip"
-              #Start-Sleep -Seconds 60
-              #Invoke-WebRequest -Uri $url -OutFile "C:\EC2-Windows-EC2InstanceConnect.zip"
-              #Expand-Archive -Path "C:\EC2-Windows-EC2InstanceConnect.zip" -DestinationPath "C:\EC2-Windows-EC2InstanceConnect"
-              #Start-Process -FilePath "C:\EC2-Windows-EC2InstanceConnect\install.ps1" -Wait
-
               # Install JRE
               $jreUrl = "https://javadl.oracle.com/webapps/download/AutoDL?BundleId=246474_2dee051a5d0647d5be72a7c0abff270e"
               Start-Sleep -Seconds 60
               Invoke-WebRequest -Uri $jreUrl -OutFile "C:\jre-installer.exe"
               Start-Process -FilePath "C:\jre-installer.exe" -ArgumentList "/s" -Wait
-
+ 
               # Install Babelfish Compass
-              $babelfishReleaseUrl = "https://github.com/babelfish-for-postgresql/babelfish_compass/releases/latest"
-              $latestRelease = Invoke-RestMethod -Uri $babelfishReleaseUrl
+              $owner = "babelfish-for-postgresql"
+              $repo = "babelfish_compass"
+              $apiUrl = "https://api.github.com/repos/$owner/$repo/releases/latest"
+
+              # Get the latest release information
+              $latestRelease = Invoke-RestMethod -Uri $apiUrl -Headers @{"Accept"="application/vnd.github.v3+json"}
+
+              # Find the zip asset
               $zipAsset = $latestRelease.assets | Where-Object { $_.name -match "^BabelfishCompass_[a-zA-Z0-9]+(-[a-zA-Z0-9]+)?\.zip$" } | Select-Object -First 1
-              Invoke-WebRequest -Uri $zipAsset.browser_download_url -OutFile "C:\BabelfishCompass.zip"
-              Start-Sleep -Seconds 60
-              Expand-Archive -Path "C:\BabelfishCompass.zip" -DestinationPath "C:\BabelfishCompass"
+
+              if ($zipAsset) {
+                  # Download the zip file
+                  $downloadUrl = $zipAsset.browser_download_url
+                  $outFile = "C:\BabelfishCompass.zip"
+                  Invoke-WebRequest -Uri $downloadUrl -OutFile $outFile
+
+                  # Expand the archive
+                  Expand-Archive -Path $outFile -DestinationPath "C:\BabelfishCompass" -Force
+
+                  Write-Host "Babelfish Compass has been downloaded and extracted to C:\BabelfishCompass"
+              } else {
+                  Write-Host "No matching zip file found in the latest release."
+              }
 
               # Retrieve the secret from AWS Secrets Manager
               $secret = Get-SECSecretValue -SecretId ${aws_secretsmanager_secret.ec2_credentials.id}
@@ -298,14 +300,24 @@ resource "aws_instance" "sql_server_instance" {
 
               # Create Northwind database and configure users
               $sqlCommand = @"
+              -- Enable mixed mode authentication
+              USE [master]
+              GO
+              EXEC xp_instance_regwrite N'HKEY_LOCAL_MACHINE', N'Software\Microsoft\MSSQLServer\MSSQLServer', N'LoginMode', REG_DWORD, 2
+              GO
+
+              -- Enable sa account
+              ALTER LOGIN [sa] ENABLE
+              GO
+
               -- Check if Northwind database exists, if not create it
-              IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'Northwind')
+              IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'NorthwindTest')
               BEGIN
-                  CREATE DATABASE Northwind;
+                  CREATE DATABASE NorthwindTest;
               END
               GO
 
-              USE Northwind;
+              USE NorthwindTest;
               GO
 
               -- Set password for 'sa' account
@@ -345,18 +357,27 @@ resource "aws_instance" "sql_server_instance" {
               -- Output success message
               PRINT 'Northwind database setup completed successfully.';
               GO
-            "@
+              "@
 
               # Ensure sqlcmd is in the PATH or use the full path
               $env:Path += ";C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn"
-              $sqlCommand | sqlcmd -S localhost 
+              $sqlCommand | sqlcmd -S localhost -E
+
+              # Force restart SQL Server service to apply mixed mode authentication
+              Write-Host "Stopping SQL Server service forcefully..."
+              Stop-Service -Name MSSQLSERVER -Force
+              Write-Host "Starting SQL Server service..."
+              Start-Service -Name MSSQLSERVER
+
+              Write-Host "SQL Server has been configured for mixed mode authentication, sa account enabled, and Northwind database setup completed."
+              Write-Host "Please restart your computer to ensure all changes take effect."
 
               # Activate SSMS
               $ssmsPath = (Get-ChildItem "C:\Program Files (x86)\Microsoft SQL Server Management Studio *\Common7\IDE\Ssms.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
 
               if ($ssmsPath) {
                   Write-Output "SSMS found at: $ssmsPath. Attempting to activate..."
-                  $process = Start-Process -FilePath $ssmsPath -ArgumentList "/initialize" -PassThru -WindowStyle Hidden
+                  $process = Start-Process -FilePath $ssmsPath -ArgumentList "-S localhost -E -nosplash" -PassThru -WindowStyle Minimized
                   $process | Wait-Process -Timeout 300 -ErrorAction SilentlyContinue
                   if ($process.HasExited) {
                       Write-Output "SSMS activation process completed."
@@ -366,7 +387,7 @@ resource "aws_instance" "sql_server_instance" {
                   }
               } else {
                   Write-Output "SSMS not found. Please check the installation."
-              }
+              } 
              
               </powershell>
               EOF
