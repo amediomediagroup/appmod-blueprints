@@ -56,6 +56,8 @@ spec:
         values:
           provider: ${{ parameters.provider }}
           bucket_name: ${{ parameters.bucket_name }}
+          configuration: ${{ parameters.configuration }}
+          namespace: ${{ parameters.namespace }}
           environment: ${{ parameters.environment }}
           region: ${{ parameters.region }}
           repoUrl: ${{ parameters.repoUrl }}
