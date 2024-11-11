@@ -4,7 +4,18 @@ metadata:
   generateName: ${{values.appname}}-cicd-provisioner-and-warmup-
   namespace: ${{values.namespace}}
 spec:
+  volumeClaimTemplates:
+  - metadata:
+      name: workdir
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: gp2
+      resources:
+        requests:
+          storage: 256Mi
+
   entrypoint: main
+  serviceAccountName: ${{values.appname}}-cicd-provisioner
   arguments:
     parameters:
     - name: appname

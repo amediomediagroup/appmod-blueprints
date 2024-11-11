@@ -147,15 +147,6 @@ metadata:
   name: cicd-cache-warmup-template
   namespace: ${{values.namespace}}
 spec:
-  volumeClaimTemplates:
-  - metadata:
-      name: workdir
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      storageClassName: gp2
-      resources:
-        requests:
-          storage: 256Mi
   arguments:
     parameters:
     - name: appname
