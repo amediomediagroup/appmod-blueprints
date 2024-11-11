@@ -64,17 +64,17 @@ spec:
       action: publish:gitea
       input:
         description: This is an example app
-        repoUrl: ${{parameters.repoUrl}}?repo=${{parameters.name}}
+        repoUrl: ${{parameters.repoUrl}}?repo=${{parameters.bucket_name}}
         defaultBranch: main
     - id: create-argocd-app
       name: Create ArgoCD App
       action: cnoe:create-argocd-app
       input:
-        appName: ${{parameters.name}}
+        appName: ${{parameters.bucket_name}}
         appNamespace: default
         argoInstance: in-cluster
         projectName: default
-        repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.name}}
+        repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.bucket_name}}
         path: "manifests"
     - id: register
       name: Register

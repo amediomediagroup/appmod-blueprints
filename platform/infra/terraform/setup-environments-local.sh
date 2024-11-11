@@ -117,4 +117,4 @@ echo "Running script with assumed role credentials"
 echo $(aws sts get-caller-identity)
 
 cd $REPO_ROOT/platform/infra/terraform
-./setup-environments.sh
+#./setup-environments.sh
