@@ -8,7 +8,5 @@ spec:
     - name: ${{values.bucket_name}}
       type: s3-bucket
       properties:
-        environment: ${{values.environment}}
-        configuration: ${{values.configuration}}
-        providerConfigName: ${{values.provider}}
+        name: ${{values.bucket_name}}
         region: ${{values.region}}
