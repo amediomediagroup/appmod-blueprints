@@ -9,4 +9,3 @@ spec:
     native:
       replicas: 3
       auth: token
-

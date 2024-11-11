@@ -1,0 +1,270 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: cicd-provisioner-template
+  namespace: ${{values.namespace}}
+spec:
+  arguments:
+    parameters:
+    - name: appname
+      value: ${{values.appname}}
+    - name: namespace
+      value: ${{values.namespace}}
+    - name: aws_region
+      value: ${{values.aws_region}}
+    - name: gitea_token
+      value: ${{values.gitea_token}}
+    - name: hostname
+      value: ${{values.hostname}}
+
+  templates:
+  - name: cicd-provisioner
+    dag:
+      tasks:
+        - name: get-ecr-secret
+          template: get-ecr-secret
+
+        - name: create-docker-registry-secret
+          template: create-docker-registry-secret
+          arguments:
+            parameters:
+            - name: ecr_secret
+              value: "{{tasks.get-ecr-secret.outputs.result}}"
+          depends: "get-ecr-secret"
+        
+        - name: create-gitea-token-secret
+          template: create-gitea-token-secret
+          arguments:
+            parameters:
+            - name: token
+              value: "{{workflow.parameters.gitea_token}}"
+
+        - name: create-ecr-repository
+          template: create-ecr-repository
+
+        - name: create-ecr-configmap
+          template: create-ecr-configmap
+          arguments:
+            parameters:
+            - name: image
+              value: "{{tasks.create-ecr-repository.outputs.result}}"
+          depends: "create-ecr-repository"
+
+        - name: create-gitea-webhook
+          template: create-gitea-webhook
+          depends: "create-gitea-token-secret"
+
+
+  - name: get-ecr-secret
+    container:
+      image: amazon/aws-cli:latest
+      command: ["/bin/bash", "-c"]
+      args: 
+      - |
+        aws ecr get-login-password --region "{{workflow.parameters.aws_region}}"
+
+  - name: create-docker-registry-secret
+    inputs:
+      parameters:
+      - name: ecr_secret
+    container:
+      image: bitnami/kubectl:latest
+      command: ["/bin/bash", "-c"]
+      args:
+      - |
+        kubectl delete secret "{{workflow.parameters.aws_region}}"-regcred --ignore-not-found
+        kubectl create secret docker-registry "{{workflow.parameters.aws_region}}"-regcred -n "{{workflow.parameters.namespace}}" \
+          --docker-server="{{workflow.parameters.aws_region}}".amazonaws.com \
+          --docker-username=AWS \
+          --docker-password="{{inputs.parameters.ecr_secret}}"
+
+  - name: create-gitea-token-secret
+    inputs:
+      parameters:
+      - name: token
+    container:
+      image: bitnami/kubectl:latest
+      command: ["/bin/bash", "-c"]
+      args:
+      - |
+        kubectl delete secret "{{workflow.parameters.appname}}"-gitea-token --ignore-not-found
+        kubectl create secret generic "{{workflow.parameters.appname}}"-gitea-token -n "{{workflow.parameters.namespace}}" --from-literal=token="{{inputs.parameters.token}}"
+
+  - name: create-ecr-repository
+    container:
+      image: amazon/aws-cli:latest
+      command: ["/bin/bash", "-c"]
+      args:
+      - |
+        output=$(aws ecr describe-repositories --repository-names "modengg/{{workflow.parameters.appname}}" --region "{{workflow.parameters.aws_region}}" 2>&1)
+        status=$?
+        if [[ ! "${status}" -eq 0 ]]; then
+            output=$(aws ecr create-repository --repository-name "modengg/{{workflow.parameters.appname}}" --region "{{workflow.parameters.aws_region}}" 2>&1)
+        fi
+        output=$(aws ecr describe-repositories --repository-names "modengg/{{workflow.parameters.appname}}/cache" --region "{{workflow.parameters.aws_region}}" 2>&1)
+        status=$?
+        if [[ ! "${status}" -eq 0 ]]; then
+            output=$(aws ecr create-repository --repository-name "modengg/{{workflow.parameters.appname}}/cache" --region "{{workflow.parameters.aws_region}}" 2>&1)
+        fi
+        aws ecr describe-repositories --repository-names "modengg/{{workflow.parameters.appname}}" --region "{{workflow.parameters.aws_region}}" --query "repositories[0].repositoryUri" --output text
+
+  - name: create-ecr-configmap
+    inputs:
+      parameters:
+      - name: image 
+    container:
+      image: bitnami/kubectl:latest
+      command: ["/bin/bash", "-c"]
+      args:
+      - |
+        kubectl delete configmap "{{workflow.parameters.appname}}"-ecr-repo --ignore-not-found
+        kubectl create configmap "{{workflow.parameters.appname}}"-ecr-repo -n "{{workflow.parameters.namespace}}" --from-literal=image="{{inputs.parameters.image}}"
+
+  - name: create-gitea-webhook
+    container:
+      image: alpine:3.20
+      command: ["/bin/sh", "-c"]
+      envFrom:
+      - secretRef:
+          name: "{{workflow.parameters.appname}}-gitea-token"
+      args:
+      - |
+        apk add curl jq
+        hooks_api_url="{{workflow.parameters.hostname}}"/gitea/api/v1/repos/giteaAdmin/"{{workflow.parameters.appname}}"/hooks
+        webhook_url="http://{{workflow.parameters.hostname}}"/argo-events/"{{workflow.parameters.appname}}"
+        webhook_details=$(curl -k -X 'GET' "${hooks_api_url}" -H "accept: application/json" -H "Authorization: token ${token}" -H "Content-Type: application/json" | jq '.[].config.url')
+        if [ -z "$webhook_details" ]; then
+          echo "Webhook is not found, creating webhook with $webhook_url"
+          curl -k -X 'POST' "${hooks_api_url}" -H "accept: application/json" -H "Authorization: token ${token}" -H "Content-Type: application/json" -d '{"branch_filter": "main","type": "gitea", "events":["push"], "config": {"url": "'${webhook_url}'", "content_type": "json"}, "active": true}'
+        else
+          echo "Webhook is already exists"
+        fi
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: cicd-cache-warmup-template
+  namespace: ${{values.namespace}}
+spec:
+  arguments:
+    parameters:
+    - name: appname
+      value: ${{values.appname}}
+    - name: apprepo
+      value: ${{values.hostname}}/gitea/giteaAdmin/${{values.appname}}
+    - name: aws_region
+      value: ${{values.aws_region}}
+    - name: dockerfile_path
+      value: ${{values.dockerfile_path}}
+
+
+  templates:
+  - name: cicd-warmup
+    dag:
+      tasks:
+        - name: clean
+          template: cleandir
+
+        - name: clone
+          template: clonerepo
+          arguments:
+            parameters:
+              - name: apprepo
+                value: "{{workflow.parameters.apprepo}}"
+              - name: branch
+                value: main
+          depends: "clean"
+
+        - name: warmup
+          template: build-image-for-cache
+          arguments:
+            parameters:
+              - name: dockerfile-path
+                value: "{{workflow.parameters.dockerfile_path}}"
+              - name: tag-version
+                value: cache-init
+          depends: "clone"
+
+  - name: cleandir 
+    container:
+      volumeMounts:
+        - mountPath: /workdir
+          name: workdir
+      image: alpine:3.20
+      workingDir: /workdir
+      args:
+        - /bin/sh
+        - -c
+        - |
+          set -ex
+          if [ "$(ls -A /workdir)" ]; then
+            echo "Directory /workdir is not empty. Removing contents..."
+            rm -rf /workdir/*
+          fi
+
+  - name: clonerepo
+    inputs:
+      parameters:
+      - name: apprepo
+      - name: branch
+    container:
+      volumeMounts:
+      - mountPath: /workdir
+        name: workdir
+      image: alpine/git:v2.45.1
+      workingDir: /workdir
+      args:
+        - clone
+        - --depth
+        - "1"
+        - --branch
+        - "{{inputs.parameters.branch}}"
+        - --single-branch
+        - "https://{{inputs.parameters.apprepo}}"
+        - -c
+        - http.sslVerify=false
+        - .
+
+  - name: build-image-for-cache
+    inputs:
+      parameters:
+        - name: tag-version
+        - name: dockerfile-path
+    volumes:
+      - name: docker-config
+        secret:
+          secretName: "{{workflow.parameters.aws_region}}-regcred"
+    container:
+      image: gcr.io/kaniko-project/executor:debug
+      volumeMounts:
+        - name: workdir
+          mountPath: /workdir
+        - name: docker-config
+          mountPath: /kaniko/.docker
+      workingDir: /workdir
+      resources:
+        limits:
+          cpu: 2
+          memory: 5Gi
+      env:
+        - name: DOCKER_CONFIG
+          value: /kaniko/.docker
+        - name: ECR_REPO
+          valueFrom:
+            configMapKeyRef:
+              name: "{{workflow.parameters.appname}}-ecr-repo"
+              key: image
+      command: [
+                "/busybox/sh",
+                "-c",
+                "/kaniko/executor \
+                --dockerfile=Dockerfile \
+                --context={{inputs.parameters.dockerfile-path}} \
+                --destination=${ECR_REPO}:{{inputs.parameters.tag-version}} \
+                --cache=true \
+                --skip-tls-verify"
+                ]
+
+
+

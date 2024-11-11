@@ -81,7 +81,21 @@ spec:
               "ecr:GetAuthorizationToken",
               "ecr:GetRepositoryPolicy",
               "ecr:DescribeRepositories",
-              "ecr:CreateRepository"
+              "ecr:CreateRepository",
+              "ecr:BatchCheckLayerAvailability",
+              "ecr:GetDownloadUrlForLayer",
+              "ecr:ListImages",
+              "ecr:DescribeImages",
+              "ecr:BatchGetImage",
+              "ecr:GetLifecyclePolicy",
+              "ecr:GetLifecyclePolicyPreview",
+              "ecr:ListTagsForResource",
+              "ecr:DescribeImageScanFindings",
+              "ecr:InitiateLayerUpload",
+              "ecr:UploadLayerPart",
+              "ecr:CompleteLayerUpload",
+              "ecr:PutImage"
+
             ],
             "Resource": "*"
           }

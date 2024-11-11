@@ -58,7 +58,7 @@ spec:
         # Hard coded value for this demo purposes only.
         repoUrl: ${{parameters.hostname}}/gitea?repo=${{parameters.appname}}-cicd
         defaultBranch: main
-    
+
     - action: fetch:template
       name: Fetch Provisioner
       id: fetch-provisioner
@@ -70,6 +70,7 @@ spec:
           aws_region: ${{ parameters.aws_region }}
           hostname: ${{parameters.hostname}}
           gitea_token: ${{secrets.gitea_token}}
+          dockerfile_path: ${{parameters.dockerfile_path}}
 
     - action: cnoe:kubernetes:apply
       name: Apply Provisioner IAM
@@ -78,18 +79,26 @@ spec:
         namespaced: true
         manifestPath: podidentity.yaml
         clusterName: local
-    
+
     - action: debug:wait
       name: Wait for IAM
       input:
         seconds: 15
 
     - action: cnoe:kubernetes:apply
-      name: Apply Provisioner
-      id: apply-prov
+      name: Apply Workflow Templates
+      id: apply-temp
       input:
         namespaced: true
-        manifestPath: provisioner.yaml
+        manifestPath: wf-templates.yaml
+        clusterName: local
+
+    - action: cnoe:kubernetes:apply
+      name: Run Workflow 
+      id: run-wf
+      input:
+        namespaced: true
+        manifestPath: wf-run.yaml
         clusterName: local
 
     - id: create-argocd-app

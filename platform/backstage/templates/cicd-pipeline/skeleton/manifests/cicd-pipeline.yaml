@@ -54,10 +54,14 @@ spec:
                       value: main
                     - name: tag-version
                       value: 0.0.1
+                    - name: aws_region
+                      value: ${{values.aws_region}}
                     - name: dockerfile-path
                       value: ${{values.dockerfile_path}}
                     - name: deployment-path
                       value: ${{values.deployment_path}}
+                    - name: appname
+                      value: ${{values.appname}}
                 volumeClaimTemplates:
                 - metadata:
                     name: workdir
@@ -67,6 +71,10 @@ spec:
                     resources:
                       requests:
                         storage: 256Mi
+                #volumes:
+                #- name: cache
+                #  persistentVolumeClaim:
+                #    claimName: ${{values.appname}}-cache-vol
                 templates:
                   - name: ci-build
                     dag:
@@ -157,7 +165,7 @@ spec:
                     volumes:
                       - name: docker-config
                         secret:
-                          secretName: regcred
+                          secretName: "{{workflow.parameters.aws_region}}-regcred"
                     container:
                       image: gcr.io/kaniko-project/executor:debug
                       volumeMounts:
@@ -165,18 +173,20 @@ spec:
                           mountPath: /workdir
                         - name: docker-config
                           mountPath: /kaniko/.docker
+                      # - name: cache
+                      #    mountPath: /cache
                       workingDir: /workdir
                       resources:
                         limits:
                           cpu: 2
-                          memory: 4Gi
+                          memory: 5Gi
                       env:
                         - name: DOCKER_CONFIG
                           value: /kaniko/.docker
                         - name: ECR_REPO
                           valueFrom:
                             configMapKeyRef:
-                              name: ecr-repo
+                              name: "{{workflow.parameters.appname}}-ecr-repo"
                               key: image
                       command: [
                                 "/busybox/sh",
@@ -185,6 +195,7 @@ spec:
                                 --dockerfile=Dockerfile \
                                 --context={{inputs.parameters.dockerfile-path}} \
                                 --destination=${ECR_REPO}:{{inputs.parameters.tag-version}} \
+                                --cache=true \
                                 --skip-tls-verify"
                                 ]
 
@@ -198,9 +209,9 @@ spec:
                     container:
                       envFrom:
                       - secretRef:
-                          name: gitea-token
+                          name: "{{workflow.parameters.appname}}-gitea-token"
                       - configMapRef:
-                          name: ecr-repo
+                          name: "{{workflow.parameters.appname}}-ecr-repo"
                       volumeMounts:
                         - mountPath: /workdir
                           name: workdir
