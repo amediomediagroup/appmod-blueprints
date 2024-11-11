@@ -2,11 +2,11 @@
 
 ### Parameter Setup
 
-The parameter `functionalMetric` of type `#MetricGate` are added for metric configuration.
+The parameter `metrics` of type `#MetricGate` are added for metric configuration.
 
 ```cue
 parameter:
-  functionalMetric?: #MetricGate
+  metrics?: #MetricGate
 #MetricGate: {
     evaluationCriteria:
     [...{
@@ -23,7 +23,7 @@ parameter:
 
 ### Creates Analysis Template
 ```cue
-if parameter.functionalMetric !=  _|_ {
+if parameter.metrics !=  _|_ {
 {
     analysis: {
         templates: [
@@ -91,7 +91,7 @@ These two sections are responsible for grabbing the needed values from the SSM p
 
 The following configuration defines a Rust-based application that requires a DynamoDB table, a service account, and a backend service component configured with Argo Rollouts. 
 
-- This application needs to be load tested for metrics to start generating. So calling the load test image in either performanceGate or functionalGate will trigger before functionalMetrics is called.
+- This application needs to be load tested for metrics to start generating. So calling the load test image in either performanceGate or functionalGate will trigger before metrics is called.
 ## Application Overview
 
 ```YAML
@@ -130,14 +130,13 @@ spec:
         targetPort: 8080
         replicas: 5
         serviceAccount: "rust-service-account"
-        dummyTestVariable: "test-#"
         functionalGate:
           pause: "10s" 
           image: "699475918442.dkr.ecr.us-west-2.amazonaws.com/modernengg/rust-test:latest"
         performanceGate:
           pause: "5s"
           image: "699475918442.dkr.ecr.us-west-2.amazonaws.com/modernengg/rust-test:latest"
-        functionalMetric:
+        metrics:
           evaluationCriteria: [
             {
               interval: "1s", # user needs to add s, m, or h next to the number (second, minute, hour).
@@ -208,8 +207,7 @@ The main focus here is on configuring the `appmod-service` component, which leve
   - `targetPort`: `8080` - The application's target port.
   - `replicas`: `5` - The number of replicas for the rollout.
   - `serviceAccount`: `"rust-service-account"` - Service account name for the specified workload.
-  - `dummyTestVariable`: `"test-#"` - Optional variable for testing. Modifying this value counts as a change, triggering a rollout.
-  - **functionalMetric** (Optional): 
+  - **metrics** (Optional): 
     - **evaluationCriteria**: Define an array of metrics to be tested. Each metric in the array specify the following values:
       - `interval`: `"1s"` - Specify interval with suffix `s`, `m`, or `h`.
       - `count`: `1`
@@ -248,7 +246,7 @@ If a metric fails the test/condition the user sets up, the first failure hit ret
 
 If `evaluationCriteria[]` values are of the wrong type specified that the CUE Manifest requires when they deploy their application, they get this as an **Application Message**:
 
-- **Message:** `run step(provider=oam,do=component-apply): GenerateComponentManifest: evaluate base template app=rust-app in namespace=test-123: invalid cue template of workload rust-backend after merge parameter and context: parameter.functionalMetric.evaluationCriteria.0.count: 2 errors in empty disjunction: (and 5 more errors)`
+- **Message:** `run step(provider=oam,do=component-apply): GenerateComponentManifest: evaluate base template app=rust-app in namespace=test-123: invalid cue template of workload rust-backend after merge parameter and context: parameter.metrics.evaluationCriteria.0.count: 2 errors in empty disjunction: (and 5 more errors)`
 
 ---
 

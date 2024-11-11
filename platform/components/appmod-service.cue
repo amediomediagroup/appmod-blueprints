@@ -83,7 +83,7 @@ template: {
 							}
 						}
 					},
-					if parameter.functionalMetric !=  _|_ {
+					if parameter.metrics !=  _|_ {
 					{
 						analysis: {
 							templates: [
@@ -119,10 +119,6 @@ template: {
 					name:            parameter.image_name
 					ports: [{
 						containerPort: parameter.targetPort
-					}]
-					env: [{
-					name:  "dummy-variable"
-					value: parameter.dummyTestVariable
 					}]
 				}]
 				spec: serviceAccountName: parameter.serviceAccount
@@ -186,7 +182,7 @@ template: {
 				]
 			}
 		}
-		if parameter.functionalMetric != _|_ {
+		if parameter.metrics != _|_ {
 			"success-rate-analysis-template": {
 				apiVersion: "argoproj.io/v1alpha1"
 				kind:       "AnalysisTemplate"
@@ -209,7 +205,7 @@ template: {
 					}]
 					metrics: 
 					[
-						for idx, criteria in parameter.functionalMetric.evaluationCriteria {
+						for idx, criteria in parameter.metrics.evaluationCriteria {
 							name: "metric[\(idx)]-\(context.name): \(criteria.metric)"
 							if criteria.successOrFailCondition == "success" {
 								interval: criteria.interval
@@ -295,7 +291,7 @@ template: {
 											"spec": {
 												"containers": [
 													{
-														"name": "artillery-container",
+														"name": "test",
 														"image": parameter.performanceGate.image,
 														"args": [
 															"\(previewService):\(parameter.port)",
@@ -344,9 +340,8 @@ template: {
         port: *80 | int
         targetPort: *8080 | int
 		serviceAccount: *"default" | string
-		dummyTestVariable?: string
 		functionalGate?: #QualityGate
 		performanceGate?: #QualityGate
-		functionalMetric?: #MetricGate
+		metrics?: #MetricGate
     }
 }

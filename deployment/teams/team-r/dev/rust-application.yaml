@@ -33,14 +33,13 @@ spec:
         targetPort: 8080
         replicas: 5
         serviceAccount: "rust-service-account"
-        dummyTestVariable: "test-#"
         functionalGate:
-          pause: "10s" 
+          pause: "1s" 
           image: "699475918442.dkr.ecr.us-west-2.amazonaws.com/modernengg/rust-test:latest"
         performanceGate:
-          pause: "5s"
+          pause: "1s"
           image: "699475918442.dkr.ecr.us-west-2.amazonaws.com/modernengg/rust-test:latest"
-        functionalMetric:
+        metrics:
           evaluationCriteria: [
             {
               interval: "1s", # user needs to add s, m, or h next to the number (second, minute, hour).
