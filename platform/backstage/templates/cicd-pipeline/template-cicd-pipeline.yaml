@@ -70,18 +70,19 @@ spec:
           aws_region: ${{ parameters.aws_region }}
           hostname: ${{parameters.hostname}}
           gitea_token: ${{secrets.gitea_token}}
-
-    - action: fetch:template
-      name: Fetch Cache Warmer
-      id: fetch-cache
-      input:
-        url: ./cache/
-        values:
-          appname: ${{ parameters.appname }}
-          namespace: team-${{ parameters.appname }}
-          aws_region: ${{ parameters.aws_region }}
-          hostname: ${{parameters.hostname}}
           dockerfile_path: ${{parameters.dockerfile_path}}
+
+    #- action: fetch:template
+    #  name: Fetch Cache Warmer
+    #  id: fetch-cache
+    #  input:
+    #    url: ./cache/
+    #    values:
+    #      appname: ${{ parameters.appname }}
+    #      namespace: team-${{ parameters.appname }}
+    #      aws_region: ${{ parameters.aws_region }}
+    #      hostname: ${{parameters.hostname}}
+    #      dockerfile_path: ${{parameters.dockerfile_path}}
 
 
     - action: cnoe:kubernetes:apply
@@ -99,26 +100,34 @@ spec:
         seconds: 15
 
     - action: cnoe:kubernetes:apply
-      name: Apply Provisioner
-      id: apply-prov
+      name: Apply Workflow Templates
+      id: apply-temp
       input:
         namespaced: true
-        manifestPath: provisioner.yaml
+        manifestPath: wf-templates.yaml
         clusterName: local
-
-    - action: debug:wait
-      name: Wait for Provisioner
-      input:
-        seconds: 100
-
 
     - action: cnoe:kubernetes:apply
-      name: Apply Cache workflow
-      id: apply-cache
+      name: Run Workflow 
+      id: 
       input:
         namespaced: true
-        manifestPath: cache.yaml
+        manifestPath: wf-templates.yaml
         clusterName: local
+
+    #- action: debug:wait
+    #  name: Wait for Provisioner
+    #  input:
+    #    seconds: 100
+    #
+    #
+    #- action: cnoe:kubernetes:apply
+    #  name: Apply Cache workflow
+    #  id: apply-cache
+    #  input:
+    #    namespaced: true
+    #    manifestPath: cache.yaml
+    #    clusterName: local
 
 
     - id: create-argocd-app

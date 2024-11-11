@@ -56,3 +56,4 @@ spec:
             value: "{{workflow.parameters.aws_region}}"
           - name: dockerfile_path
             value: "{{workflow.parameters.dockerfile_path}}"
+        depends: "run-provisioner"
