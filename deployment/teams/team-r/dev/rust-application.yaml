@@ -27,19 +27,20 @@ spec:
     - name: rust-backend
       type: appmod-service
       properties:
-        image:  699475918442.dkr.ecr.us-west-2.amazonaws.com/modernengg/rust-microservice:latest # Target image for workload
+        image:  <image> # Target image for workload
         image_name: rust-microservice
         port: 80
         targetPort: 8080
         replicas: 5
         serviceAccount: "rust-service-account"
         functionalGate:
-          pause: "1s" 
-          image: "699475918442.dkr.ecr.us-west-2.amazonaws.com/modernengg/rust-test:latest"
+          pause: "2s" 
+          image: "<image>"
         performanceGate:
           pause: "1s"
-          image: "699475918442.dkr.ecr.us-west-2.amazonaws.com/modernengg/rust-test:latest"
+          image: "<image>"
         metrics:
+          pause: "2s"
           evaluationCriteria: [
             {
               interval: "1s", # user needs to add s, m, or h next to the number (second, minute, hour).

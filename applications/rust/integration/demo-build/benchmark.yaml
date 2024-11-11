@@ -1,5 +1,5 @@
 config:
-  target: "http://127.0.0.1:80" #TODO: Override with artillery command
+  target: "http://127.0.0.1:80"
   phases:
     - duration: 5
       arrivalRate: 1

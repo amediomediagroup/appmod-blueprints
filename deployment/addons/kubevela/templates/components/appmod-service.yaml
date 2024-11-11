@@ -54,6 +54,18 @@ spec:
         				{
         					setWeight: 40
         				},
+        				{
+        					pause: duration: "5s"
+        				},
+        				{
+        					setWeight: 60
+        				},
+        				{
+        					pause: duration: "5s"
+        				},
+        				{
+        					setWeight: 80
+        				},
         				if parameter.performanceGate != _|_ {
         					{
         						pause: duration: parameter.performanceGate.pause
@@ -76,12 +88,17 @@ spec:
         						}
         					}
         				},
+        				if parameter.MetricGate != _|_ {
+        					{
+        						pause: duration: parameter.MetricGate.pause
+        					}
+        				},
         				if parameter.metrics != _|_ {
         					{
         						analysis: {
         							templates: [
         								{
-        									templateName: "functional-metric-\(context.name)"
+        									templateName: "metrics-\(context.name)"
         								},
         							]
         							args: [
@@ -92,15 +109,6 @@ spec:
         							]
         						}
         					}
-        				},
-        				{
-        					setWeight: 60
-        				},
-        				{
-        					pause: duration: "1s"
-        				},
-        				{
-        					setWeight: 80
         				},
         			]
         		}
@@ -175,7 +183,7 @@ spec:
         		"success-rate-analysis-template": {
         			apiVersion: "argoproj.io/v1alpha1"
         			kind:       "AnalysisTemplate"
-        			metadata: name: "functional-metric-\(context.name)"
+        			metadata: name: "metrics-\(context.name)"
         			spec: {
         				args: [{
         					name: "amp-workspace-url"
@@ -287,16 +295,19 @@ spec:
         	extraArgs: *"" | string
         }
 
-        #MetricGate: evaluationCriteria:
-        [...{
-        	interval:               *"1s" | string
-        	count:                  *1 | int
-        	function?:              "sum" | "avg" | "max" | "min" | "count"
-        	successOrFailCondition: *"success" | "fail"
-        	metric:                 string
-        	comparisonType:         *">" | ">=" | "<" | "<=" | "==" | "!="
-        	threshold:              *0 | number
-        }]
+        #MetricGate: {
+        	pause: *"1s" | string
+        	evaluationCriteria:
+        	[...{
+        		interval:               *"1s" | string
+        		count:                  *1 | int
+        		function?:              "sum" | "avg" | "max" | "min" | "count"
+        		successOrFailCondition: *"success" | "fail"
+        		metric:                 string
+        		comparisonType:         *">" | ">=" | "<" | "<=" | "==" | "!="
+        		threshold:              *0 | number
+        	}]
+        }
 
         parameter: {
         	image_name:       string

@@ -124,7 +124,7 @@ spec:
     - name: rust-backend
       type: appmod-service
       properties:
-        image:  699475918442.dkr.ecr.us-west-2.amazonaws.com/modernengg/rust-microservice:latest # Target image for workload
+        image:  <image> # Target image for workload
         image_name: rust-microservice
         port: 80
         targetPort: 8080
@@ -132,10 +132,10 @@ spec:
         serviceAccount: "rust-service-account"
         functionalGate:
           pause: "10s" 
-          image: "699475918442.dkr.ecr.us-west-2.amazonaws.com/modernengg/rust-test:latest"
+          image: "<image>"
         performanceGate:
           pause: "5s"
-          image: "699475918442.dkr.ecr.us-west-2.amazonaws.com/modernengg/rust-test:latest"
+          image: "<image>"
         metrics:
           evaluationCriteria: [
             {
@@ -201,7 +201,7 @@ The main focus here is on configuring the `appmod-service` component, which leve
 - **name**: `rust-backend` - Assign a name to your application.
 - **type**: `appmod-service` - Designate this as the appmod solution.
 - **properties**: Contains values required to set up Argo Rollouts properly.
-  - `image`: `891612574912.dkr.ecr.us-west-2.amazonaws.com/modernengg/rust-microservice:latest` - Path to the container image running the application.
+  - `image`: `<image>` - Path to the container image running the application.
   - `image_name`: `rust-microservice` - Names the container it runs on.
   - `port`: `80` - The port for the application.
   - `targetPort`: `8080` - The application's target port.
@@ -219,7 +219,6 @@ The main focus here is on configuring the `appmod-service` component, which leve
 
 ## Load testing rust-app to trigger inital metrics for the application
 - See attached `applications/rust/integration/demo-build` folder for load testing which builds the image needed that is called by the `rust-application.yaml`
-- `manual-load-test-app.yaml` allows a manual trigger of a load test if needed for testing
 
 ---
 # Troubleshooting User Scenarios

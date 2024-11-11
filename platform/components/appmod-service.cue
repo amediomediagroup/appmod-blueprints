@@ -59,6 +59,18 @@ template: {
 					{
 						setWeight: 40
 					},
+					{
+						pause: duration: "5s"
+					},
+					{
+						setWeight: 60
+					},
+					{
+						pause: duration: "5s"
+					},
+					{
+						setWeight: 80
+					},
 					if parameter.performanceGate != _|_ {
 						{
 							pause: {
@@ -83,12 +95,19 @@ template: {
 							}
 						}
 					},
+					if parameter.MetricGate  != _|_ {
+						{
+							pause: {
+								duration: parameter.MetricGate.pause
+							}
+						}
+					}
 					if parameter.metrics !=  _|_ {
 					{
 						analysis: {
 							templates: [
 								{
-									templateName: "functional-metric-\(context.name)"
+									templateName: "metrics-\(context.name)"
 								}
 							],
 							args: [
@@ -99,15 +118,6 @@ template: {
 							]
 						}
 					}
-					},
-					{
-						setWeight: 60
-					},
-					{
-						pause: duration: "1s"
-					},
-					{
-						setWeight: 80
 					}
 				]
 			}
@@ -187,7 +197,7 @@ template: {
 				apiVersion: "argoproj.io/v1alpha1"
 				kind:       "AnalysisTemplate"
 				metadata: {
-					name:      "functional-metric-\(context.name)"
+					name:      "metrics-\(context.name)"
 				}
 				spec: {
 					args: [{
@@ -321,6 +331,7 @@ template: {
 	}
 
 	#MetricGate: {
+		pause: *"1s" | string
 		evaluationCriteria:
 		[...{
 				interval: *"1s" | string
