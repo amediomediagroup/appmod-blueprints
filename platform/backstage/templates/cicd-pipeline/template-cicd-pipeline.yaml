@@ -112,7 +112,7 @@ spec:
       id: run-wf
       input:
         namespaced: true
-        manifestPath: wf-templates.yaml
+        manifestPath: wf-run.yaml
         clusterName: local
 
     #- action: debug:wait
