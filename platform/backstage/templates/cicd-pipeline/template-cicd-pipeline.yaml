@@ -109,7 +109,7 @@ spec:
 
     - action: cnoe:kubernetes:apply
       name: Run Workflow 
-      id: 
+      id: run-wf
       input:
         namespaced: true
         manifestPath: wf-templates.yaml
