@@ -1,3 +1,19 @@
+# Get AWS Account ID
+data "aws_caller_identity" "current" {}
+
+# Create S3 bucket
+resource "aws_s3_bucket" "sql_scripts" {
+  bucket = "${data.aws_caller_identity.current.account_id}-sql-scripts"
+}
+
+# Upload SQL scripts to S3
+resource "aws_s3_object" "northwind_script" {
+  bucket = aws_s3_bucket.sql_scripts.id
+  key    = "scripts/northwind_sqlserver.sql"
+  source = "${path.module}/../samples/northwind_sqlserver.sql"
+  etag   = filemd5("${path.module}/../samples/northwind_sqlserver.sql")
+}
+
 resource "aws_security_group" "ec2_sg" {
   name        = "${var.name_prefix}ec2_sql_server_sg"
   description = "Security group for EC2 SQL Server instance"
@@ -88,6 +104,29 @@ resource "aws_iam_role" "ec2_ssm_role" {
         Principal = {
           Service = "ec2.amazonaws.com"
         }
+      }
+    ]
+  })
+}
+
+# Add IAM policy to allow EC2 to access S3
+resource "aws_iam_role_policy" "s3_access" {
+  name = "${var.name_prefix}-s3-access-policy"
+  role = aws_iam_role.ec2_ssm_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.sql_scripts.arn,
+          "${aws_s3_bucket.sql_scripts.arn}/*"
+        ]
       }
     ]
   })
@@ -323,7 +362,7 @@ resource "aws_instance" "sql_server_instance" {
               GO
 
               -- Set password for 'sa' account
-              ALTER LOGIN sa WITH PASSWORD = '${saPasswordPlain}'
+              ALTER LOGIN sa WITH PASSWORD = N'$saPasswordPlain'
               GO
 
               -- Ensure 'sa' has sysadmin role
@@ -336,11 +375,11 @@ resource "aws_instance" "sql_server_instance" {
               -- Create login for application user if it doesn't exist
               IF NOT EXISTS (SELECT * FROM sys.server_principals WHERE name = 'netappuser')
               BEGIN
-                  CREATE LOGIN netappuser WITH PASSWORD = '${netappuserPasswordPlain}'
+                  CREATE LOGIN netappuser WITH PASSWORD = N'$netappuserPasswordPlain'
               END
               ELSE
               BEGIN
-                  ALTER LOGIN netappuser WITH PASSWORD = '${netappuserPasswordPlain}'
+                  ALTER LOGIN netappuser WITH PASSWORD = N'$netappuserPasswordPlain'
               END
               GO
 
@@ -385,6 +424,44 @@ resource "aws_instance" "sql_server_instance" {
 
               Write-Host "SQL Server has been configured for mixed mode authentication, sa account enabled, and Northwind database setup completed."
               Write-Host "Please restart your computer to ensure all changes take effect."
+
+              # Create directories
+              New-Item -ItemType Directory -Force -Path "C:\SQLScripts"
+
+              # Download SQL scripts from S3
+              $bucket = "${aws_s3_bucket.sql_scripts.id}"
+              $key = "scripts/northwind_sqlserver.sql"
+              $destination = "C:\SQLScripts\northwind_sqlserver.sql"
+
+              Write-Host "Downloading SQL scripts from S3..."
+              Try {
+                  Read-S3Object -BucketName $bucket -Key $key -File $destination
+                  Write-Host "Successfully downloaded SQL scripts from S3"
+              } Catch {
+                  Write-Host "Error downloading SQL scripts from S3: $_"
+                  Exit 1
+              }
+
+              # Wait for SQL Server to be ready
+              Start-Sleep -Seconds 30
+
+              # Execute the SQL script
+              Write-Host "Executing SQL scripts..."
+              $env:Path += ";C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn"
+
+              Try {
+                  $result = sqlcmd -S localhost -E -i $destination
+                  if ($LASTEXITCODE -eq 0) {
+                      Write-Host "Successfully executed SQL scripts"
+                  } else {
+                      Write-Host "Error executing SQL scripts"
+                      Write-Host $result
+                      Exit 1
+                  }
+              } Catch {
+                  Write-Host "Exception while executing SQL scripts: $_"
+                  Exit 1
+              }
 
               # Activate SSMS
               $ssmsPath = (Get-ChildItem "C:\Program Files (x86)\Microsoft SQL Server Management Studio *\Common7\IDE\Ssms.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
