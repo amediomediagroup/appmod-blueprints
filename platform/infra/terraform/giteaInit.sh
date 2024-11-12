@@ -26,6 +26,7 @@ curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" 
 curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" -H "content-type: application/json" -H "Authorization: Basic $ENCODED_USER_PASS" --data '{"name":"rust"}'
 curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" -H "content-type: application/json" -H "Authorization: Basic $ENCODED_USER_PASS" --data '{"name":"terraform-eks"}'
 curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" -H "content-type: application/json" -H "Authorization: Basic $ENCODED_USER_PASS" --data '{"name":"next-js"}'
+curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" -H "content-type: application/json" -H "Authorization: Basic $ENCODED_USER_PASS" --data '{"name":"platform"}'
 
 git config --global credential.helper store
 
@@ -37,10 +38,10 @@ git config user.email "participants@workshops.aws"
 git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/applications/dotnet ${REPO_ROOT}/applications/gitea/
 git add .
-git -c http.sslVerify=false commit -m "first commit" --no-verify
+git -c http.sslVerify=false commit -m "first commit"
 git remote remove origin
 git remote add origin https://$DOMAIN_NAME/gitea/$USERNAME/dotnet.git
-git -c http.sslVerify=false push -u origin main --no-verify
+git -c http.sslVerify=false push -u origin main
 
 cd ..
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/java.git
@@ -49,10 +50,10 @@ git config user.email "participants@workshops.aws"
 git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/applications/java ${REPO_ROOT}/applications/gitea/
 git add .
-git -c http.sslVerify=false commit -m "first commit" --no-verify
+git -c http.sslVerify=false commit -m "first commit"
 git remote remove origin
 git remote add origin https://$DOMAIN_NAME/gitea/$USERNAME/java.git
-git -c http.sslVerify=false push -u origin main --no-verify
+git -c http.sslVerify=false push -u origin main
 
 cd ..
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/golang.git
@@ -61,10 +62,10 @@ git config user.email "participants@workshops.aws"
 git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/applications/golang ${REPO_ROOT}/applications/gitea/
 git add .
-git -c http.sslVerify=false commit -m "first commit" --no-verify
+git -c http.sslVerify=false commit -m "first commit"
 git remote remove origin
 git remote add origin https://$DOMAIN_NAME/gitea/$USERNAME/golang.git
-git -c http.sslVerify=false push -u origin main --no-verify
+git -c http.sslVerify=false push -u origin main
 
 cd ..
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/next-js.git
@@ -73,10 +74,10 @@ git config user.email "participants@workshops.aws"
 git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/applications/next-js ${REPO_ROOT}/applications/gitea/
 git add .
-git -c http.sslVerify=false commit -m "first commit" --no-verify
+git -c http.sslVerify=false commit -m "first commit"
 git remote remove origin
 git remote add origin https://$DOMAIN_NAME/gitea/$USERNAME/next-js.git
-git -c http.sslVerify=false push -u origin main --no-verify
+git -c http.sslVerify=false push -u origin main
 
 cd ..
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/rust.git
@@ -85,10 +86,10 @@ git config user.email "participants@workshops.aws"
 git config user.name "Workshop Participant"
 cp -r ${REPO_ROOT}/applications/rust ${REPO_ROOT}/applications/gitea/
 git add .
-git -c http.sslVerify=false commit -m "first commit" --no-verify
+git -c http.sslVerify=false commit -m "first commit"
 git remote remove origin
 git remote add origin https://$DOMAIN_NAME/gitea/$USERNAME/rust.git
-git -c http.sslVerify=false push -u origin main --no-verify
+git -c http.sslVerify=false push -u origin main
 
 cd ..
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/terraform-eks.git
@@ -104,10 +105,25 @@ cp ${REPO_ROOT}/platform/infra/terraform/create-cluster.sh  ${REPO_ROOT}/applica
 cp ${REPO_ROOT}/platform/infra/terraform/create-database.sh ${REPO_ROOT}/applications/gitea/terraform-eks/
 
 git add .
-git -c http.sslVerify=false commit -m "first commit" --no-verify
+git -c http.sslVerify=false commit -m "first commit"
 git remote remove origin
 git remote add origin https://$DOMAIN_NAME/gitea/$USERNAME/terraform-eks.git
-git -c http.sslVerify=false push -u origin main --no-verify
+git -c http.sslVerify=false push -u origin main
+
+# Copying Templates and Addons for Backstage and OAM
+cd ..
+git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/platform.git
+cd platform
+git config user.email "participants@workshops.aws"
+git config user.name "Workshop Participant"
+cp -r ${REPO_ROOT}/deployment/addons/kubevela ${REPO_ROOT}/applications/gitea/platform/
+cp -r ${REPO_ROOT}/platform/backstage ${REPO_ROOT}/applications/gitea/platform/
+mkdir -p ${REPO_ROOT}/applications/gitea/platform/backstage/customtemplate
+git add .
+git -c http.sslVerify=false commit -m "first commit"
+git remote remove origin
+git remote add origin https://$DOMAIN_NAME/gitea/$USERNAME/platform.git
+git -c http.sslVerify=false push -u origin main
 
 # cleanup temp gitea folder
 rm -rf ${REPO_ROOT}/applications/gitea
