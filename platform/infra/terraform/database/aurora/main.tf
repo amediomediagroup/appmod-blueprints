@@ -101,7 +101,7 @@ resource "aws_rds_cluster" "rds_cluster_mod_engg_wksp" {
   engine_mode    = "provisioned"
   engine_version = "16.3"
 
-  database_name   = "northwind"
+  database_name   = "modern-engg"
   master_username = local.db_creds.username
   master_password = local.db_creds.password
 
@@ -166,6 +166,6 @@ resource "aws_secretsmanager_secret_version" "db_credentials_updated" {
       host            = aws_rds_cluster.rds_cluster_mod_engg_wksp.endpoint
       port            = aws_rds_cluster.rds_cluster_mod_engg_wksp.port
       dbClusterIdentifier = aws_rds_cluster.rds_cluster_mod_engg_wksp.cluster_identifier
-      dbname          = aws_rds_cluster.rds_cluster_mod_engg_wksp.database_name
+      dbname          = "northwind"
     })
   }

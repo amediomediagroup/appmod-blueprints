@@ -14,6 +14,13 @@ resource "aws_s3_object" "northwind_script" {
   etag   = filemd5("${path.module}/../samples/northwind_sqlserver.sql")
 }
 
+resource "aws_s3_object" "northwind_postgresql_script" {
+  bucket = aws_s3_bucket.sql_scripts.id
+  key    = "scripts/northwind_postgresql.sql"
+  source = "${path.module}/../samples/northwind_postgresql.sql"
+  etag   = filemd5("${path.module}/../samples/northwind_postgresql.sql")
+}
+
 resource "aws_security_group" "ec2_sg" {
   name        = "${var.name_prefix}ec2_sql_server_sg"
   description = "Security group for EC2 SQL Server instance"
@@ -430,36 +437,48 @@ resource "aws_instance" "sql_server_instance" {
 
               # Download SQL scripts from S3
               $bucket = "${aws_s3_bucket.sql_scripts.id}"
-              $key = "scripts/northwind_sqlserver.sql"
-              $destination = "C:\SQLScripts\northwind_sqlserver.sql"
+              $files = @(
+                  @{
+                      key = "scripts/northwind_sqlserver.sql"
+                      destination = "C:\SQLScripts\northwind_sqlserver.sql"
+                  },
+                  @{
+                      key = "scripts/northwind_postgresql.sql"
+                      destination = "C:\SQLScripts\northwind_postgresql.sql"
+                  }
+              )
 
               Write-Host "Downloading SQL scripts from S3..."
-              Try {
-                  Read-S3Object -BucketName $bucket -Key $key -File $destination
-                  Write-Host "Successfully downloaded SQL scripts from S3"
-              } Catch {
-                  Write-Host "Error downloading SQL scripts from S3: $_"
-                  Exit 1
+              foreach ($file in $files) {
+                  Try {
+                      Read-S3Object -BucketName $bucket -Key $file.key -File $file.destination
+                      Write-Host "Successfully downloaded $($file.key) from S3"
+                  } Catch {
+                      Write-Host "Error downloading $($file.key) from S3: $_"
+                      Exit 1
+                  }
               }
+              Write-Host "All SQL scripts downloaded successfully"
 
               # Wait for SQL Server to be ready
               Start-Sleep -Seconds 30
 
-              # Execute the SQL script
-              Write-Host "Executing SQL scripts..."
+              # Execute only the SQL Server script
+              Write-Host "Executing SQL Server script..."
               $env:Path += ";C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn"
 
               Try {
-                  $result = sqlcmd -S localhost -E -i $destination
+                  $sqlServerScript = "C:\SQLScripts\northwind_sqlserver.sql"
+                  $result = sqlcmd -S localhost -E -i $sqlServerScript
                   if ($LASTEXITCODE -eq 0) {
-                      Write-Host "Successfully executed SQL scripts"
+                      Write-Host "Successfully executed SQL Server script"
                   } else {
-                      Write-Host "Error executing SQL scripts"
+                      Write-Host "Error executing SQL Server script"
                       Write-Host $result
                       Exit 1
                   }
               } Catch {
-                  Write-Host "Exception while executing SQL scripts: $_"
+                  Write-Host "Exception while executing SQL Server script: $_"
                   Exit 1
               }
 
