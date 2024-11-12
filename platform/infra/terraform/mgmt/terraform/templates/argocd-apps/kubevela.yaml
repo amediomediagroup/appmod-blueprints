@@ -14,7 +14,7 @@ spec:
     targetRevision: HEAD
     path: deployment/addons/kubevela
   destination:
-    name: 'in-cluster'
+    server: "https://kubernetes.default.svc"
     namespace: vela-system
   syncPolicy:
     automated:
