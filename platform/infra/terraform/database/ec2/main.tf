@@ -323,7 +323,7 @@ resource "aws_instance" "sql_server_instance" {
               GO
 
               -- Set password for 'sa' account
-              ALTER LOGIN sa WITH PASSWORD = '$(${saPasswordPlain})'
+              ALTER LOGIN sa WITH PASSWORD = '${saPasswordPlain}'
               GO
 
               -- Ensure 'sa' has sysadmin role
@@ -336,11 +336,11 @@ resource "aws_instance" "sql_server_instance" {
               -- Create login for application user if it doesn't exist
               IF NOT EXISTS (SELECT * FROM sys.server_principals WHERE name = 'netappuser')
               BEGIN
-                  CREATE LOGIN netappuser WITH PASSWORD = '$(${netappuserPasswordPlain})'
+                  CREATE LOGIN netappuser WITH PASSWORD = '${netappuserPasswordPlain}'
               END
               ELSE
               BEGIN
-                  ALTER LOGIN netappuser WITH PASSWORD = '$(${netappuserPasswordPlain})'
+                  ALTER LOGIN netappuser WITH PASSWORD = '${netappuserPasswordPlain}'
               END
               GO
 
