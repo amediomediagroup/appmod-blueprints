@@ -186,6 +186,20 @@ spec:
                 value: cache-init
           depends: "clone"
 
+        - name: edit-tag
+          template: update-image-tag
+          arguments:
+            parameters:
+              - name: env
+                value: dev
+              - name: tag
+                value: "{{workflow.parameters.tag-version}}"
+              - name: apprepo
+                value: "{{workflow.parameters.apprepo}}"
+              - name: deployment-path
+                value: "{{workflow.parameters.deployment-path}}"
+          depends: "warmup"
+
   - name: cleandir 
     container:
       volumeMounts:
@@ -265,6 +279,52 @@ spec:
                 --cache=true \
                 --skip-tls-verify"
                 ]
+
+  - name: update-image-tag
+    inputs:
+      parameters:
+        - name: env 
+        - name: tag
+        - name: apprepo
+        - name: deployment-path
+    container:
+      envFrom:
+      - secretRef:
+          name: "{{workflow.parameters.appname}}-gitea-token"
+      - configMapRef:
+          name: "{{workflow.parameters.appname}}-ecr-repo"
+      volumeMounts:
+        - mountPath: /workdir
+          name: workdir
+      image: alpine/git:v2.45.2
+      workingDir: /workdir
+      command: ['/bin/sh']
+      args:
+        - -c
+        - |
+          apk add --no-cache sed
+          set -ex
+          DEPLOY_PATH="{{inputs.parameters.deployment-path}}/{{inputs.parameters.env}}"
+          tag="{{inputs.parameters.tag}}"
+          mkdir -p $DEPLOY_PATH
+          echo "$image:{{inputs.parameters.tag}}" > ./deployment/"{{inputs.parameters.env}}"/image.txt
+          if [ -f $DEPLOY_PATH/application.yml ]; then
+            sed  -i 's+image: <image>.*+image: '"${image}:${tag}"'+g' "${DEPLOY_PATH}/application.yml"
+            sed  -i 's+image: '"$image"'.*+image: '"${image}:${tag}"'+g' "${DEPLOY_PATH}/application.yml"
+          fi
+          m_count=$(git status -s | wc -l)
+          if [ $m_count -ge 1 ]; then
+            git config --global user.email "noreply@aws.com" 
+            git config --global user.name ARGO
+            git remote set-url origin https://giteaAdmin:${token}@"{{inputs.parameters.apprepo}}".git
+            git add "{{inputs.parameters.deployment-path}}"
+            image_version="{{inputs.parameters.tag}}"
+            git commit -m "[SKIP CI] Updated image version to $image_version"
+            git push --set-upstream origin main
+          else
+            echo "No updates to values file, skipping git push"
+          fi
+
 
 
 
