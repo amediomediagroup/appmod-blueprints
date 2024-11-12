@@ -123,5 +123,8 @@ spec:
       - title: Open in catalog
         icon: catalog
         entityRef: ${{ steps['register'].output.entityRef }}
+      - title: Open in argo workflows
+        url: https://${{ parameters.hostname }}/argo-workflows/workflows/team-${{ parameters.appname }}
+
 
 
