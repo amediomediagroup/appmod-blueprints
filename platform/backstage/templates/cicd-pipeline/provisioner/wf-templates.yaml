@@ -157,7 +157,8 @@ spec:
       value: ${{values.aws_region}}
     - name: dockerfile_path
       value: ${{values.dockerfile_path}}
-
+    - name: deployment_path
+      value: ${{values.deployment_path}}
 
   templates:
   - name: cicd-warmup
@@ -183,7 +184,7 @@ spec:
               - name: dockerfile-path
                 value: "{{workflow.parameters.dockerfile_path}}"
               - name: tag-version
-                value: cache-init
+                value: init
           depends: "clone"
 
         - name: edit-tag
@@ -193,11 +194,11 @@ spec:
               - name: env
                 value: dev
               - name: tag
-                value: "{{workflow.parameters.tag-version}}"
+                value: init
               - name: apprepo
                 value: "{{workflow.parameters.apprepo}}"
               - name: deployment-path
-                value: "{{workflow.parameters.deployment-path}}"
+                value: "{{workflow.parameters.deployment_path}}"
           depends: "warmup"
 
   - name: cleandir 
