@@ -71,6 +71,7 @@ spec:
           hostname: ${{parameters.hostname}}
           gitea_token: ${{secrets.gitea_token}}
           dockerfile_path: ${{parameters.dockerfile_path}}
+          deployment_path: ${{parameters.deployment_path}}
 
     - action: cnoe:kubernetes:apply
       name: Apply Provisioner IAM

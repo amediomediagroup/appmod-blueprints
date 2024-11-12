@@ -32,6 +32,8 @@ spec:
       value: ${{values.hostname}}/gitea/giteaAdmin/${{values.appname}}
     - name: dockerfile_path
       value: ${{values.dockerfile_path}}
+    - name: deployment_path
+      value: ${{values.deployment_path}}
 
   templates:
   - name: main
@@ -67,3 +69,5 @@ spec:
             value: "{{workflow.parameters.aws_region}}"
           - name: dockerfile_path
             value: "{{workflow.parameters.dockerfile_path}}"
+          - name: deployment_path
+            value: "{{workflow.parameters.deployment_path}}"
