@@ -11,8 +11,8 @@ spec:
     cue:
       template: |2
         let previewService = "\(context.name)-preview"
-        let ampWorkspaceUrl = "{{ \"{{\" }}args.amp-workspace-url{{ \"}}\" }}"
-        let ampWorkspaceRegion = "{{ \"{{\" }}args.amp-workspace-region{{ \"}}\" }}"
+        let ampWorkspaceUrl = "{{ "{{" }}args.amp-workspace-url{{ "}}" }}" //TODO: inconsistent with cue, needs to be looked at
+        let ampWorkspaceRegion = "{{ "{{" }}args.amp-workspace-region{{ "}}" }}" //TODO: inconsistent with cue, needs to be looked at
         let prometheusTargetQuery = "k8s_container_name=\"\(parameter.image_name)\", k8s_namespace_name=\"\(context.namespace)\""
 
         output: {
