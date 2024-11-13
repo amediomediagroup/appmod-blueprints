@@ -169,7 +169,7 @@ template: {
 			}
 			spec: {
 				secretStoreRef: {
-					name: "cluster-secretstore-sm"
+					name: "secrets-manager-cs"
 					kind: "ClusterSecretStore"
 				}
 				target: {
