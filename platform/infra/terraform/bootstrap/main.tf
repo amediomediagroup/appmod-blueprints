@@ -29,16 +29,18 @@ locals {
   }
 }
 
-resource "aws_ssm_parameter" "argorollouts_amp_ws" {
-  name  = "/platform/amp-workspace"
-  value = module.managed_service_prometheus.workspace_prometheus_endpoint
-  type  = "SecureString"
+# Create the secret
+resource "aws_secretsmanager_secret" "argorollouts_secret" {
+  name = "/platform/amp"
 }
 
-resource "aws_ssm_parameter" "argorollouts_amp_region" {
-  name  = "/platform/amp-region"
-  value = var.aws_region
-  type  = "SecureString"
+# Create the secret version with key-value pairs
+resource "aws_secretsmanager_secret_version" "argorollouts_secret_version" {
+  secret_id = aws_secretsmanager_secret.argorollouts_secret.id
+  secret_string = jsonencode({
+    amp-region = var.aws_region
+    amp-workspace = module.managed_service_prometheus.workspace_prometheus_endpoint
+  })
 }
 
 module "managed_grafana" {
