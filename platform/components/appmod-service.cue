@@ -12,9 +12,9 @@
 
 template: {
 
-    let previewService = "\(context.name)-preview"
-	let ampWorkspaceUrl = "{{args.amp-workspace-url}}"
-	let ampWorkspaceRegion = "{{args.amp-workspace-region}}"
+  let previewService = "\(context.name)-preview"
+  let ampWorkspaceUrl = "{{ \"{{\" }}args.amp-workspace-url{{ \"}}\" }}"
+  let ampWorkspaceRegion ="{{ \"{{\" }}args.amp-workspace-region{{ \"}}\" }}"
 	let prometheusTargetQuery = "k8s_container_name=\"\(parameter.image_name)\", k8s_namespace_name=\"\(context.namespace)\""
 
 	output: {
@@ -136,11 +136,11 @@ template: {
 		}
 	}
 	outputs: {
-        "appmod-service-service": {
-            apiVersion: "v1"
-            kind:       "Service"
-            metadata: name: context.name
-            spec: {
+    "appmod-service-service": {
+      apiVersion: "v1"
+      kind:       "Service"
+      metadata: name: context.name
+      spec: {
 				selector: app: context.name
 				ports: [{
 					port:       parameter.port
@@ -149,10 +149,10 @@ template: {
             }
         },
 		"appmod-service-preview": {
-            apiVersion: "v1"
-            kind:       "Service"
-            metadata: name: previewService
-            spec: {
+      apiVersion: "v1"
+      kind:       "Service"
+      metadata: name: previewService
+      spec: {
 				selector: app: context.name
 				ports: [{
 					port:       parameter.port
@@ -169,7 +169,7 @@ template: {
 			}
 			spec: {
 				secretStoreRef: {
-					name: "cluster-secretstore-sm"
+					name: "secrets-manager-cs"
 					kind: "ClusterSecretStore"
 				}
 				target: {
@@ -180,13 +180,15 @@ template: {
 					{
 						secretKey: "amp-workspace-url"
 						remoteRef: {
-							key: "/platform/amp-workspace"
+							key: "/platform/amp"
+              property: "amp-workspace"
 						}
 					},
 					{
 						secretKey: "amp-workspace-region"
 						remoteRef: {
-							key: "/platform/amp-region"
+							key: "/platform/amp"
+            property: "amp-region"
 						}
 					}
 				]
@@ -345,11 +347,11 @@ template: {
 	}
 
 	parameter: {
-        image_name: string
-        image: string
-        replicas: *3 | int
-        port: *80 | int
-        targetPort: *8080 | int
+    image_name: string
+    image: string
+    replicas: *3 | int
+    port: *80 | int
+    targetPort: *8080 | int
 		serviceAccount: *"default" | string
 		functionalGate?: #QualityGate
 		performanceGate?: #QualityGate
