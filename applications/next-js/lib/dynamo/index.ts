@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Menu, Page, Product, Category, Cart, CartProduct, ProductVariants } from './types';
 
-const API_URL = process.env.API_BASE_URL ?? 'http://rust-backend';
+const API_URL = process.env.API_BASE_URL ?? 'http://rust-backend.team-rust.svc.cluster.local';
 
 export async function createCart(): Promise<Cart> {
   return fetch(`${API_URL}/cart/create_cart`, {
