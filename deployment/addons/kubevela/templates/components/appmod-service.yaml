@@ -281,7 +281,7 @@ spec:
         									image: parameter.performanceGate.image
         									args: [
         										"\(previewService):\(parameter.port)",
-        										"\(parameter.functionalGate.extraArgs)",
+        										"\(parameter.performanceGate.extraArgs)",
 
         									]
         								},
