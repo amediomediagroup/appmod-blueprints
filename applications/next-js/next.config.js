@@ -13,6 +13,7 @@ module.exports = {
       }
     ]
   },
+  output: "standalone",
   async redirects() {
     return [
       {
