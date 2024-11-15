@@ -434,6 +434,7 @@ resource "aws_instance" "sql_server_instance" {
 
               # Create directories
               New-Item -ItemType Directory -Force -Path "C:\SQLScripts"
+              New-Item -ItemType Directory -Force -Path "C:\Modern-Eng-Workshop"
 
               # Download SQL scripts from S3
               $bucket = "${aws_s3_bucket.sql_scripts.id}"
