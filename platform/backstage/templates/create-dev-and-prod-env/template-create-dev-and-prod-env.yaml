@@ -21,7 +21,8 @@ spec:
           title: Region
           type: string
         repoUrl:
-          title: DNS of Gitea that was setup. Example - modern-engg-XXXXXXXXXX.elb.us-west-2.amazonaws.com
+          title: Gitea URL
+          description: Gitea URL on Management Cluster
           type: string
       title: Configuration Options
       required:
