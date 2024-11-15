@@ -23,19 +23,6 @@ export default function WishlistModal({ wishlist }: { wishlist: Wishlist | undef
   const openWishlist = () => setIsOpen(true);
   const closeWishlist = () => setIsOpen(false);
 
-  useEffect(() => {
-    // Open wishlist modal when quantity changes.
-    if (wishlist?.products.length !== quantityRef.current) {
-      // But only if it's not already open (quantity also changes when editing items in wishlist).
-      if (!isOpen) {
-        setIsOpen(true);
-      }
-
-      // Always update the quantity reference
-      quantityRef.current = wishlist?.products.length;
-    }
-  }, [isOpen, wishlist?.products.length, quantityRef]);
-
   return (
     <>
       <button aria-label="Open wishlist" onClick={openWishlist}>
