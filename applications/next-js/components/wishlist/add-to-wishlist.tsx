@@ -1,12 +1,12 @@
 'use client';
 
-import { PlusIcon } from '@heroicons/react/24/outline';
+import {BookmarkIcon, PlusIcon} from '@heroicons/react/24/outline';
 import clsx from 'clsx';
-import { addItem } from 'components/cart/actions';
 import LoadingDots from 'components/loading-dots';
 import { CartProduct, Product, ProductVariants } from 'lib/dynamo/types';
 import { useSearchParams } from 'next/navigation';
 import { useFormState, useFormStatus } from 'react-dom';
+import {addWishlistItem} from "./actions";
 
 function SubmitButton({ selectedVariantId }: { selectedVariantId: string | undefined }) {
   const { pending } = useFormStatus();
@@ -22,9 +22,9 @@ function SubmitButton({ selectedVariantId }: { selectedVariantId: string | undef
         className={clsx(buttonClasses, disabledClasses)}
       >
         <div className="absolute left-0 ml-4">
-          <PlusIcon className="h-5" />
+          <BookmarkIcon className="h-5" />
         </div>
-        Add To Cart
+        Add To Wishlist
       </button>
     );
   }
@@ -42,9 +42,9 @@ function SubmitButton({ selectedVariantId }: { selectedVariantId: string | undef
       })}
     >
       <div className="absolute left-0 ml-4">
-        {pending ? <LoadingDots className="mb-3 bg-white" /> : <PlusIcon className="h-5" />}
+        {pending ? <LoadingDots className="mb-3 bg-white" /> : <BookmarkIcon className="h-5" />}
       </div>
-      Add To Cart
+      Add to Wishlist
     </button>
   );
 }
@@ -56,7 +56,7 @@ export function AddToWishlist({
   product: Product;
   variants: ProductVariants[];
 }) {
-  const [message, formAction] = useFormState(addItem, null);
+  const [message, formAction] = useFormState(addWishlistItem, null);
   const searchParams = useSearchParams();
   const defaultVariantId = variants.length === 1 ? variants[0]?.id : undefined;
   const variant = variants[0];

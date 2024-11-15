@@ -1,12 +1,12 @@
 'use server';
 
 import { TAGS } from 'lib/constants';
-import { addToWishlist, createWishlist, getWishlist } from 'lib/dynamo';
+import { addToWishlist, createWishlist, getWishlist, removeFromWishlist } from 'lib/dynamo';
 import { revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
-import {Product, Wishlist} from '../../lib/dynamo/types';
+import {CartProduct, Product, Wishlist} from '../../lib/dynamo/types';
 
-export async function addWishlistItem(prevState: any, wishlistItem: Product) {
+export async function addWishlistItem(prevState: any, wishlistItem: CartProduct) {
   let wishlistId = cookies().get('wishlistId')?.value;
   let wishlist;
 

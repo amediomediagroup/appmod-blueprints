@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Menu, Page, Product, Category, Cart, CartProduct, ProductVariants } from './types';
+import {Menu, Page, Product, Category, Cart, CartProduct, ProductVariants, Wishlist} from './types';
 
 const API_URL = process.env.API_BASE_URL ?? 'http://rust-backend.team-rust.svc.cluster.local';
 
@@ -47,6 +47,50 @@ export async function getCart(cartId: string): Promise<Cart> {
   return await fetch(`${API_URL}/cart/get_cart/${cartId}`).then(
     async (res) => (await res.json()) as Cart
   );
+}
+
+/*
+- POST /wishlist/new: Creates a new wishlist, returns a full wishlist object.
+- POST /wishlist/<wishlist_id>/add: Adds a product to the specified wishlist, expects the cart product in the posted json data
+- GET /wishlist/<wishlist_id>: Retrieves the contents of the specified wishlist.
+- POST /wishlist/<wishlist_id>/remove/: Removes a product from the wishlist, expects product ID in the posted json data
+*/
+
+
+export async function createWishlist(): Promise<Wishlist> {
+  return fetch(`${API_URL}/wishlist/new`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(uuidv4())
+  }).then(async (res) => (await res.json()) as Wishlist);
+}
+
+export async function getWishlist(wishlistId: string): Promise<Wishlist> {
+  return await fetch(`${API_URL}/wishlist/${wishlistId}`).then(
+    async (res) => (await res.json()) as Wishlist
+  );
+}
+
+export async function removeFromWishlist(wishlistId: string, wishlistItem: String): Promise<Wishlist> {
+  return fetch(`${API_URL}/wishlist/${wishlistId}/remove/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ wishlistItem })
+  }).then(async (res) => (await res.json()) as Wishlist);
+}
+
+export async function addToWishlist(wishlistId: string, wishlistItem: CartProduct): Promise<Wishlist> {
+  return fetch(`${API_URL}/wishlist/${wishlistId}/add`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(wishlistItem)
+  }).then(async (res) => (await res.json()) as Wishlist);
 }
 
 export async function getCategory(categoryName: string): Promise<Category> {
