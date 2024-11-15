@@ -66,6 +66,6 @@ export type Cart = {
 
 export type Wishlist = {
   id: string;
-  products: Product[];
+  products: CartProduct[];
 };
 

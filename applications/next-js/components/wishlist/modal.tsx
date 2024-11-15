@@ -4,7 +4,7 @@ import { Dialog, Transition } from '@headlessui/react';
 import { BookmarkIcon } from '@heroicons/react/24/outline';
 import Price from 'components/price';
 import { DEFAULT_OPTION } from 'lib/constants';
-import type { Cart } from 'lib/dynamo/types';
+import type {Wishlist} from 'lib/dynamo/types';
 import { createUrl } from 'lib/utils';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -17,7 +17,7 @@ type MerchandiseSearchParams = {
   [key: string]: string;
 };
 
-export default function WishlistModal({ wishlist }: { wishlist: Cart | undefined }) {
+export default function WishlistModal({ wishlist }: { wishlist: Wishlist | undefined }) {
   const [isOpen, setIsOpen] = useState(false);
   const quantityRef = useRef(wishlist?.products.length);
   const openWishlist = () => setIsOpen(true);
