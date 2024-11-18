@@ -14,13 +14,5 @@ module.exports = {
     ]
   },
   output: "standalone",
-  async redirects() {
-    return [
-      {
-        source: '/password',
-        destination: '/',
-        permanent: true
-      }
-    ];
-  }
+  basePath: '/unicorn',
 };
