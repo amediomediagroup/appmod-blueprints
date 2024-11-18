@@ -141,7 +141,7 @@ pub async fn get_categories(
             Ok(res) => {
                 let categories = res
                     .into_iter()
-                    .filter(|category: Category| category.visible)
+                    .filter(|category: &Category| category.visible)
                     .collect::<Vec<Category>>();
                 UIResponder::Ok(Json::from(categories))
             },
