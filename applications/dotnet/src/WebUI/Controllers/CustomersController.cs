@@ -14,6 +14,7 @@ namespace Northwind.WebUI.Controllers
     public class CustomersController : BaseController
     {
         [HttpGet]
+        [AllowAnonymous]
         public async Task<ActionResult<CustomersListVm>> GetAll()
         {
             var vm = await Mediator.Send(new GetCustomersListQuery());
@@ -22,6 +23,7 @@ namespace Northwind.WebUI.Controllers
         }
 
         [HttpGet("{id}")]
+        [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<CustomerDetailVm>> Get(string id)
