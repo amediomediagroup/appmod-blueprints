@@ -27,6 +27,7 @@ pub struct Category {
     pub title: String,
     pub description: String,
     pub products: Vec<Product>,
+    pub visible: bool
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]

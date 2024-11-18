@@ -1,10 +1,10 @@
 /***
     Implement the following routes:
 
-        - POST /wishlist/new: Creates a new wishlist, returns wishlist ID.
-        - POST /wishlist/<wishlist_id>/add: Adds a product to the specified wishlist.
+        - POST /wishlist/new: Creates a new wishlist, returns a full wishlist object.
+        - POST /wishlist/<wishlist_id>/add: Adds a product to the specified wishlist, expects the cart product in the posted json data
         - GET /wishlist/<wishlist_id>: Retrieves the contents of the specified wishlist.
-        - POST /wishlist/<wishlist_id>/remove/<product_id>: Removes a product from the wishlist.
+        - POST /wishlist/<wishlist_id>/remove/: Removes a product from the wishlist, expects product ID in the posted json data
 
         Use AWS dynamodb to persist wishlist data. Design for concurrent requests, scalability, and performance.
 

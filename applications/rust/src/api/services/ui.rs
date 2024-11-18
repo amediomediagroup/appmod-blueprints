@@ -138,7 +138,13 @@ pub async fn get_categories(
 
     return match results.await {
         Ok(res) => match reconstruct_results::<Category>(res) {
-            Ok(res) => UIResponder::Ok(Json::from(res)),
+            Ok(res) => {
+                let categories = res
+                    .into_iter()
+                    .filter(|category: &Category| category.visible)
+                    .collect::<Vec<Category>>();
+                UIResponder::Ok(Json::from(categories))
+            },
             Err(err) => UIResponder::Err(error!("{:?}", err)),
         },
         Err(err) => {
