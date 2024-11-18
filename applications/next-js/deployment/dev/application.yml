@@ -7,14 +7,15 @@ spec:
     - name: next-js
       type: appmod-service
       properties:
-        image: <image>
+        image: public.ecr.aws/a0m0j3q7/modernengg/nextjs-ui:latest
         image_name: next-js-app
         port: 8080
+        replicas: 1
       traits:
         - type: path-based-ingress
           properties:
             domain: "*.elb.us-west-2.amazonaws.com"
-            rewritePath: true
+            rewritePath: false
             http:
               /unicorn: 8080
         
