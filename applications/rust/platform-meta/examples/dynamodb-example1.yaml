@@ -1,0 +1,27 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: dynamodb-example
+spec:
+  components:
+    - name: dynamodb-table
+      type: dynamodb-table
+      properties:
+        tableName: <my-table-name>
+        partitionKeyName: partition_key
+        sortKeyName: sort_key
+        region: us-west-2
+      traits:
+        - type: component-iam-policy
+          properties:
+            service: dynamodb
+    - name: some-service-account
+      type: dp-service-account
+      properties:
+        componentNamesForAccess:
+          - dynamodb-table
+        clusterName: my-cluster-name
+        clusterRegion: us-west-2
+        dependsOn:
+          - dynamodb-table
+  
