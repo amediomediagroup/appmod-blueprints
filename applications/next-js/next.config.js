@@ -14,5 +14,6 @@ module.exports = {
     ]
   },
   output: "standalone",
+  assetPrefix: "/unicorn",
   basePath: '/unicorn',
 };
