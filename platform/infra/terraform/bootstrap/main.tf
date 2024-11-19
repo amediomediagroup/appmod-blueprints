@@ -95,6 +95,7 @@ module "managed_grafana" {
   saml_name_assertion     = "displayName"
   saml_org_assertion      = "org"
   saml_role_assertion     = "role"
+  saml_login_validity_duration = 120
   # Dummy values for SAML configuration to setup will be updated after keycloak integration
   saml_idp_metadata_url   = var.grafana_keycloak_idp_url
 

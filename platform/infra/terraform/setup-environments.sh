@@ -137,7 +137,7 @@ export AWS_REGION=$TF_VAR_aws_region
 configure_keycloak
 
 # Update SAML Auth for Grafana Workspace
-update_workspace_saml_auth || true
+# update_workspace_saml_auth || true
 
 cd "${REPO_ROOT}/platform/infra/terraform/"
 
