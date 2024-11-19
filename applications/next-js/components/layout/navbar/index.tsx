@@ -7,6 +7,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 import MobileMenu from "./mobile-menu";
 import Search, { SearchSkeleton } from "./search";
+import Wishlist from "../../wishlist";
+import OpenWishlist from "../../wishlist/open-wishlist";
 const { SITE_NAME } = process.env;
 
 export default async function Navbar() {
@@ -25,7 +27,7 @@ export default async function Navbar() {
             href="/"
             className="mr-2 flex w-full items-center justify-center md:w-auto lg:mr-6"
           >
-            <LogoSquare />
+            <LogoSquare/>
             <div className="ml-2 flex-none text-sm font-medium uppercase md:hidden lg:block">
               {SITE_NAME}
             </div>
@@ -46,13 +48,17 @@ export default async function Navbar() {
           ) : null}
         </div>
         <div className="hidden justify-center md:flex md:w-1/3">
-          <Suspense fallback={<SearchSkeleton />}>
-            <Search />
+          <Suspense fallback={<SearchSkeleton/>}>
+            <Search/>
           </Suspense>
         </div>
         <div className="flex justify-end md:w-1/3">
-          <Suspense fallback={<OpenCart />}>
-            <Cart />
+          <Suspense fallback={<OpenWishlist/>}>
+            <Wishlist/>
+          </Suspense>
+          <div className="flex w-5"></div>
+          <Suspense fallback={<OpenCart/>}>
+            <Cart/>
           </Suspense>
         </div>
       </div>

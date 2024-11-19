@@ -63,3 +63,9 @@ export type Cart = {
   cost: string;
   checkoutUrl: string;
 };
+
+export type Wishlist = {
+  id: string;
+  products: CartProduct[];
+};
+

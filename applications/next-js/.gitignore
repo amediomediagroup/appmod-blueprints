@@ -41,5 +41,6 @@ next-env.d.ts
 
 target
 images
+!public/images
 
 .aws-sam

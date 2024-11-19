@@ -4,6 +4,7 @@ import Prose from "components/prose";
 import { Product } from "lib/dynamo/types";
 import { Suspense } from "react";
 import { VariantSelector } from "./variant-selector";
+import {AddToWishlist} from "../wishlist/add-to-wishlist";
 
 export function ProductDescription({ product }: { product: Product }) {
   return (
@@ -29,6 +30,8 @@ export function ProductDescription({ product }: { product: Product }) {
       ) : null}
 
       <Suspense fallback={null}>
+        <AddToWishlist product={product} variants={product.variants} />
+        <div className="flex h-5"></div>
         <AddToCart product={product} variants={product.variants} />
       </Suspense>
     </>

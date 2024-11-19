@@ -1,0 +1,38 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: rust-example-app
+spec:
+  components:
+    - name: rust-app-table
+      type: dynamodb-table
+      properties:
+        tableName: rust-app-table
+        partitionKeyName: pk
+        sortKeyName: sk
+        region: us-west-2
+      traits:
+        - type: component-iam-policy
+          properties:
+            service: dynamodb
+
+    - name: rust-app-sa
+      type: dp-service-account
+      properties:
+        name: rust-app-service-account
+
+    - name: rust-app
+      type: appmod-service
+      properties:
+        image: 929819487611.dkr.ecr.us-west-2.amazonaws.com/modernengg/rust-app:latest
+        image_name: rust-app
+        port: 8000
+        targetPort: 8000
+        replicas: 1
+      traits:
+        - type: path-based-ingress
+          properties:
+            domain: "*.elb.us-west-2.amazonaws.com"
+            rewritePath: true
+            http:
+              "/rust-app": 8000

@@ -106,6 +106,7 @@ pub async fn setup(config: SdkConfig, table_name: String) {
         title: "FRONT Page".to_string(),
         description: "Front Page".to_string(),
         products: front_page_products,
+        visible: false
     };
 
     let front_page_cat_item = match to_item(&front_page_category) {
@@ -215,7 +216,7 @@ fn csv_to_data() -> (Vec<Product>, HashMap<String, Category>) {
                     .map(|image| {
                         Image {
                             url: format!(
-                                "/images/{}",
+                                "https://d2pxm7bxcihgvo.cloudfront.net/{}",
                                 image.to_string()
                             ),
                             alt_text: format!("{} image", csv_product.name),
@@ -243,6 +244,7 @@ fn csv_to_data() -> (Vec<Product>, HashMap<String, Category>) {
                         title: csv_product.category.clone(),
                         products: vec![product.clone()],
                         description: csv_product.category.clone(),
+                        visible: true
                     },
                 );
             }
