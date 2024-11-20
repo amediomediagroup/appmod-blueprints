@@ -1,6 +1,6 @@
 {
     "username": "user1",
-    "email": "",
+    "email": "user1@keycloak.com",
     "firstName": "user",
     "lastName": "one",
     "requiredActions": [],
