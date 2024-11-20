@@ -124,6 +124,7 @@ while true; do\n
     cd /opt/keycloak/bin/\n
     ./kcadm.sh config credentials --server http://localhost:8080/keycloak --realm master --user modernengg-admin --password $KEYCLOAK_ADMIN_PASSWORD --config /tmp/kcadm.config\n
     ./kcadm.sh update realms/master -s sslRequired=NONE --config /tmp/kcadm.config\n
+    ./kcadm.sh update realms/$KEYCLOAK_REALM -s ssoSessionIdleTimeout=7200 --config /tmp/kcadm.config\n
     ./kcadm.sh create roles -r $KEYCLOAK_REALM -s name=grafana-admin --config /tmp/kcadm.config\n
     ./kcadm.sh create roles -r $KEYCLOAK_REALM -s name=grafana-editor --config /tmp/kcadm.config\n
     ./kcadm.sh create roles -r $KEYCLOAK_REALM -s name=grafana-viewer --config /tmp/kcadm.config\n

@@ -169,6 +169,8 @@ aws elbv2 delete-load-balancer --region $TF_VAR_aws_region --load-balancer-arn $
 aws secretsmanager delete-secret --secret-id "modern-engg/keycloak/config" --force-delete-without-recovery --region $TF_VAR_aws_region || true
 
 aws secretsmanager delete-secret --secret-id "modern-engg/amg" --force-delete-without-recovery --region $TF_VAR_aws_region || true
+
+aws secretsmanager delete-secret --secret-id "platform/amp" --force-delete-without-recovery --region $TF_VAR_aws_region || true
 # Delete the cluster if deletion is not clean
 
 aws eks delete-cluster --name $TF_VAR_dev_cluster_name || true
