@@ -8,5 +8,8 @@
     "groups": [
       "/admin"
     ],
+    "realmRoles": [
+      "grafana-admin"
+    ],
     "enabled": true
 }
