@@ -1,14 +1,4 @@
 {
-  "__inputs": [
-    {
-      "name": "DS_AWS-OBSERVABILITY-ACCELERATOR",
-      "label": "aws-observability-accelerator",
-      "description": "",
-      "type": "datasource",
-      "pluginId": "prometheus",
-      "pluginName": "Prometheus"
-    }
-  ],
   "__elements": {},
   "__requires": [
     {
@@ -28,12 +18,6 @@
       "id": "histogram",
       "name": "Histogram",
       "version": ""
-    },
-    {
-      "type": "datasource",
-      "id": "prometheus",
-      "name": "Prometheus",
-      "version": "1.0.0"
     },
     {
       "type": "panel",
@@ -105,7 +89,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+        "uid": "$datasource"
       },
       "fieldConfig": {
         "defaults": {
@@ -186,7 +170,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+            "uid": "$datasource"
           },
           "disableTextWrap": false,
           "editorMode": "code",
@@ -208,7 +192,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+        "uid": "$datasource"
       },
       "fieldConfig": {
         "defaults": {
@@ -260,7 +244,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+            "uid": "$datasource"
           },
           "disableTextWrap": false,
           "editorMode": "code",
@@ -283,7 +267,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+        "uid": "$datasource"
       },
       "fieldConfig": {
         "defaults": {
@@ -338,7 +322,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+            "uid": "$datasource"
           },
           "editorMode": "code",
           "exemplar": true,
@@ -356,7 +340,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+        "uid": "$datasource"
       },
       "fieldConfig": {
         "defaults": {
@@ -410,7 +394,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+            "uid": "$datasource"
           },
           "disableTextWrap": false,
           "editorMode": "code",
@@ -458,7 +442,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+        "uid": "$datasource"
       },
       "fieldConfig": {
         "defaults": {
@@ -540,7 +524,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+            "uid": "$datasource"
           },
           "editorMode": "code",
           "exemplar": true,
@@ -553,7 +537,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+            "uid": "$datasource"
           },
           "editorMode": "code",
           "exemplar": true,
@@ -570,7 +554,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+        "uid": "$datasource"
       },
       "fieldConfig": {
         "defaults": {
@@ -650,7 +634,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+            "uid": "$datasource"
           },
           "editorMode": "code",
           "exemplar": true,
@@ -663,7 +647,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_AWS-OBSERVABILITY-ACCELERATOR}"
+            "uid": "$datasource"
           },
           "editorMode": "code",
           "exemplar": true,
@@ -682,7 +666,27 @@
   "schemaVersion": 39,
   "tags": [],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "default",
+          "value": "default"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Data Source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
   },
   "time": {
     "from": "now-24h",
@@ -698,7 +702,7 @@
     ]
   },
   "timezone": "",
-  "title": "Rust_Metrics",
+  "title": "Rust Metrics",
   "uid": "7wcZ94dnz",
   "version": 9,
   "weekStart": ""
