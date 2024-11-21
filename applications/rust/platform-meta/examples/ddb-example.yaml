@@ -8,8 +8,8 @@ spec:
       type: dynamodb-table
       properties:
         tableName: my-app-table
-        partitionKeyName: pk
-        sortKeyName: sk
+        partitionKeyName: partition_key
+        sortKeyName: sort_key
         region: us-west-2
       traits:
         - type: component-iam-policy
@@ -24,10 +24,10 @@ spec:
     - name: my-app
       type: appmod-service
       properties:
-        image: <account>.dkr.ecr.us-west-2.amazonaws.com/modernengg/my-app:latest
+        image: <image>
         image_name: my-app
-        port: 8000
-        targetPort: 8000
+        port: 8080
+        targetPort: 8080
         replicas: 1
       traits:
         - type: path-based-ingress
@@ -35,4 +35,4 @@ spec:
             domain: "*.elb.us-west-2.amazonaws.com"
             rewritePath: true
             http:
-              "/my-app": 8000
+              "/my-app": 8080
