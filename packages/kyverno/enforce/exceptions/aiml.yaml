@@ -36,5 +36,6 @@ spec:
             # TODO: this should be more targeted than blanket *
             - ray*
             - service*
+            - ervice*
             - argo*
             - spark*
