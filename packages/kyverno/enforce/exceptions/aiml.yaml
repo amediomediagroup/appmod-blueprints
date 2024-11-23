@@ -33,9 +33,4 @@ spec:
             - argo
             - spark-operator
           names:
-            # TODO: this should be more targeted than blanket *
-            - ray*
-            - service*
-            - ervice*
-            - argo*
-            - spark*
+            - *
