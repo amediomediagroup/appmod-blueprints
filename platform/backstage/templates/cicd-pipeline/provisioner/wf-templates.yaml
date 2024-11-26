@@ -308,6 +308,10 @@ spec:
           DEPLOY_PATH="{{inputs.parameters.deployment-path}}/{{inputs.parameters.env}}"
           tag="{{inputs.parameters.tag}}"
           mkdir -p $DEPLOY_PATH
+          git config --global user.email "noreply@aws.com" 
+          git config --global user.name ARGO
+          git remote set-url origin https://giteaAdmin:${token}@"{{inputs.parameters.apprepo}}".git
+          git pull --rebase
           echo "$image:{{inputs.parameters.tag}}" > ./deployment/"{{inputs.parameters.env}}"/image.txt
           if [ -f $DEPLOY_PATH/application.yml ]; then
             sed  -i 's+image: <image>.*+image: '"${image}:${tag}"'+g' "${DEPLOY_PATH}/application.yml"
@@ -315,9 +319,6 @@ spec:
           fi
           m_count=$(git status -s | wc -l)
           if [ $m_count -ge 1 ]; then
-            git config --global user.email "noreply@aws.com" 
-            git config --global user.name ARGO
-            git remote set-url origin https://giteaAdmin:${token}@"{{inputs.parameters.apprepo}}".git
             git add "{{inputs.parameters.deployment-path}}"
             image_version="{{inputs.parameters.tag}}"
             git commit -m "[SKIP CI] Updated image version to $image_version"
