@@ -63,6 +63,7 @@ echo "private subnets are : " $TF_eks_cluster_private_subnets
 # For Database and EC2 database
 export TF_eks_cluster_vpc_cidr=$(terraform output -raw vpc_cidr) 
 export TF_eks_cluster_private_az=$(terraform output -json availability_zones)
+echo "private az are : " $TF_eks_cluster_private_az
 export KEYCLOAK_NAMESPACE=keycloak
 export KEYCLOAK_REALM=modernengg
 export KEYCLOAK_USER_ADMIN_PASSWORD=$(openssl rand -base64 8)
@@ -168,12 +169,14 @@ terraform -chdir=dev/db init -reconfigure -backend-config="key=dev/db/db-ec2-clu
   -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
 # Apply the infrastructure changes to deploy DB DEV cluster
-terraform -chdir=dev/db apply -var aws_region="${TF_VAR_aws_region}" \
+terraform -chdir=dev/db plan -var aws_region="${TF_VAR_aws_region}" \
   -var vpc_id="${TF_eks_cluster_vpc_id}" \
   -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
   -var availability_zones="${TF_eks_cluster_private_az}" \
   -var vpc_cidr="${TF_eks_cluster_vpc_cidr}" \
-  -var key_name="ws-default-keypair" -var region="${TF_VAR_aws_region}" -auto-approve &
+  -var key_name="ws-default-keypair" -var region="${TF_VAR_aws_region}" -out=devdbplan
+
+terraform -chdir=dev/db apply "devdbplan" &
 
 export DEV_DB_PROCESS=$!
 
@@ -184,13 +187,15 @@ terraform -chdir=dev init -reconfigure -backend-config="key=dev/eks-accelerator-
   -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
 # Apply the infrastructure changes to deploy EKS DEV cluster and install EKS observability Accelerator
-terraform -chdir=dev apply -var aws_region="${TF_VAR_aws_region}" \
+terraform -chdir=dev plan -var aws_region="${TF_VAR_aws_region}" \
   -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
   -var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
   -var cluster_name="${TF_VAR_dev_cluster_name}" \
   -var vpc_id="${TF_eks_cluster_vpc_id}" \
   -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
-  -var grafana_api_key="${AMG_API_KEY}" -auto-approve &
+  -var grafana_api_key="${AMG_API_KEY}"  -out=devplan
+
+terraform -chdir=dev apply "devplan" &
 
 export DEV_EKS_PROCESS=$!
 
@@ -205,13 +210,15 @@ terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerato
   -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
 # Apply the infrastructure changes to deploy EKS PROD cluster and deploy observability accelerator
-terraform -chdir=prod apply -var aws_region="${TF_VAR_aws_region}" \
+terraform -chdir=prod plan -var aws_region="${TF_VAR_aws_region}" \
   -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
   -var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
   -var cluster_name="${TF_VAR_prod_cluster_name}" \
   -var vpc_id="${TF_eks_cluster_vpc_id}" \
   -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
-  -var grafana_api_key="${AMG_API_KEY}" -auto-approve &
+  -var grafana_api_key="${AMG_API_KEY}" -out=prodplan
+
+terraform  -chdir=prod apply "prodplan" &  
 
 export PROD_EKS_PROCESS=$!
 # Wait for both processes to complete

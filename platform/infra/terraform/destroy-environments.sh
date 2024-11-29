@@ -100,12 +100,14 @@ terraform -chdir=dev/db init -reconfigure -backend-config="key=dev/db/db-ec2-clu
   -backend-config="dynamodb_table=$TF_VAR_state_ddb_lock_table"
 
 # Destroy the infrastructure changes to deploy DB DEV cluster
-terraform -chdir=dev/db destroy -var aws_region="${TF_VAR_aws_region}" \
+terraform -chdir=dev/db plan -destroy -var aws_region="${TF_VAR_aws_region}" \
   -var vpc_id="${TF_eks_cluster_vpc_id}" \
   -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
   -var availability_zones="${TF_eks_cluster_private_az}" \
   -var vpc_cidr="${TF_eks_cluster_vpc_cidr}" \
-  -var key_name="ws-default-keypair" -auto-approve
+  -var key_name="ws-default-keypair" -out=devdbdestroyplan
+
+terraform -chdir=dev/db apply "devdbdestroyplan"
 
 # Initialize backend for DEV cluster
 terraform -chdir=dev init -reconfigure -backend-config="key=dev/eks-accelerator-vpc.tfstate" \
@@ -116,13 +118,15 @@ terraform -chdir=dev init -reconfigure -backend-config="key=dev/eks-accelerator-
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_dev_cluster_name
 
 # Destroy the infrastructure changes to deploy EKS DEV cluster and install EKS observability Accelerator
-terraform -chdir=dev destroy -var aws_region="${TF_VAR_aws_region}" \
+terraform -chdir=dev plan -destroy -var aws_region="${TF_VAR_aws_region}" \
 -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
 -var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
 -var cluster_name="${TF_VAR_dev_cluster_name}" \
 -var vpc_id="${TF_eks_cluster_vpc_id}" \
 -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
--var grafana_api_key="${AMG_API_KEY}" -auto-approve -lock=false
+-var grafana_api_key="${AMG_API_KEY}" -out=devdestroyplan
+
+terraform -chdir=dev apply "devdestroyplan"
 
 # Initialize backend for PROD cluster
 terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerator-vpc.tfstate" \
@@ -133,13 +137,15 @@ terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerato
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_prod_cluster_name
 
 # Destroy the infrastructure changes to deploy EKS PROD cluster and deploy observability accelerator
-terraform -chdir=prod destroy -var aws_region="${TF_VAR_aws_region}" \
+terraform -chdir=prod plan -destroy -var aws_region="${TF_VAR_aws_region}" \
 -var managed_grafana_workspace_id="${TF_VAR_managed_grafana_workspace_id}" \
 -var managed_prometheus_workspace_id="${TF_VAR_managed_prometheus_workspace_id}" \
 -var cluster_name="${TF_VAR_prod_cluster_name}" \
 -var vpc_id="${TF_eks_cluster_vpc_id}" \
 -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
--var grafana_api_key="${AMG_API_KEY}" -auto-approve -lock=false
+-var grafana_api_key="${AMG_API_KEY}" -out=proddestroyplan
+
+terraform -chdir=prod apply "proddestroyplan"
 
 # Empty the state bucket manually if needed. This is intentionally kept commented to protect the state files
 # aws s3 rm s3://$TF_VAR_state_s3_bucket --recursive
@@ -170,12 +176,20 @@ aws secretsmanager delete-secret --secret-id "modern-engg/keycloak/config" --for
 
 aws secretsmanager delete-secret --secret-id "modern-engg/amg" --force-delete-without-recovery --region $TF_VAR_aws_region || true
 
-aws secretsmanager delete-secret --secret-id "platform/amp" --force-delete-without-recovery --region $TF_VAR_aws_region || true
+aws secretsmanager delete-secret --secret-id "/platform/amp" --force-delete-without-recovery --region $TF_VAR_aws_region || true
+
+aws secretsmanager delete-secret --secret-id "modern-engg-aurora" --force-delete-without-recovery --region $TF_VAR_aws_region || true
+
+aws secretsmanager delete-secret --secret-id "modern-engg-sqlserver" --force-delete-without-recovery --region $TF_VAR_aws_region || true
 # Delete the cluster if deletion is not clean
 
 aws eks delete-cluster --name $TF_VAR_dev_cluster_name || true
 
 aws eks delete-cluster --name $TF_VAR_prod_cluster_name || true
+
+# Delete the providers
+kubectl delete providers.pkg.crossplane.io provider-aws-apigatewayv2 provider-aws-dynamodb provider-aws-eks provider-aws-iam || true
+kubectl delete providers.pkg.crossplane.io provider-aws-lambda provider-aws-rds provider-aws-s3 provider-family-aws || true
 
 # Cleanup the IDP Builder and applications
 ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/uninstall.sh
