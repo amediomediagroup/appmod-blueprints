@@ -1,7 +1,7 @@
 resource "random_password" "backstage_postgres_password" {
   length           = 48
-  special          = true
-  override_special = "@$"
+  special          = false
+  # override_special = "!#"
 }
 
 resource "kubernetes_manifest" "namespace_backstage" {
