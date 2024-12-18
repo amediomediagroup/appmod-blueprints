@@ -1,5 +1,5 @@
 resource "random_password" "backstage_postgres_password" {
-  length           = 48
+  length           = 16
   special          = false
   # override_special = "!#"
 }
