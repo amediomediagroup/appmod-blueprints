@@ -10,11 +10,11 @@ hub:
           key: JUPYTERHUB_OAUTH_CLIENT_SECRET
   config:
     GenericOAuthenticator:
-      oauth_callback_url: https://cnoe.localtest.me:8443/jupyterhub/hub/oauth_callback
+      oauth_callback_url: ${JUPYTERHUB_DOMAIN_NAME}/jupyterhub/hub/oauth_callback
       client_id: jupyterhub
-      authorize_url: https://cnoe.localtest.me:8443/keycloak/realms/cnoe/protocol/openid-connect/auth
-      token_url: https://cnoe.localtest.me:8443/keycloak/realms/cnoe/protocol/openid-connect/token
-      userdata_url: https://cnoe.localtest.me:8443/keycloak/realms/cnoe/protocol/openid-connect/userinfo
+      authorize_url: ${JUPYTERHUB_DOMAIN_NAME}/keycloak/realms/modernengg/protocol/openid-connect/auth
+      token_url: ${JUPYTERHUB_DOMAIN_NAME}/keycloak/realms/modernengg/protocol/openid-connect/token
+      userdata_url: ${JUPYTERHUB_DOMAIN_NAME}/keycloak/realms/modernengg/protocol/openid-connect/userinfo
       scope:
         - openid
         - profile
