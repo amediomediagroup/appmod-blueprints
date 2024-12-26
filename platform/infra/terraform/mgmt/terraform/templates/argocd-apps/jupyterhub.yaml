@@ -27,11 +27,11 @@ spec:
                     key: JUPYTERHUB_OAUTH_CLIENT_SECRET
             config:
               GenericOAuthenticator:
-                oauth_callback_url: ${JUPYTERHUB_URL}/jupyterhub/hub/oauth_callback
+                oauth_callback_url: ${JUPYTERHUB_DOMAIN}/hub/oauth_callback
                 client_id: jupyterhub
-                authorize_url: https://cnoe.localtest.me:8443/keycloak/realms/modernengg/protocol/openid-connect/auth
-                token_url: https://cnoe.localtest.me:8443/keycloak/realms/modernengg/protocol/openid-connect/token
-                userdata_url: https://cnoe.localtest.me:8443/keycloak/realms/modernengg/protocol/openid-connect/userinfo
+                authorize_url: ${KC_URL}/protocol/openid-connect/auth
+                token_url: ${KC_URL}/protocol/openid-connect/token
+                userdata_url: ${KC_URL}/protocol/openid-connect/userinfo
                 scope:
                   - openid
                   - profile
@@ -42,8 +42,8 @@ spec:
                 authenticator_class: generic-oauth
       chart: jupyterhub
     - repoURL: ${GITHUB_URL} 
-      targetRevision: HEAD
-      path: "manifests"
+      targetRevision: feat/jupyterhub 
+      path: "packages/jupyterhub/dev"
   destination:
     server: "https://kubernetes.default.svc"
     namespace: jupyterhub
