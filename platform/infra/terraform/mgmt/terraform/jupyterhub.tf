@@ -23,7 +23,7 @@
 resource "kubectl_manifest" "applications-argocd-jupyterhub" {
   yaml_body = templatefile("${path.module}/templates/argocd-apps/jupyterhub.yaml", {
     GITHUB_URL     = local.repo_url,
-    JUPYTERHUB_URL = "${local.domain_name}/jupyterhub",
+    JUPYTERHUB_URL = "https://${local.domain_name}/jupyterhub",
     KC_URL         = local.kc_url
     }
   )
