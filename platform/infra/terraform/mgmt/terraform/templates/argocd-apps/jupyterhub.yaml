@@ -25,6 +25,9 @@ spec:
                   secretKeyRef:
                     name: jupyterhub-oidc
                     key: JUPYTERHUB_OAUTH_CLIENT_SECRET
+            db:
+              pvc:
+                storageClassName: gp2
             config:
               GenericOAuthenticator:
                 oauth_callback_url: ${JUPYTERHUB_URL}/hub/oauth_callback
@@ -41,9 +44,6 @@ spec:
               JupyterHub:
                 authenticator_class: generic-oauth
       chart: jupyterhub
-    - repoURL: ${GITHUB_URL} 
-      targetRevision: feat/jupyterhub 
-      path: "packages/jupyterhub/dev"
   destination:
     server: "https://kubernetes.default.svc"
     namespace: jupyterhub
