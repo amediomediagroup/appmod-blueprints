@@ -1,4 +1,3 @@
-rm -f ${JUPYTERHUB_DIR}/values.yaml
 ADMIN_PASSWORD=$(kubectl get secret -n keycloak keycloak-config -o go-template='{{index .data "KEYCLOAK_ADMIN_PASSWORD" | base64decode}}')
 kubectl port-forward -n keycloak svc/keycloak 8080:8080 >/dev/null 2>&1 &
 pid=$!
@@ -21,10 +20,8 @@ KEYCLOAK_TOKEN=$(curl -sS --fail-with-body -X POST -H "Content-Type: application
 
 CLIENT_ID=$(curl -sS -H "Content-Type: application/json" \
   -H "Authorization: bearer ${KEYCLOAK_TOKEN}" \
-  -X GET localhost:8080/keycloak/admin/realms/modernengg/clients | jq -e -r '.[] | select(.clientId == "backstage") | .id')
+  -X GET localhost:8080/keycloak/admin/realms/modernengg/clients | jq -e -r '.[] | select(.clientId == "jupyterhub") | .id')
 
 curl -sS --fail-with-body -H "Content-Type: application/json" \
   -H "Authorization: bearer ${KEYCLOAK_TOKEN}" \
   -X DELETE localhost:8080/keycloak/admin/realms/modernengg/clients/${CLIENT_ID}
-
-kubectl delete configmap -n keycloak jupyterhub-config-job

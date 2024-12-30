@@ -7,14 +7,6 @@ resource "kubernetes_manifest" "namespace_jupyterhub" {
     }
   }
 }
-resource "kubectl_manifest" "applications-argocd-jupyterhub" {
-  yaml_body = templatefile("${path.module}/templates/argocd-apps/jupyterhub.yaml", {
-    GITHUB_URL     = local.repo_url,
-    JUPYTERHUB_URL = "https://${local.domain_name}/jupyterhub",
-    KC_URL         = local.kc_url
-    }
-  )
-}
 
 resource "terraform_data" "jupyterhub-setup" {
   depends_on = [
@@ -38,8 +30,22 @@ resource "terraform_data" "jupyterhub-setup" {
     interpreter = ["/bin/bash", "-c"]
   }
 }
+resource "kubectl_manifest" "applications-argocd-jupyterhub" {
+  depends_on = [
+    terraform_data.jupyterhub-setup
+  ]
+  yaml_body = templatefile("${path.module}/templates/argocd-apps/jupyterhub.yaml", {
+    GITHUB_URL     = local.repo_url,
+    JUPYTERHUB_URL = "https://${local.domain_name}/jupyterhub",
+    KC_URL         = local.kc_url
+    }
+  )
+}
+
 resource "kubectl_manifest" "ingress-jupyterhub" {
-  depends_on = [kubectl_manifest.applications-argocd-jupyterhub]
+  depends_on = [
+    kubectl_manifest.applications-argocd-jupyterhub,
+  ]
   yaml_body = templatefile("${path.module}/templates/manifests/ingress-jupyterhub.yaml", {
     JUPYTERHUB_DOMAIN_NAME = local.domain_name
     }

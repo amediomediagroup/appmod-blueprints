@@ -1,5 +1,4 @@
-CONFIG_YAML="./jupyterhub-config.yaml"
-DOMAIN_NAME=$1
+export DOMAIN_NAME=$1
 
 kubectl wait --for=jsonpath=.status.health.status=Healthy -n argocd application/keycloak
 kubectl wait --for=condition=ready pod -l app=keycloak -n keycloak --timeout=30s
@@ -32,7 +31,7 @@ curl -sS -H "Content-Type: application/json" \
   -X POST --data @config-payloads/client-payload-to-be-applied.json \
   localhost:8080/keycloak/admin/realms/modernengg/clients
 
-CLIENT_ID=$(curl -sS -H "Content-Type: application/json" \
+export CLIENT_ID=$(curl -sS -H "Content-Type: application/json" \
   -H "Authorization: bearer ${KEYCLOAK_TOKEN}" \
   -X GET localhost:8080/keycloak/admin/realms/modernengg/clients | jq -e -r '.[] | select(.clientId == "jupyterhub") | .id')
 
@@ -46,4 +45,3 @@ curl -sS -H "Content-Type: application/json" -H "Authorization: bearer ${KEYCLOA
 
 echo 'storing client secrets to jupyterhub namespace'
 envsubst <secret-env-var.yaml | kubectl apply -f -
-kubectl apply -n jupyterhub -f ${CONFIG_YAML}

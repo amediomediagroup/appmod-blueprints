@@ -43,6 +43,10 @@ spec:
                 allow_all: true # Allows all oauth authenticated users to use Jupyterhub. For finer grained control, you can use `allowed_users`: https://jupyterhub.readthedocs.io/en/stable/tutorial/getting-started/authenticators-users-basics.html#deciding-who-is-allowed
               JupyterHub:
                 authenticator_class: generic-oauth
+          singleuser:
+            storage:
+              dynamic:
+                storageClassName: gp2
       chart: jupyterhub
   destination:
     server: "https://kubernetes.default.svc"
