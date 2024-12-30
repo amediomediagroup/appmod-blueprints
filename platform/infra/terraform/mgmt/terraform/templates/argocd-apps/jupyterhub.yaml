@@ -46,7 +46,7 @@ spec:
           singleuser:
             storage:
               dynamic:
-                storageClassName: gp2
+                storageClass: gp2
       chart: jupyterhub
   destination:
     server: "https://kubernetes.default.svc"
