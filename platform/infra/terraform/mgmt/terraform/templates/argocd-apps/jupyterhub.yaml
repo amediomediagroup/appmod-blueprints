@@ -27,7 +27,7 @@ spec:
                     key: JUPYTERHUB_OAUTH_CLIENT_SECRET
             db:
               pvc:
-                storageClassName: gp2
+                storageClassName: gp3
             config:
               GenericOAuthenticator:
                 oauth_callback_url: ${JUPYTERHUB_URL}/hub/oauth_callback
@@ -46,7 +46,7 @@ spec:
           singleuser:
             storage:
               dynamic:
-                storageClass: gp2
+                storageClass: gp3
       chart: jupyterhub
   destination:
     server: "https://kubernetes.default.svc"
