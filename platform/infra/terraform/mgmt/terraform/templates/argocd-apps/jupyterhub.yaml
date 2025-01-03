@@ -47,6 +47,9 @@ spec:
             storage:
               dynamic:
                 storageClass: gp3
+          proxy:
+            service:
+              type: ClusterIP
       chart: jupyterhub
   destination:
     server: "https://kubernetes.default.svc"
