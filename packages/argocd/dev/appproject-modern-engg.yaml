@@ -28,6 +28,8 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: argo-events
       server: https://kubernetes.default.svc
+    - namespace: jupyterhub
+      server: https://kubernetes.default.svc
     - namespace: aws-load-balancer-controller
       server: https://kubernetes.default.svc
     - namespace: external-dns
