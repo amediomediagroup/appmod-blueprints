@@ -5,6 +5,6 @@
     "ghcr.io/devcontainers-extra/features/kind:1": {},
     "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {},
     "ghcr.io/devcontainers/features/aws-cli:1": {},
-    "ghcr.io/devcontainers-extra/features/terraformer:1": {}
+    "ghcr.io/devcontainers/features/terraform:1": {}
   }
 }
