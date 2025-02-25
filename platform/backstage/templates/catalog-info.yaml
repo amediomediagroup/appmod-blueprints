@@ -6,7 +6,6 @@ metadata:
 spec:
   targets:
     - ./rds-cluster/template.yaml
-    #- ./s3-bucket/template.yaml
     - ./s3-bucket-ack/template.yaml
     - ./app-deploy/template.yaml
     - ./app-deploy-without-repo/template.yaml
