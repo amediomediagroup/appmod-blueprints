@@ -1,0 +1,35 @@
+s3:
+  enabled: true
+  serviceAccount:
+    create: false
+    name: controller-ack-sa
+iam:
+  enabled: true
+  serviceAccount:
+    create: false
+    name: controller-ack-sa
+apigatewayv2:
+  enabled: true
+  serviceAccount:
+    create: false
+    name: controller-ack-sa
+eks:
+  enabled: true
+  serviceAccount:
+    create: false
+    name: controller-ack-sa
+lambda:
+  enabled: true
+  serviceAccount:
+    create: false
+    name: controller-ack-sa
+rds:
+  enabled: true
+  serviceAccount:
+    create: false
+    name: controller-ack-sa
+dynamodb:
+  enabled: true
+  serviceAccount:
+    create: false
+    name: controller-ack-sa

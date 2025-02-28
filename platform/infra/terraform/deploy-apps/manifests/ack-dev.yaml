@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ack
+  namespace: argocd
+  labels:
+    env: dev
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - chart: ack-chart
+      repoURL: oci://public.ecr.aws/aws-controllers-k8s/ack-chart
+      targetRevision: 46.19.33
+      helm:
+        releaseName: ack-chart-dev
+        valueFiles:
+          - $values/packages/ack/dev/values.yaml
+    - repoURL: ${GITHUB_URL}
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: "dev-cluster"
+    namespace: ack-system
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
