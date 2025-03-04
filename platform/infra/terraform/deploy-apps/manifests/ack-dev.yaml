@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ack
+  name: ack-dev
   namespace: argocd
   labels:
     env: dev
@@ -14,10 +14,10 @@ spec:
       repoURL: public.ecr.aws/aws-controllers-k8s
       targetRevision: 46.19.33
       helm:
-        releaseName: ack-chart-dev
+        releaseName: ack-chart
         valueFiles:
           - $values/packages/ack/dev/values.yaml
-    - repoURL: ${GITHUB_URL}
+    - repoURL: https://github.com/aws-samples/appmod-blueprints.git
       targetRevision: HEAD
       ref: values
   destination:

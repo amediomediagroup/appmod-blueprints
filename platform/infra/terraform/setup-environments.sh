@@ -200,6 +200,7 @@ terraform -chdir=dev apply "devplan" &
 export DEV_EKS_PROCESS=$!
 
 export DEV_CP_ROLE_ARN=$(terraform -chdir=dev output -raw crossplane_dev_provider_role_arn)
+export DEV_ACK_ROLE_ARN=$(terraform -chdir=dev output -raw ack_dev_controller_role_arn)
 export DEV_ARGOROLL_ROLE_ARN=$(terraform -chdir=dev output -raw argo_rollouts_dev_role_arn)
 export LB_DEV_ROLE_ARN=$(terraform -chdir=dev output -raw lb_controller_dev_role_arn)
 
@@ -228,6 +229,7 @@ echo "PROD EKS Process PID: $PROD_EKS_PROCESS"
 wait $DEV_DB_PROCESS $DEV_EKS_PROCESS $PROD_EKS_PROCESS
 
 export PROD_CP_ROLE_ARN=$(terraform -chdir=prod output -raw crossplane_prod_provider_role_arn)
+export PROD_ACK_ROLE_ARN=$(terraform -chdir=prod output -raw ack_prod_controller_role_arn)
 export PROD_ARGOROLL_ROLE_ARN=$(terraform -chdir=prod output -raw argo_rollouts_prod_role_arn)
 export LB_PROD_ROLE_ARN=$(terraform -chdir=prod output -raw lb_controller_prod_role_arn)
 
@@ -257,6 +259,10 @@ aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_mgmt_cluste
 
 sed -e "s#DEV_CP_ROLE_ARN#${DEV_CP_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-aws-drc-dev.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/crossplane-aws-drc-dev.yml
 sed -e "s#PROD_CP_ROLE_ARN#${PROD_CP_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-aws-drc-prod.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/crossplane-aws-drc-prod.yml
+
+# Setup ACK ServiceAccount and Role
+sed -e "s#DEV_ACK_ROLE_ARN#${DEV_ACK_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/ack-aws-ira-dev.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/ack-aws-irsa-dev.yml
+sed -e "s#PROD_ACK_ROLE_ARN#${PROD_ACK_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/ack-aws-irsa-prod.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/ack-aws-irsa-prod.yml
 
 # Setup AWS LB controller configs and roles
 sed -e "s#DEV_LB_ROLE_ARN#${LB_DEV_ROLE_ARN}#g" -e "s#DEV_CLUSTER_NAME#${TF_VAR_dev_cluster_name}#g" -e "s#DEV_EKS_VPC_ID#${TF_eks_cluster_vpc_id}#g" -e "s#DEV_EKS_REGION#${TF_VAR_aws_region}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/aws-lb-controller-dev.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/aws-lb-controller-dev.yml
@@ -296,12 +302,14 @@ aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_dev_cluster
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/crossplane-aws-drc-dev.yml
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/cp-dev-env-config.yaml
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/cluster-secret-store.yaml
+kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/ack-aws-irsa-dev.yml
 
 # Setup CrossPlane IRSA for PROD Cluster
 aws eks --region $TF_VAR_aws_region update-kubeconfig --name $TF_VAR_prod_cluster_name
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/crossplane-aws-drc-prod.yml
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/cp-prod-env-config.yaml
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/cluster-secret-store.yaml
+kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/ack-aws-irsa-prod.yml
 
 # Clean git folder inside the terraform folder to avoid conflicts
 rm -rf ${REPO_ROOT}/platform/infra/terraform/.git || true
