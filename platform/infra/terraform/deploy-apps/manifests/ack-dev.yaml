@@ -11,7 +11,7 @@ spec:
   project: default
   sources:
     - chart: ack-chart
-      repoURL: oci://public.ecr.aws/aws-controllers-k8s/ack-chart
+      repoURL: public.ecr.aws/aws-controllers-k8s
       targetRevision: 46.19.33
       helm:
         releaseName: ack-chart-dev
@@ -21,7 +21,7 @@ spec:
       targetRevision: HEAD
       ref: values
   destination:
-    server: "dev-cluster"
+    name: "dev-cluster"
     namespace: ack-system
   syncPolicy:
     automated: {}
