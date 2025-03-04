@@ -319,7 +319,7 @@ module "ack_dev_controller_role" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.14"
 
-  role_name_prefix = "modernengg-dev-aws"
+  role_name_prefix = "ack-dev-aws"
   role_policy_arns = {
     policy = "arn:aws:iam::aws:policy/AdministratorAccess"
   }

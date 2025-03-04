@@ -15,7 +15,7 @@ output "crossplane_prod_provider_role_arn" {
 
 output "ack_prod_controller_role_arn" {
   description = "Controller role of the ACK EKS PROD ServiceAccount for IRSA"
-  value       = module.ack_prod_controller_role_arn.iam_role_arn
+  value       = module.ack_prod_controller_role.iam_role_arn
 }
 
 output "lb_controller_prod_role_arn" {

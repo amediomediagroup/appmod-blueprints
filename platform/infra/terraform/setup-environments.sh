@@ -199,10 +199,6 @@ terraform -chdir=dev apply "devplan" &
 
 export DEV_EKS_PROCESS=$!
 
-export DEV_CP_ROLE_ARN=$(terraform -chdir=dev output -raw crossplane_dev_provider_role_arn)
-export DEV_ACK_ROLE_ARN=$(terraform -chdir=dev output -raw ack_dev_controller_role_arn)
-export DEV_ARGOROLL_ROLE_ARN=$(terraform -chdir=dev output -raw argo_rollouts_dev_role_arn)
-export LB_DEV_ROLE_ARN=$(terraform -chdir=dev output -raw lb_controller_dev_role_arn)
 
 # Initialize backend for PROD cluster
 terraform -chdir=prod init -reconfigure -backend-config="key=prod/eks-accelerator-vpc.tfstate" \
@@ -227,6 +223,11 @@ echo "DEV DB Process PID: $DEV_DB_PROCESS"
 echo "DEV EKS Process PID: $DEV_EKS_PROCESS"
 echo "PROD EKS Process PID: $PROD_EKS_PROCESS"
 wait $DEV_DB_PROCESS $DEV_EKS_PROCESS $PROD_EKS_PROCESS
+
+export DEV_CP_ROLE_ARN=$(terraform -chdir=dev output -raw crossplane_dev_provider_role_arn)
+export DEV_ACK_ROLE_ARN=$(terraform -chdir=dev output -raw ack_dev_controller_role_arn)
+export DEV_ARGOROLL_ROLE_ARN=$(terraform -chdir=dev output -raw argo_rollouts_dev_role_arn)
+export LB_DEV_ROLE_ARN=$(terraform -chdir=dev output -raw lb_controller_dev_role_arn)
 
 export PROD_CP_ROLE_ARN=$(terraform -chdir=prod output -raw crossplane_prod_provider_role_arn)
 export PROD_ACK_ROLE_ARN=$(terraform -chdir=prod output -raw ack_prod_controller_role_arn)
@@ -261,7 +262,7 @@ sed -e "s#DEV_CP_ROLE_ARN#${DEV_CP_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terr
 sed -e "s#PROD_CP_ROLE_ARN#${PROD_CP_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-aws-drc-prod.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/crossplane-aws-drc-prod.yml
 
 # Setup ACK ServiceAccount and Role
-sed -e "s#DEV_ACK_ROLE_ARN#${DEV_ACK_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/ack-aws-ira-dev.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/ack-aws-irsa-dev.yml
+sed -e "s#DEV_ACK_ROLE_ARN#${DEV_ACK_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/ack-aws-irsa-dev.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/ack-aws-irsa-dev.yml
 sed -e "s#PROD_ACK_ROLE_ARN#${PROD_ACK_ROLE_ARN}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/ack-aws-irsa-prod.yaml > ${REPO_ROOT}/platform/infra/terraform/deploy-apps/drc/ack-aws-irsa-prod.yml
 
 # Setup AWS LB controller configs and roles

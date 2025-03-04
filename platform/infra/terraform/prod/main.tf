@@ -320,7 +320,7 @@ module "ack_prod_controller_role" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.14"
 
-  role_name_prefix = "modernengg-prod-aws"
+  role_name_prefix = "ack-prod-aws"
   role_policy_arns = {
     policy = "arn:aws:iam::aws:policy/AdministratorAccess"
   }
