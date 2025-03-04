@@ -328,7 +328,7 @@ module "ack_prod_controller_role" {
   assume_role_condition_test = "StringLike"
   oidc_providers = {
     main = {
-      provider_arn  = module.eks_blueprints_dev.eks_oidc_provider_arn
+      provider_arn  = module.eks_blueprints_prod.eks_oidc_provider_arn
       namespace_service_accounts = ["ack-system:controller-ack*"]
     }
   }
