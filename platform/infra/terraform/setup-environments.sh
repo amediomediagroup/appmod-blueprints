@@ -42,7 +42,8 @@ export REPO_ROOT=$(git rev-parse --show-toplevel)
 source ${REPO_ROOT}/platform/infra/terraform/setup-keycloak.sh
 
 # Set Github URL for Management Cluster
-export GITHUB_URL='https://github.com/aws-samples/appmod-blueprints'
+export GITHUB_URL=$(yq '.repo_url' ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/config.yaml)
+export GITHUB_BRANCH=$(yq '.repo_branch' ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/config.yaml)
 
 # Deploy the base cluster with prerequisites like ArgoCD and Ingress-nginx
 ${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/mgmt-cluster/install.sh
@@ -61,7 +62,7 @@ export TF_eks_cluster_vpc_id=$(terraform output -raw eks_cluster_vpc_id)
 export TF_eks_cluster_private_subnets=$(terraform output -json eks_cluster_private_subnets)
 echo "private subnets are : " $TF_eks_cluster_private_subnets
 # For Database and EC2 database
-export TF_eks_cluster_vpc_cidr=$(terraform output -raw vpc_cidr) 
+export TF_eks_cluster_vpc_cidr=$(terraform output -raw vpc_cidr)
 export TF_eks_cluster_private_az=$(terraform output -json availability_zones)
 echo "private az are : " $TF_eks_cluster_private_az
 export KEYCLOAK_NAMESPACE=keycloak
@@ -215,7 +216,7 @@ terraform -chdir=prod plan -var aws_region="${TF_VAR_aws_region}" \
   -var vpc_private_subnets="${TF_eks_cluster_private_subnets}" \
   -var grafana_api_key="${AMG_API_KEY}" -out=prodplan
 
-terraform  -chdir=prod apply "prodplan" &  
+terraform  -chdir=prod apply "prodplan" &
 
 export PROD_EKS_PROCESS=$!
 # Wait for both processes to complete
@@ -289,6 +290,18 @@ terraform -chdir=post-deploy apply -var aws_region="${TF_VAR_aws_region}" \
 
 # Setup Applications on Clusters using ArgoCD on the management cluster
 
+# Substitute the GITHUB_URL and GITHUB_BRANCH in the manifests
+sed -e "s#\${GITHUB_URL}#${GITHUB_URL}#g" -e "s#\${GITHUB_BRANCH}#${GITHUB_BRANCH}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/ack-dev.yaml >${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/ack-dev.yaml
+sed -e "s#\${GITHUB_URL}#${GITHUB_URL}#g" -e "s#\${GITHUB_BRANCH}#${GITHUB_BRANCH}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/ack-prod.yaml >${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/ack-prod.yaml
+sed -e "s#\${GITHUB_URL}#${GITHUB_URL}#g" -e "s#\${GITHUB_BRANCH}#${GITHUB_BRANCH}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-dev.yaml >${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-comp-dev.yaml
+sed -e "s#\${GITHUB_URL}#${GITHUB_URL}#g" -e "s#\${GITHUB_BRANCH}#${GITHUB_BRANCH}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-comp-prod.yaml >${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-comp-prod.yaml
+sed -e "s#\${GITHUB_URL}#${GITHUB_URL}#g" -e "s#\${GITHUB_BRANCH}#${GITHUB_BRANCH}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-dev.yaml >${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-provider-dev.yaml
+sed -e "s#\${GITHUB_URL}#${GITHUB_URL}#g" -e "s#\${GITHUB_BRANCH}#${GITHUB_BRANCH}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/crossplane-provider-prod.yaml >${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/crossplane-provider-prod.yaml
+sed -e "s#\${GITHUB_URL}#${GITHUB_URL}#g" -e "s#\${GITHUB_BRANCH}#${GITHUB_BRANCH}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/grafana-workload-dashboards.yaml >${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/grafana-workload-dashboards.yaml
+sed -e "s#\${GITHUB_URL}#${GITHUB_URL}#g" -e "s#\${GITHUB_BRANCH}#${GITHUB_BRANCH}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/kubevela-dev.yaml >${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/kubevela-dev.yaml
+sed -e "s#\${GITHUB_URL}#${GITHUB_URL}#g" -e "s#\${GITHUB_BRANCH}#${GITHUB_BRANCH}#g" ${REPO_ROOT}/platform/infra/terraform/deploy-apps/kubevela-prod.yaml >${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/kubevela-prod.yaml
+
+# Apply the manifests to the management cluster
 kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/
 
 # Setup Gitea Repo

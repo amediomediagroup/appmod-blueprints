@@ -17,8 +17,8 @@ spec:
         releaseName: ack-chart
         valueFiles:
           - $values/packages/ack/dev/values.yaml
-    - repoURL: https://github.com/aws-samples/appmod-blueprints.git
-      targetRevision: HEAD
+    - repoURL: ${GITHUB_URL}
+      targetRevision: ${GITHUB_BRANCH}
       ref: values
   destination:
     name: "dev-cluster"
