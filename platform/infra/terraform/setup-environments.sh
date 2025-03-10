@@ -41,9 +41,6 @@ fi
 export REPO_ROOT=$(git rev-parse --show-toplevel)
 source ${REPO_ROOT}/platform/infra/terraform/setup-keycloak.sh
 
-# Set Github URL for Management Cluster
-export GITHUB_URL=$(yq '.repo_url' ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/config.yaml)
-export GITHUB_BRANCH=$(yq '.repo_branch' ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/config.yaml)
 
 # Deploy the base cluster with prerequisites like ArgoCD and Ingress-nginx
 ${REPO_ROOT}/platform/infra/terraform/mgmt/terraform/mgmt-cluster/install.sh
@@ -53,6 +50,11 @@ export DNS_HOSTNAME=$(kubectl get service ingress-nginx-controller -n ingress-ng
 
 # Replace dns with the value of DNS_HOSTNAME
 sed -e "s/INGRESS_DNS/${DNS_HOSTNAME}/g" ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/default-config.yaml >${REPO_ROOT}/platform/infra/terraform/mgmt/setups/config.yaml
+
+# Set Github URL for Management Cluster
+export GITHUB_URL=$(yq '.repo_url' ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/config.yaml)
+export GITHUB_BRANCH=$(yq '.repo_branch' ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/config.yaml)
+
 
 # Deploy the apps on IDP Builder and ArgoCD
 ${REPO_ROOT}/platform/infra/terraform/mgmt/setups/install.sh
