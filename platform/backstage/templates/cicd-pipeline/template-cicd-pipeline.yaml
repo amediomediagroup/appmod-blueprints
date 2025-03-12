@@ -106,12 +106,12 @@ spec:
       name: Create ArgoCD App
       action: cnoe:create-argocd-app
       input:
-        appName: ${{parameters.appname}}-cicd
+        appName: ${{parameters.appname}}
         appNamespace: team-${{ parameters.appname }}
         argoInstance: in-cluster
         projectName: default
         # necessary until we generate our own cert
-        repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.appname}}-cicd
+        repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.appname}}
         path: "manifests"
     - id: register
       name: Register
