@@ -42,7 +42,7 @@ spec:
                 namespace: ${{values.namespace}}
                 labels:
                   env: dev
-                  entity-id: ${{values.appname}}-cicd
+                  entity-id: ${{values.appname}}
               spec:
                 serviceAccountName: ${{values.appname}}-cicd-sa
                 entrypoint: ci-build
