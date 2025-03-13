@@ -56,7 +56,7 @@ spec:
       input:
         description: CodeBuild create clusters template
         # Hard coded value for this demo purposes only.
-        repoUrl: ${{parameters.hostname}}/gitea?repo=${{parameters.appname}}
+        repoUrl: ${{parameters.hostname}}/gitea?repo=${{parameters.appname}}-cicd
         defaultBranch: main
 
     - action: fetch:template
@@ -111,7 +111,7 @@ spec:
         argoInstance: in-cluster
         projectName: default
         # necessary until we generate our own cert
-        repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.appname}}
+        repoUrl: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/${{parameters.appname}}-cicd
         path: "manifests"
     - id: register
       name: Register
