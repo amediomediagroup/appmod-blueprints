@@ -31,7 +31,7 @@ spec:
     - name: hostname
       value: ${{values.hostname}}
     - name: apprepo
-      value: ${{values.hostname}}/gitea/giteaAdmin/${{values.appname}}
+      value: ${{values.hostname}}/gitea/giteaAdmin/${{values.appname}}-cicd
     - name: dockerfile_path
       value: ${{values.dockerfile_path}}
     - name: deployment_path
