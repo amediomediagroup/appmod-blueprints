@@ -41,7 +41,6 @@ spec:
                 generateName: ${{values.appname}}-cicd-flow-
                 namespace: ${{values.namespace}}
                 labels:
-                  env: dev
                   entity-id: ${{values.appname}}
               spec:
                 serviceAccountName: ${{values.appname}}-cicd-sa
