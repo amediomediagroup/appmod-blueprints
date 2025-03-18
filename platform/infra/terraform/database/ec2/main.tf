@@ -333,6 +333,28 @@ resource "aws_instance" "sql_server_instance" {
               Start-Sleep -Seconds 60
               Invoke-WebRequest -Uri $jreUrl -OutFile "C:\jre-installer.exe"
               Start-Process -FilePath "C:\jre-installer.exe" -ArgumentList "/s" -Wait
+
+              # Verify Java installation
+              $javaVersion = java -version 2>&1
+              Write-Host "Java version installed: $javaVersion"
+
+              # Optional: Set JAVA_HOME environment variable
+              [Environment]::SetEnvironmentVariable(
+                  "JAVA_HOME",
+                  (Get-ChildItem "C:\Program Files\Java\jre*" | Select-Object -First 1).FullName,
+                  [EnvironmentVariableTarget]::Machine
+              )
+
+              # Add Java to system PATH
+              $javaPath = "$env:JAVA_HOME\bin"
+              $currentPath = [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine)
+              if (-not $currentPath.Contains($javaPath)) {
+                  [Environment]::SetEnvironmentVariable(
+                      "Path",
+                      "$currentPath;$javaPath",
+                      [EnvironmentVariableTarget]::Machine
+                  )
+              }
  
               # Install Babelfish Compass
               $owner = "babelfish-for-postgresql"
