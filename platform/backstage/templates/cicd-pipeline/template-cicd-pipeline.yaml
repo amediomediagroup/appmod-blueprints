@@ -16,10 +16,6 @@ spec:
           default: us-west-2
           title: aws region for ecr repo
           type: string
-        gitea_token:
-          title: personal gitea token to create webhook (must have write:repository privilege)
-          type: string
-          ui:field: Secret
         dockerfile_path:
           title: Relative path to directory containing Dockerfile
           type: string
@@ -35,7 +31,6 @@ spec:
       required:
         - appname
         - hostname
-        - gitea_token
   steps:
     - action: fetch:template
       name: Fetch Base
@@ -69,7 +64,6 @@ spec:
           namespace: team-${{ parameters.appname }}
           aws_region: ${{ parameters.aws_region }}
           hostname: ${{parameters.hostname}}
-          gitea_token: ${{secrets.gitea_token}}
           dockerfile_path: ${{parameters.dockerfile_path}}
           deployment_path: ${{parameters.deployment_path}}
 
