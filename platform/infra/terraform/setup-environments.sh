@@ -309,6 +309,9 @@ kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/manifests/
 # Setup Gitea Repo
 ${REPO_ROOT}/platform/infra/terraform/giteaInit.sh
 
+# Replacing hostname in backstage catalog file
+sed -i "s/HOSTNAME/${DNS_HOSTNAME}/g" ${REPO_ROOT}/platform/backstage/templates/catalog-info.yaml
+
 # Sleeping for Crossplane to be ready in DEV and PROD Cluster and restarting backstage pod
 kubectl rollout restart deployment backstage -n backstage
 sleep 120
