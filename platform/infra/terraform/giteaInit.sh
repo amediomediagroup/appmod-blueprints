@@ -37,6 +37,9 @@ curl -k -X POST "https://$DOMAIN_NAME/gitea/api/v1/admin/users/$USERNAME/repos" 
 
 git config --global credential.helper store
 
+# Replacing hostname in backstage catalog file
+sed -i "s/HOSTNAME/${DNS_HOSTNAME}/g" ${REPO_ROOT}/platform/backstage/templates/catalog-info.yaml
+
 mkdir -p ${REPO_ROOT}/applications/gitea
 cd ${REPO_ROOT}/applications/gitea
 git clone -c http.sslVerify=false https://$USER_PASS@$DOMAIN_NAME/gitea/$USERNAME/dotnet.git
