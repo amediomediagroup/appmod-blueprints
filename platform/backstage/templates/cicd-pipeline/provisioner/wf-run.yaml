@@ -26,8 +26,6 @@ spec:
       value: ${{values.namespace}}
     - name: aws_region
       value: ${{values.aws_region}}
-    - name: gitea_token
-      value: ${{values.gitea_token}}
     - name: hostname
       value: ${{values.hostname}}
     - name: apprepo
@@ -52,8 +50,6 @@ spec:
             value: "{{workflow.parameters.namespace}}"
           - name: aws_region
             value: "{{workflow.parameters.aws_region}}"
-          - name: gitea_token
-            value: "{{workflow.parameters.gitea_token}}"
           - name: hostname
             value: "{{workflow.parameters.hostname}}"
 
