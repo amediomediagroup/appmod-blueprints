@@ -49,5 +49,5 @@ spec:
     cpu: 1000
   disruption:
     consolidationPolicy: WhenEmpty
-    consolidateAfter: 1800s
+    consolidateAfter: 300s
   weight: 10
