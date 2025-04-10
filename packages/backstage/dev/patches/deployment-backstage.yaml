@@ -26,6 +26,26 @@ spec:
                   items:
                     - key: k8s-config.yaml
                       path: k8s-config.yaml
+      # add an InitContainer that waits until a url is reachable using curl
+      initContainers:
+        - name: wait-for-keycloak
+          image: curlimages/curl
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Check if Keycloak url is up on $KEYCLOAK_NAME_METADATA"
+              until curl -s -k -f $KEYCLOAK_NAME_METADATA; do
+                echo "Waiting for keycloak to be ready..."
+                sleep 10
+              done
+              echo ""
+              echo "Keycloak is up!"
+              #TODO: making it 5 minutes to be sure, we can decrease this later
+              sleep 300
+          envFrom:
+            - secretRef:
+                name: backstage-env-vars
       containers:
         - name: backstage
           image: ghcr.io/cnoe-io/backstage-app:135c0cb26f3e004a27a11edb6a4779035aff9805
