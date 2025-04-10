@@ -39,6 +39,7 @@ spec:
                 echo "Waiting for keycloak to be ready..."
                 sleep 10
               done
+              echo ""
               echo "Keycloak is up!"
               #TODO: making it 5 minutes to be sure, we can decrease this later
               sleep 300
