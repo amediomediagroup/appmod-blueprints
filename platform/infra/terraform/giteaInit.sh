@@ -243,3 +243,8 @@ check_and_create_repo "platform"
 rm -rf ${REPO_ROOT}/applications/gitea
 
 echo "Copied all repositories to Gitea"
+
+# Create ClusterSecretStore for gitea-credential
+# TODO this should move to install.sh of gitea
+echo "Creating ClusterSecretStore for gitea-credential..."
+kubectl apply -f ${REPO_ROOT}/platform/infra/terraform/deploy-apps/gitea/gitea-cluster-secret.yaml
