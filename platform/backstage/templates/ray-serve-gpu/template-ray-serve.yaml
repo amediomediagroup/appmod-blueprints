@@ -115,8 +115,8 @@ spec:
           💻 Computed Resources:
           - Head CPU: ${{ parameters.headCpu }}
           - Head Memory: ${{ parameters.headMemory }}
-          - Worker CPU: ${{ parameters.modelId === '/mnt/models/models/mistral-7b' and '8' or parameters.workerCpu }}
-          - Worker Memory: ${{ parameters.modelId === '/mnt/models/models/mistral-7b' and '48Gi' or parameters.workerMemory }}
+          - Worker CPU: ${{ parameters.modelId === '/mnt/models/models/mistral-7b' and '4' or parameters.workerCpu }}
+          - Worker Memory: ${{ parameters.modelId === '/mnt/models/models/mistral-7b' and '32Gi' or parameters.workerMemory }}
           - Worker GPU: ${{ parameters.modelId === '/mnt/models/models/mistral-7b' and '1 GPU' or 'CPU only' }}
           
           🔧 Infrastructure:
@@ -136,12 +136,12 @@ spec:
           namespace: ${{ parameters.namespace }}
           modelId: ${{ parameters.modelId }}
           maxLength: ${{ parameters.maxLength }}
-          rayServeFile: ${{ parameters.deploymentType === 'gpu' and 'https://github.com/aws-samples/appmod-blueprints/raw/763e8339/gitops/workloads/ray/gpu-serve-transformers.zip' or 'https://github.com/aws-samples/appmod-blueprints/raw/refs/heads/feat/ray-module-update/gitops/workloads/ray/cpu-serve-config.zip' }}
+          rayServeFile: ${{ parameters.rayServeFile }}
           replicas: ${{ parameters.replicas }}
           headCpu: ${{ parameters.headCpu }}
           headMemory: ${{ parameters.headMemory }}
-          workerCpu: ${{ parameters.modelId === '/mnt/models/models/mistral-7b' and '8' or parameters.workerCpu }}
-          workerMemory: ${{ parameters.modelId === '/mnt/models/models/mistral-7b' and '48Gi' or parameters.workerMemory }}
+          workerCpu: ${{ parameters.modelId === '/mnt/models/models/mistral-7b' and '4' or parameters.workerCpu }}
+          workerMemory: ${{ parameters.modelId === '/mnt/models/models/mistral-7b' and '16Gi' or parameters.workerMemory }}
           headGpu: "0"
           workerGpu: ${{ parameters.modelId === '/mnt/models/models/mistral-7b' and '1' or '0' }}
           gitlab_hostname: ${{ steps['fetchSystem'].output.entity.spec.gitlab_hostname }}
