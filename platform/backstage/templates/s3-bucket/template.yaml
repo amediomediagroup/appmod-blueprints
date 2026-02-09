@@ -82,6 +82,8 @@ spec:
             namespace: argocd
           spec:
             description: Project for ${{parameters.bucket_name}} S3 bucket
+            sourceNamespaces:
+            - argocd
             sourceRepos:
             - https://${{ steps['fetchSystem'].output.entity.spec.gitlab_hostname }}/${{ steps['fetchSystem'].output.entity.spec.gituser }}/${{parameters.bucket_name}}.git
             destinations:
