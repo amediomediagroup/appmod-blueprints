@@ -118,13 +118,14 @@ async def _handle_keycloak_login(page, username, password, debug):
         await page.screenshot(path="/tmp/kc_creds.png")
 
     await page.click('#kc-login, button[type="submit"]')
-    # Don't wait for networkidle — SAML redirect chain may keep network busy
-    # Instead wait for domcontentloaded and give time for redirects
+    # Don't wait for networkidle — SAML redirect chain may keep network busy.
+    # Keycloak → AWS IDC SAML ACS → ArgoCD takes several seconds of redirects.
     try:
-        await page.wait_for_load_state("domcontentloaded", timeout=15000)
+        await page.wait_for_load_state("domcontentloaded", timeout=20000)
     except Exception:
         pass
-    await page.wait_for_timeout(5000)
+    # Give the full SAML round-trip enough time (IDC ACS → ArgoCD callback)
+    await page.wait_for_timeout(8000)
 
 
 async def get_argocd_token(
@@ -189,9 +190,10 @@ async def get_argocd_token(
                 else:
                     print("No SSO button found", file=sys.stderr)
 
-            # Wait for redirect back to ArgoCD
+            # Wait for redirect back to ArgoCD after SAML round-trip
+            # (Keycloak → AWS IDC ACS → ArgoCD — can take 10-20s)
             argocd_host = argocd_url.split("//")[-1].split("/")[0]
-            for _ in range(15):
+            for _ in range(30):
                 if argocd_host in page.url:
                     break
                 await page.wait_for_timeout(1000)
