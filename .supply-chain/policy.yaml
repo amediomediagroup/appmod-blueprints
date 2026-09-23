@@ -1,0 +1,49 @@
+# Supply-Chain Sentinel Policy Configuration
+
+version: "1.0"
+
+target_platforms:
+  - linux/amd64
+  - linux/arm64
+
+vulnerability_policy:
+  fail_on_severity:
+    - CRITICAL
+    - HIGH
+  ignore_unfixed: false
+
+first_party:
+  # Registry prefixes or path patterns considered first-party
+  dockerfile_paths:
+    - "applications/**"
+    - "backstage/**"
+    - "cluster-providers/**"
+    - "platform/**"
+  image_patterns:
+    - "public.ecr.aws/aegis/*"
+    - "aegis/*"
+    - "localhost/*"
+
+helm_policy:
+  # Classification overrides by path pattern
+  classification_patterns:
+    release_artifact_oci_candidate:
+      - "platform-charts/**"
+    internal_gitops_wrapper:
+      - "gitops/addons/**"
+      - "gitops/overlays/**"
+      - "workshop/overlay/**"
+    internal_abstraction:
+      - "gitops/abstractions/**"
+    test_demo_only:
+      - "gitops/addons/charts/kro/resource-groups/manifests/**"
+      - "platform/backstage/templates/**"
+  require_chart_lock_if_dependencies: true
+  allow_protected_git_main: true
+
+provenance_policy:
+  first_party:
+    require_cosign_signature: true
+  third_party:
+    verify_upstream_when_evidence_exists: true
+    never_sign_as_first_party: true

@@ -1,0 +1,1506 @@
+version: '1.0'
+updated_at: '2026-09-23T14:31:49Z'
+dockerfiles:
+- applications/java/functest/Dockerfile
+- applications/java/perftest/Dockerfile
+- applications/java/src/Dockerfile
+- applications/next-js/Dockerfile
+- applications/node/app/Dockerfile
+- applications/python/app/Dockerfile
+- applications/rust/Dockerfile
+- applications/rust/Dockerfile.arm
+- applications/rust/integration/Dockerfile
+- backstage/Dockerfile
+- cluster-providers/common/Dockerfile.ray-neuron
+- cluster-providers/common/Dockerfile.ray-vllm
+images:
+- id: node:22-bookworm-slim
+  image: node:22-bookworm-slim
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - backstage/Dockerfile
+  source_tag: 22-bookworm-slim
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: grafana/grafana:11.4.0
+  image: grafana/grafana:11.4.0
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/configs/grafana/values.yaml
+  - gitops/addons/charts/grafana/templates/install.yaml
+  source_tag: 11.4.0
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: burakince/mlflow
+  image: burakince/mlflow
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/configs/mlflow/values.yaml
+  source_tag: ''
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: kubeflow/spark-operator/controller
+  image: kubeflow/spark-operator/controller
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/configs/spark-operator/values.yaml
+  source_tag: ''
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: apache/spark:3.5.0
+  image: apache/spark:3.5.0
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/configs/spark-operator/values.yaml
+  source_tag: 3.5.0
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: kubectl:v1.30.2
+  image: kubectl:v1.30.2
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/configs/kyverno-policies/values.yaml
+  source_tag: v1.30.2
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: apache/airflow:2.10.2
+  image: apache/airflow:2.10.2
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/configs/airflow/values.yaml
+  source_tag: 2.10.2
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: bitnami/postgresql:16.1.0
+  image: bitnami/postgresql:16.1.0
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/configs/airflow/values.yaml
+  source_tag: 16.1.0
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: busybox:1.35
+  image: busybox:1.35
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/backstage/templates/install.yaml
+  source_tag: '1.35'
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: docker.io/library/postgres:17.4-alpine3.21
+  image: docker.io/library/postgres:17.4-alpine3.21
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/backstage/templates/install.yaml
+  - gitops/addons/charts/keycloak/templates/install.yaml
+  source_tag: 17.4-alpine3.21
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: amazon/aws-cli:latest
+  image: amazon/aws-cli:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/ray-operator/templates/model-prestage-job.yaml
+  - gitops/addons/charts/kro/resource-groups/manifests/cicd-pipeline/cicd-pipeline.yaml
+  - gitops/addons/charts/kro/resource-groups/manifests/huggingface/rg-huggingface-model.yaml
+  - cluster-providers/kind-kro-ack/manifests/argocd/create-capability.yaml
+  - cluster-providers/kind-kro-ack/manifests/argocd/delete-capability.yaml
+  - platform/backstage/templates/create-dev-and-prod-env/templates-create-dev-and-prod-env/manifests/job.yaml
+  - platform/backstage/templates/old_legacy/create-env-aurora-postgres/templates-env-aurora-postgres/manifests/job.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: alpine/k8s:1.32.8
+  image: alpine/k8s:1.32.8
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/devlake/templates/wait-for-crds.yaml
+  - gitops/addons/charts/devlake/templates/setup-workflow.yaml
+  - gitops/addons/charts/kro/resource-groups/manifests/cicd-pipeline/cicd-pipeline.yaml
+  source_tag: 1.32.8
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: mysql:8
+  image: mysql:8
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/devlake/templates/setup-workflow.yaml
+  source_tag: '8'
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: gitlab/gitlab-ce:latest
+  image: gitlab/gitlab-ce:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/gitlab/templates/gitlab.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: alpine/k8s:1.32.5
+  image: alpine/k8s:1.32.5
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/gitlab/templates/init-job.yaml
+  source_tag: 1.32.5
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: bitnami/kubectl:latest
+  image: bitnami/kubectl:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/keycloak/templates/split-brain-detector.yaml
+  - gitops/addons/charts/pod-identity-restart-hook/templates/restart-job.yaml
+  - gitops/addons/charts/crossplane-base/templates/provider-credential-restart.yaml
+  - gitops/addons/charts/ack-pod-identity/values.yaml
+  - gitops/addons/charts/crossplane-pod-identity/values.yaml
+  - gitops/addons/charts/podidentity-pod-restart/values.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: docker.io/library/ubuntu:22.04
+  image: docker.io/library/ubuntu:22.04
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/keycloak/templates/keycloak-config.yaml
+  source_tag: '22.04'
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: quay.io/keycloak/keycloak:26.3.3
+  image: quay.io/keycloak/keycloak:26.3.3
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/keycloak/templates/install.yaml
+  source_tag: 26.3.3
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: oci://public.ecr.aws/karpenter
+  image: oci://public.ecr.aws/karpenter
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/karpenter/Chart.yaml
+  source_tag: //public.ecr.aws/karpenter
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: alpine:latest
+  image: alpine:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/kro/resource-groups/manifests/ray-service/ray-service.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: alpine:3.20
+  image: alpine:3.20
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/kro/resource-groups/manifests/cicd-pipeline/cicd-pipeline.yaml
+  source_tag: '3.20'
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: gcr.io/kaniko-project/executor:latest
+  image: gcr.io/kaniko-project/executor:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/kro/resource-groups/manifests/cicd-pipeline/cicd-pipeline.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: alpine/git:latest
+  image: alpine/git:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/kro/resource-groups/manifests/cicd-pipeline/cicd-pipeline.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: node:18-alpine
+  image: node:18-alpine
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/kro/resource-groups/manifests/cicd-pipeline/cicd-pipeline.yaml
+  - applications/next-js/Dockerfile
+  source_tag: 18-alpine
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: curlimages/curl:latest
+  image: curlimages/curl:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/kro/resource-groups/manifests/cicd-pipeline/cicd-pipeline.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: alpine
+  image: alpine
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/kro/resource-groups/manifests/cicd-pipeline/cicd-pipeline.yaml
+  source_tag: ''
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: debian:12
+  image: debian:12
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/kro/resource-groups/manifests/cicd-pipeline/cicd-pipeline.yaml
+  source_tag: '12'
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: python:3.11-slim
+  image: python:3.11-slim
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/kro/resource-groups/manifests/huggingface/rg-huggingface-model.yaml
+  source_tag: 3.11-slim
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: quay.io/argoproj/argocli:v3.6.7
+  image: quay.io/argoproj/argocli:v3.6.7
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/argo-workflows/templates/install.yaml
+  source_tag: v3.6.7
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: quay.io/argoproj/workflow-controller:v3.6.7
+  image: quay.io/argoproj/workflow-controller:v3.6.7
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/argo-workflows/templates/install.yaml
+  source_tag: v3.6.7
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: oci://ghcr.io/akuity/kargo-charts
+  image: oci://ghcr.io/akuity/kargo-charts
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/kargo/Chart.yaml
+  source_tag: //ghcr.io/akuity/kargo-charts
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: registry.k8s.io/pause:3.9
+  image: registry.k8s.io/pause:3.9
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/image-prepuller/templates/daemonset.yaml
+  source_tag: '3.9'
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: ubuntu:22.04
+  image: ubuntu:22.04
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - gitops/addons/charts/kubeflow/templates/kubeflow-manifests.yaml
+  source_tag: '22.04'
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.9.1-neuronx-py311-sdk2.26.0-ubuntu22.04
+  image: public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.9.1-neuronx-py311-sdk2.26.0-ubuntu22.04
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - cluster-providers/common/Dockerfile.ray-neuron
+  source_tag: 0.9.1-neuronx-py311-sdk2.26.0-ubuntu22.04
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: public.ecr.aws/seb-demo/ray:2.49.0-py311-gpu
+  image: public.ecr.aws/seb-demo/ray:2.49.0-py311-gpu
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - cluster-providers/common/Dockerfile.ray-vllm
+  source_tag: 2.49.0-py311-gpu
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: docker.io/amazon/aws-cli:2.22.35
+  image: docker.io/amazon/aws-cli:2.22.35
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - platform-charts/keycloak-client-provisioner/templates/job.yaml
+  source_tag: 2.22.35
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: rust:1.79-slim
+  image: rust:1.79-slim
+  ownership: FIRST_PARTY_IMAGE
+  source_paths:
+  - applications/rust/Dockerfile
+  source_tag: 1.79-slim
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: rust
+  image: rust
+  ownership: FIRST_PARTY_IMAGE
+  source_paths:
+  - applications/rust/Dockerfile.arm
+  source_tag: ''
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: 929819487611.dkr.ecr.us-west-2.amazonaws.com/modernengg/msvc-1:latest
+  image: 929819487611.dkr.ecr.us-west-2.amazonaws.com/modernengg/msvc-1:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - applications/rust/platform-meta/examples/service-example-1.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: artilleryio/artillery:latest
+  image: artilleryio/artillery:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - applications/rust/integration/Dockerfile
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: 547544589874.dkr.ecr.us-west-2.amazonaws.com/java-tomcat-b96247b3:latest
+  image: 547544589874.dkr.ecr.us-west-2.amazonaws.com/java-tomcat-b96247b3:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - applications/mono-a2c/deployment/eks_deployment.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: python:3.12-alpine
+  image: python:3.12-alpine
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - applications/python/app/Dockerfile
+  source_tag: 3.12-alpine
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: ghcr.io/dapr/samples/hello-k8s-python:latest
+  image: ghcr.io/dapr/samples/hello-k8s-python:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - applications/python/deployment/python.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: public.ecr.aws/a0m0j3q7/modernengg/nextjs-ui:latest
+  image: public.ecr.aws/a0m0j3q7/modernengg/nextjs-ui:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - applications/next-js/deployment/dev/application.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: node:20-bullseye
+  image: node:20-bullseye
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - applications/node/app/Dockerfile
+  source_tag: 20-bullseye
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: ghcr.io/dapr/samples/hello-k8s-node:latest
+  image: ghcr.io/dapr/samples/hello-k8s-node:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - applications/node/deployment/node.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: argoproj/rollouts-demo:blue
+  image: argoproj/rollouts-demo:blue
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - applications/java/progressive-app-kubevela.yaml
+  - applications/java/progressive-app.yaml
+  source_tag: blue
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: gradle:7.3.1-jdk17-alpine
+  image: gradle:7.3.1-jdk17-alpine
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - applications/java/src/Dockerfile
+  source_tag: 7.3.1-jdk17-alpine
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: public.ecr.aws/docker/library/openjdk:11.0.16-jdk
+  image: public.ecr.aws/docker/library/openjdk:11.0.16-jdk
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - applications/java/src/Dockerfile
+  source_tag: 11.0.16-jdk
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: public.ecr.aws/i8e1q7x5/appmod-demo:latest
+  image: public.ecr.aws/i8e1q7x5/appmod-demo:latest
+  ownership: FIRST_PARTY_IMAGE
+  source_paths:
+  - applications/java/deployment/eks_deployment.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: httpd:alpine
+  image: httpd:alpine
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - applications/java/deployment/templates/kro/application.yaml
+  - applications/java/deployment/templates/kubevela/application.yaml
+  source_tag: alpine
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: ubuntu:latest
+  image: ubuntu:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - applications/java/perftest/Dockerfile
+  - applications/java/functest/Dockerfile
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: public.ecr.aws/i8e1q7x5/javaperftest:latest
+  image: public.ecr.aws/i8e1q7x5/javaperftest:latest
+  ownership: FIRST_PARTY_IMAGE
+  source_paths:
+  - applications/java/perftest/javaPerf-job.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: public.ecr.aws/i8e1q7x5/appmod-javafunctest:latest
+  image: public.ecr.aws/i8e1q7x5/appmod-javafunctest:latest
+  ownership: FIRST_PARTY_IMAGE
+  source_paths:
+  - applications/java/functest/javaFunc-job.yaml
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+helm_charts:
+- source_path: gitops/abstractions/crossplane/aws-resources/Chart.yaml
+  chart_name: aws-resources
+  version: 0.1.0
+  classification: INTERNAL_ABSTRACTION
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/abstractions/crossplane/platform-cluster/Chart.yaml
+  chart_name: platform-cluster
+  version: 0.1.0
+  classification: INTERNAL_ABSTRACTION
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/abstractions/crossplane/pod-identity/Chart.yaml
+  chart_name: pod-identity
+  version: 0.1.0
+  classification: INTERNAL_ABSTRACTION
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/abstractions/kro/kro-clusters/Chart.yaml
+  chart_name: eks-fleet-clusters
+  version: 0.1.0
+  classification: INTERNAL_ABSTRACTION
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/abstractions/resource-groups-kro/platform-cluster-kro/Chart.yaml
+  chart_name: platform-cluster-kro
+  version: 0.1.0
+  classification: INTERNAL_ABSTRACTION
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/ack-pod-identity/Chart.yaml
+  chart_name: ack-pod-identity
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/airflow/Chart.yaml
+  chart_name: airflow
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies:
+  - name: airflow
+    version: 1.18.0
+    repository: https://airflow.apache.org
+  chart_lock_state: MISSING
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/argo-workflows/Chart.yaml
+  chart_name: argo-workflows
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/argocd-gitlab-repo-creds/Chart.yaml
+  chart_name: argocd-gitlab-repo-creds
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/backstage/Chart.yaml
+  chart_name: backstage
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/cluster-secret-store/Chart.yaml
+  chart_name: cluster-secret-store
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/crossplane-base/Chart.yaml
+  chart_name: crossplane-base
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/crossplane-env-config/Chart.yaml
+  chart_name: crossplane-env-config
+  version: 0.2.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/crossplane-pod-identity/Chart.yaml
+  chart_name: crossplane-pod-identity
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/cw-prometheus/Chart.yaml
+  chart_name: cw-prometheus
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/default-storage-class/Chart.yaml
+  chart_name: default-storage-class
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/devlake/Chart.yaml
+  chart_name: devlake
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies:
+  - name: devlake
+    version: 1.0.3-beta7
+    repository: https://apache.github.io/devlake-helm-chart
+  chart_lock_state: PRESENT
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/eks-capabilities-rbac/Chart.yaml
+  chart_name: eks-capabilities-rbac
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/flux/Chart.yaml
+  chart_name: flux
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies:
+  - name: flux2
+    version: 2.12.4
+    repository: https://fluxcd-community.github.io/helm-charts
+  chart_lock_state: PRESENT
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/gitlab/Chart.yaml
+  chart_name: gitlab
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/grafana-dashboards/Chart.yaml
+  chart_name: grafana-dashboards
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/grafana/Chart.yaml
+  chart_name: grafana
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/image-prepuller/Chart.yaml
+  chart_name: image-prepuller
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/ingress-class-alb/Chart.yaml
+  chart_name: ingress-class-alb
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/jupyterhub/Chart.yaml
+  chart_name: jupyterhub
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies:
+  - name: jupyterhub
+    version: 4.3.0
+    repository: https://hub.jupyter.org/helm-chart/
+  chart_lock_state: PRESENT
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/kargo/Chart.yaml
+  chart_name: kargo
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies:
+  - name: kargo
+    version: 1.11.0
+    repository: oci://ghcr.io/akuity/kargo-charts
+  chart_lock_state: PRESENT
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/karpenter/Chart.yaml
+  chart_name: karpenter
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies:
+  - name: karpenter
+    version: 1.14.0
+    repository: oci://public.ecr.aws/karpenter
+  chart_lock_state: MISSING
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/keycloak/Chart.yaml
+  chart_name: keycloak
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/kro/instances/pod-identity/Chart.yaml
+  chart_name: kro-pi-instance
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/kro/resource-groups/charts/efs/Chart.yaml
+  chart_name: efs
+  version: ''
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/kro/resource-groups/charts/iam/Chart.yaml
+  chart_name: iam
+  version: ''
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/kubeflow/Chart.yaml
+  chart_name: kubeflow
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/kubevela/Chart.yaml
+  chart_name: vela-core
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies:
+  - name: vela-core
+    version: 1.10.0
+    repository: https://kubevela.github.io/charts
+  chart_lock_state: PRESENT
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/mlflow/Chart.yaml
+  chart_name: mlflow
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies:
+  - name: mlflow
+    version: 0.7.19
+    repository: https://community-charts.github.io/helm-charts
+  chart_lock_state: MISSING
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/multi-acct/Chart.yaml
+  chart_name: multi-acct
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/observability-aws/Chart.yaml
+  chart_name: observability-aws
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/platform-manifests-bootstrap/Chart.yaml
+  chart_name: platform-manifests-bootstrap
+  version: 1.0.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/platform-manifests-post/Chart.yaml
+  chart_name: platform-manifests-post
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/platform-manifests/Chart.yaml
+  chart_name: platform-manifests
+  version: 1.0.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/pod-identity-restart-hook/Chart.yaml
+  chart_name: pod-identity-restart-hook
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/podidentity-pod-restart/Chart.yaml
+  chart_name: podidentity-pod-restart
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/ray-operator/Chart.yaml
+  chart_name: ray-operator
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies:
+  - name: kuberay-operator
+    version: 1.2.2
+    repository: https://ray-project.github.io/kuberay-helm/
+  chart_lock_state: PRESENT
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: gitops/addons/charts/spark-operator/Chart.yaml
+  chart_name: spark-operator
+  version: 0.1.0
+  classification: INTERNAL_GITOPS_WRAPPER
+  dependencies:
+  - name: spark-operator
+    version: 2.4.0
+    repository: https://kubeflow.github.io/spark-operator
+  chart_lock_state: PRESENT
+  oci_requirement: false
+  oci_repository: null
+  known_oci_digest: null
+- source_path: platform-charts/appset-chart/Chart.yaml
+  chart_name: application-sets
+  version: 0.1.0
+  classification: RELEASE_ARTIFACT_OCI_CANDIDATE
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: true
+  oci_repository: oci://public.ecr.aws/aegis/application-sets
+  known_oci_digest: null
+- source_path: platform-charts/fleet-secret/Chart.yaml
+  chart_name: fleet-secret
+  version: 0.1.0
+  classification: RELEASE_ARTIFACT_OCI_CANDIDATE
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: true
+  oci_repository: oci://public.ecr.aws/aegis/fleet-secret
+  known_oci_digest: null
+- source_path: platform-charts/keycloak-client-provisioner/Chart.yaml
+  chart_name: keycloak-client-provisioner
+  version: 0.1.2
+  classification: RELEASE_ARTIFACT_OCI_CANDIDATE
+  dependencies: []
+  chart_lock_state: NOT_REQUIRED
+  oci_requirement: true
+  oci_repository: oci://public.ecr.aws/aegis/keycloak-client-provisioner
+  known_oci_digest: null

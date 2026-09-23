@@ -1,0 +1,97 @@
+name: Supply-Chain Sentinel
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * *'
+
+jobs:
+  supply-chain-sentinel:
+    name: Supply-Chain Discovery & Sentinel Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Install Toolchain (Skopeo, Syft, Grype, Cosign, Helm, Crane, ORAS)
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+          # Skopeo
+          sudo apt-get update && sudo apt-get install -y skopeo jq
+
+          # Helm
+          curl -fsSL https://get.helm.sh/helm-v3.16.3-linux-amd64.tar.gz | tar -xz -C /tmp
+          mv /tmp/linux-amd64/helm "$HOME/.local/bin/"
+
+          # Syft
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "$HOME/.local/bin"
+
+          # Grype
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b "$HOME/.local/bin"
+
+          # Cosign
+          curl -LO https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64
+          chmod +x cosign-linux-amd64
+          mv cosign-linux-amd64 "$HOME/.local/bin/cosign"
+
+          # Crane
+          curl -sSL https://github.com/google/go-containerregistry/releases/download/v0.20.2/go-containerregistry_Linux_x86_64.tar.gz | tar -xz -C /tmp crane
+          mv /tmp/crane "$HOME/.local/bin/"
+
+          # ORAS
+          curl -LO "https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz"
+          tar -xzf oras_1.2.0_linux_amd64.tar.gz -C "$HOME/.local/bin" oras
+          rm oras_1.2.0_linux_amd64.tar.gz
+
+          # yq
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
+          sudo chmod +x /usr/bin/yq
+
+      - name: Verify Toolchain Installation
+        run: |
+          skopeo --version
+          syft --version
+          grype --version
+          cosign version
+          helm version
+          crane version
+          oras version
+          python3 --version
+          jq --version
+          yq --version
+
+      - name: Execute Sentinel Self-Tests
+        run: |
+          chmod +x scripts/supply-chain/*.sh scripts/supply-chain/*.py
+          ./scripts/supply-chain/self-test.sh
+
+      - name: Discover Artifacts & Compare Catalog
+        run: |
+          mkdir -p .supply-chain/findings
+          python3 scripts/supply-chain/compare-catalog.py --scan --output .supply-chain/findings/findings.json
+          ./scripts/supply-chain/audit-helm.sh --output .supply-chain/findings/helm-findings.json
+
+      - name: Upload Supply Chain Findings Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-findings
+          path: .supply-chain/findings/
+          retention-days: 14
