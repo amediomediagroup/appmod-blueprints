@@ -89,8 +89,8 @@ else
     fail_test "Container types discovery" "Expected busybox:1.36, postgres:17, and netshoot:latest in output: $DISC_OUT3"
 fi
 
-# TEST 4: latest, untagged implicit-latest, exact tag, and integer tag detection
-run_test_header "latest tag, untagged implicit-latest, exact tag, and integer tag classification"
+# TEST 4: Tag classification vs digest pinning
+run_test_header "Tag classification vs digest pinning separation"
 mkdir -p "$TMPDIR/test4"
 cat << 'EOF' > "$TMPDIR/test4/deploy.yaml"
 apiVersion: apps/v1
@@ -112,15 +112,29 @@ spec:
 EOF
 
 DISC_OUT4=$(python3 scripts/supply-chain/discover-images.py --repo-root "$TMPDIR/test4")
-REDIS_MUTABLE=$(echo "$DISC_OUT4" | jq -r '.images[] | select(.image=="redis:latest") | .mutable_tag')
-POSTGRES_MUTABLE=$(echo "$DISC_OUT4" | jq -r '.images[] | select(.image=="postgres") | .mutable_tag')
-POSTGRES17_MUTABLE=$(echo "$DISC_OUT4" | jq -r '.images[] | select(.image=="postgres:17") | .mutable_tag')
-GRAFANA_MUTABLE=$(echo "$DISC_OUT4" | jq -r '.images[] | select(.image=="grafana/grafana:11.4.0") | .mutable_tag')
 
-if [ "$REDIS_MUTABLE" = "true" ] && [ "$POSTGRES_MUTABLE" = "true" ] && [ "$POSTGRES17_MUTABLE" = "false" ] && [ "$GRAFANA_MUTABLE" = "false" ]; then
-    pass_test "Tags correctly classified (latest=true, untagged=true, postgres:17=false, grafana=false)"
+REDIS_CLASS=$(echo "$DISC_OUT4" | jq -r '.images[] | select(.image=="redis:latest") | .tag_classification')
+REDIS_PINNED=$(echo "$DISC_OUT4" | jq -r '.images[] | select(.image=="redis:latest") | .digest_pinned')
+
+PG_CLASS=$(echo "$DISC_OUT4" | jq -r '.images[] | select(.image=="postgres") | .tag_classification')
+PG_PINNED=$(echo "$DISC_OUT4" | jq -r '.images[] | select(.image=="postgres") | .digest_pinned')
+
+PG17_CLASS=$(echo "$DISC_OUT4" | jq -r '.images[] | select(.image=="postgres:17") | .tag_classification')
+PG17_PINNED=$(echo "$DISC_OUT4" | jq -r '.images[] | select(.image=="postgres:17") | .digest_pinned')
+
+GRAFANA_CLASS=$(echo "$DISC_OUT4" | jq -r '.images[] | select(.image=="grafana/grafana:11.4.0") | .tag_classification')
+GRAFANA_PINNED=$(echo "$DISC_OUT4" | jq -r '.images[] | select(.image=="grafana/grafana:11.4.0") | .digest_pinned')
+
+DIGEST_PINNED=$(echo "$DISC_OUT4" | jq -r '.images[] | select(.image | contains("@sha256")) | .digest_pinned')
+
+if [ "$REDIS_CLASS" = "LATEST" ] && [ "$REDIS_PINNED" = "false" ] && \
+   [ "$PG_CLASS" = "UNTAGGED" ] && [ "$PG_PINNED" = "false" ] && \
+   [ "$PG17_CLASS" = "EXACT_VERSION" ] && [ "$PG17_PINNED" = "false" ] && \
+   [ "$GRAFANA_CLASS" = "EXACT_VERSION" ] && [ "$GRAFANA_PINNED" = "false" ] && \
+   [ "$DIGEST_PINNED" = "true" ]; then
+    pass_test "Tag classification correctly separated from digest_pinned (digest_pinned=true ONLY for @sha256)"
 else
-    fail_test "Tag classification" "redis=$REDIS_MUTABLE, postgres=$POSTGRES_MUTABLE, postgres:17=$POSTGRES17_MUTABLE, grafana=$GRAFANA_MUTABLE"
+    fail_test "Tag classification vs digest pinning" "redis=($REDIS_CLASS, $REDIS_PINNED), pg=($PG_CLASS, $PG_PINNED), pg17=($PG17_CLASS, $PG17_PINNED), grafana=($GRAFANA_CLASS, $GRAFANA_PINNED), digest=($DIGEST_PINNED)"
 fi
 
 # TEST 5: Generic custom registry, explicit port, digest reference
@@ -146,12 +160,12 @@ for expected_img in "registry.example.com:5000/team/image:1.2.3" "registry.examp
     fi
 done
 
-UNTAGGED_MUTABLE=$(echo "$DISC_OUT5" | jq -r '.images[] | select(.image=="registry.example.com:5000/team/image") | .mutable_tag')
+UNTAGGED_PINNED=$(echo "$DISC_OUT5" | jq -r '.images[] | select(.image=="registry.example.com:5000/team/image") | .digest_pinned')
 
-if [ "$MISSING" -eq 0 ] && [ "$UNTAGGED_MUTABLE" = "true" ]; then
+if [ "$MISSING" -eq 0 ] && [ "$UNTAGGED_PINNED" = "false" ]; then
     pass_test "Explicit port registries and untagged port-specified references parsed correctly"
 else
-    fail_test "Port and digest parsing" "Missing $MISSING refs, untagged_mutable=$UNTAGGED_MUTABLE"
+    fail_test "Port and digest parsing" "Missing $MISSING refs, untagged_pinned=$UNTAGGED_PINNED"
 fi
 
 # TEST 6: Dynamic Helm/YAML reference
@@ -236,6 +250,66 @@ if echo "$COMP_OUT" | grep -q "PLATFORM_DIGEST_DRIFT"; then
     pass_test "PLATFORM_DIGEST_DRIFT correctly detected when child arm64 digest drifted"
 else
     fail_test "PLATFORM_DIGEST_DRIFT" "Expected PLATFORM_DIGEST_DRIFT finding in output: $COMP_OUT"
+fi
+
+# TEST 10: New Chart.yaml & missing/stale Chart.lock detection
+run_test_header "New Chart.yaml detection & missing Chart.lock detection"
+mkdir -p "$TMPDIR/test10/my-chart"
+cat << 'EOF' > "$TMPDIR/test10/my-chart/Chart.yaml"
+apiVersion: v2
+name: my-chart
+version: 1.0.0
+dependencies:
+  - name: redis
+    version: 17.0.0
+    repository: https://charts.bitnami.com/bitnami
+EOF
+
+HELM_DISC=$(python3 scripts/supply-chain/discover-helm.py --repo-root "$TMPDIR/test10")
+LOCK_STATE=$(echo "$HELM_DISC" | jq -r '.helm_charts[0].chart_lock_state')
+
+if [ "$LOCK_STATE" = "MISSING" ]; then
+    pass_test "Missing Chart.lock correctly detected for new chart with dependencies"
+else
+    fail_test "Chart.lock detection" "Expected MISSING lock state, got $LOCK_STATE"
+fi
+
+# TEST 11: Internal GitOps vs OCI candidate chart classification
+run_test_header "Internal GitOps vs OCI candidate chart classification"
+mkdir -p "$TMPDIR/test11/platform-charts/my-oci-chart"
+mkdir -p "$TMPDIR/test11/gitops/addons/my-addon-chart"
+cat << 'EOF' > "$TMPDIR/test11/platform-charts/my-oci-chart/Chart.yaml"
+apiVersion: v2
+name: my-oci-chart
+version: 0.1.0
+EOF
+cat << 'EOF' > "$TMPDIR/test11/gitops/addons/my-addon-chart/Chart.yaml"
+apiVersion: v2
+name: my-addon-chart
+version: 0.1.0
+EOF
+
+HELM_CLASS=$(python3 scripts/supply-chain/discover-helm.py --repo-root "$TMPDIR/test11")
+CLASS_OCI=$(echo "$HELM_CLASS" | jq -r '.helm_charts[] | select(.chart_name=="my-oci-chart") | .classification')
+CLASS_GITOPS=$(echo "$HELM_CLASS" | jq -r '.helm_charts[] | select(.chart_name=="my-addon-chart") | .classification')
+
+if [ "$CLASS_OCI" = "RELEASE_ARTIFACT_OCI_CANDIDATE" ] && [ "$CLASS_GITOPS" = "INTERNAL_GITOPS_WRAPPER" ]; then
+    pass_test "Charts correctly classified (OCI candidate vs Internal GitOps wrapper)"
+else
+    fail_test "Chart classification" "OCI=$CLASS_OCI, GitOps=$CLASS_GITOPS"
+fi
+
+# TEST 12: Deterministic findings JSON output comparison
+run_test_header "Deterministic findings output comparison"
+mkdir -p "$TMPDIR/test12/.supply-chain"
+cp .supply-chain/policy.yaml "$TMPDIR/test12/.supply-chain/"
+python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test12" --update-catalog --output "$TMPDIR/test12/out1.json"
+python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test12" --output "$TMPDIR/test12/out2.json"
+
+if [ -s "$TMPDIR/test12/out1.json" ] && [ -s "$TMPDIR/test12/out2.json" ]; then
+    pass_test "Deterministic findings JSON files generated successfully"
+else
+    fail_test "Findings output" "Failed to generate valid output files"
 fi
 
 echo "============================================="

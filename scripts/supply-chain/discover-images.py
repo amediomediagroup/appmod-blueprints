@@ -14,6 +14,7 @@ Discovers container image references across the repository including:
 
 Classifies images into FIRST_PARTY_IMAGE, THIRD_PARTY_IMAGE, or UNKNOWN.
 Emits UNRESOLVED_DYNAMIC_IMAGE for unresolvable variable/templated references.
+Separates tag_classification from digest_pinned state.
 Excludes scanner-internal scripts (scripts/supply-chain/) from artifact inventory.
 """
 
@@ -45,15 +46,8 @@ FIRST_PARTY_PATTERNS = [
     r'^internal/',
 ]
 
-MUTABLE_TAG_PATTERNS = [
-    r':latest$',
-    r':main$',
-    r':master$',
-    r':dev$',
-    r':canary$',
-    r':nightly$',
-    r':stable$',
-    r':head$',
+MUTABLE_CHANNEL_PATTERNS = [
+    r'^(?:main|master|dev|canary|nightly|stable|head)$'
 ]
 
 INVALID_IMAGE_VALUES = {
@@ -86,7 +80,35 @@ def is_unresolved_dynamic_ref(img: str) -> bool:
         return True
     return False
 
+def classify_tag(tag_str: str) -> str:
+    """
+    Classifies tag into:
+    - LATEST: tag is 'latest'
+    - UNTAGGED: no tag specified
+    - MUTABLE_CHANNEL: main, master, dev, canary, etc.
+    - EXACT_VERSION: SemVer or numeric/specific version string
+    """
+    if not tag_str:
+        return "UNTAGGED"
+    tag_lower = tag_str.lower()
+    if tag_lower == "latest":
+        return "LATEST"
+    for pat in MUTABLE_CHANNEL_PATTERNS:
+        if re.search(pat, tag_lower):
+            return "MUTABLE_CHANNEL"
+    return "EXACT_VERSION"
+
 def parse_oci_ref(image_ref: str) -> dict:
+    """
+    Structured parsing of an OCI reference distinguishing:
+    - Host (with optional port, e.g., registry.example.com:5000)
+    - Repository path (e.g., team/image or postgres)
+    - Tag (e.g., 17, alpine, 1.2.3, or empty if untagged)
+    - Digest (e.g., sha256:...)
+    - digest_pinned (boolean: True ONLY if @sha256: digest is present)
+    - tag_classification (LATEST, UNTAGGED, MUTABLE_CHANNEL, EXACT_VERSION)
+    - mutable_tag (boolean: True if not digest_pinned)
+    """
     ref = image_ref.strip()
     digest = ""
     tag = ""
@@ -113,11 +135,9 @@ def parse_oci_ref(image_ref: str) -> dict:
     else:
         repo_clean = repo_path
 
-    is_mutable = False
-    if digest:
-        is_mutable = False
-    elif not tag or tag.lower() in ["latest", "main", "master", "dev", "canary", "nightly", "stable", "head"]:
-        is_mutable = True
+    digest_pinned = bool(digest)
+    tag_class = classify_tag(tag)
+    mutable_tag = not digest_pinned
 
     return {
         "raw": ref,
@@ -125,7 +145,9 @@ def parse_oci_ref(image_ref: str) -> dict:
         "repo": repo_clean,
         "tag": tag,
         "digest": digest,
-        "mutable_tag": is_mutable
+        "digest_pinned": digest_pinned,
+        "tag_classification": tag_class,
+        "mutable_tag": mutable_tag
     }
 
 def is_valid_image_ref(img: str, allow_single_word: bool = True) -> bool:
@@ -156,7 +178,6 @@ def is_valid_image_ref(img: str, allow_single_word: bool = True) -> bool:
     if not re.search(r'[a-zA-Z0-9]', img_stripped):
         return False
 
-    # Filter out standalone localhost:5000 without repository path
     if (img_stripped.startswith('localhost:') or img_stripped.startswith('127.0.0.1:')) and '/' not in img_stripped:
         return False
 
@@ -459,6 +480,8 @@ def discover_all(repo_root: Path):
                         'ownership': classification,
                         'source_tag': parsed_oci['tag'],
                         'pinned_digest': parsed_oci['digest'],
+                        'digest_pinned': parsed_oci['digest_pinned'],
+                        'tag_classification': parsed_oci['tag_classification'],
                         'mutable_tag': parsed_oci['mutable_tag'],
                         'contexts': [f"{rel_path} ({item['context']})"]
                     }
