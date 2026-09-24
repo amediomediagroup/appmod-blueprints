@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # self-test.sh
-# Comprehensive self-test suite proving supply-chain sentinel logic.
+# Hermetic offline self-test suite proving supply-chain sentinel logic.
 
-echo "=== Running Supply-Chain Sentinel Self-Tests ==="
+echo "=== Running Supply-Chain Sentinel Hermetic Self-Tests ==="
 
 FAILED=0
 TOTAL_TESTS=0
@@ -197,65 +197,10 @@ else
     fail_test "Scanner self-exclusion" "Found scanner internal paths in discovery: $SELF_PATHS"
 fi
 
-# TEST 8: Multi-arch resolution behavior & missing platform detection
-run_test_header "Multi-arch resolution behavior & missing platform detection"
-RESOLVE_MULTI=$(./scripts/supply-chain/resolve-image.sh "grafana/grafana:11.4.0")
-AMD64_AVAIL=$(echo "$RESOLVE_MULTI" | jq -r '.platforms["linux/amd64"].available')
-ARM64_AVAIL=$(echo "$RESOLVE_MULTI" | jq -r '.platforms["linux/arm64"].available')
-TOP_DIGEST=$(echo "$RESOLVE_MULTI" | jq -r '.top_level_digest')
-AMD64_DIGEST=$(echo "$RESOLVE_MULTI" | jq -r '.platforms["linux/amd64"].digest')
-ARM64_DIGEST=$(echo "$RESOLVE_MULTI" | jq -r '.platforms["linux/arm64"].digest')
-
-if [ "$AMD64_AVAIL" = "true" ] && [ "$ARM64_AVAIL" = "true" ] && [ -n "$TOP_DIGEST" ] && [ "$AMD64_DIGEST" != "$ARM64_DIGEST" ]; then
-    pass_test "Multi-arch index resolved separate top-level digest ($TOP_DIGEST) and child digests (amd64=$AMD64_DIGEST, arm64=$ARM64_DIGEST)"
-else
-    fail_test "Multi-arch resolution" "amd64=$AMD64_AVAIL, arm64=$ARM64_AVAIL, top=$TOP_DIGEST"
-fi
-
-# TEST 9: Child-digest drift detection (PLATFORM_DIGEST_DRIFT)
-run_test_header "Child-digest drift detection (PLATFORM_DIGEST_DRIFT)"
-mkdir -p "$TMPDIR/test9/.supply-chain"
-cat << 'EOF' > "$TMPDIR/test9/values.yaml"
-grafana:
-  image:
-    repository: grafana/grafana
-    tag: 11.4.0
-EOF
-
-cat << 'EOF' > "$TMPDIR/test9/.supply-chain/artifacts.yaml"
-version: "1.0"
-images:
-  - id: "grafana/grafana:11.4.0"
-    image: "grafana/grafana:11.4.0"
-    ownership: "THIRD_PARTY_IMAGE"
-    source_paths: ["values.yaml"]
-    source_tag: "11.4.0"
-    top_level_digest: "sha256:d8ea37798ccc41061a62ab080f2676dda6bf7815558499f901bdb0f533a456fb"
-    platforms:
-      linux/amd64:
-        digest: "sha256:8d938a1c52b018c60cb3583657e038054387aa18a74f09a865c99a522481f7ac"
-        available: true
-      linux/arm64:
-        digest: "sha256:OLD_STALE_ARM64_DIGEST_HASH_HERE"
-        available: true
-EOF
-
-cat << 'EOF' > "$TMPDIR/test9/.supply-chain/policy.yaml"
-version: "1.0"
-target_platforms: ["linux/amd64", "linux/arm64"]
-EOF
-
-COMP_OUT=$(python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test9" --scan)
-if echo "$COMP_OUT" | grep -q "PLATFORM_DIGEST_DRIFT"; then
-    pass_test "PLATFORM_DIGEST_DRIFT correctly detected when child arm64 digest drifted"
-else
-    fail_test "PLATFORM_DIGEST_DRIFT" "Expected PLATFORM_DIGEST_DRIFT finding in output: $COMP_OUT"
-fi
-
-# TEST 10: New Chart.yaml & missing/stale Chart.lock detection
+# TEST 8: New Chart.yaml & missing/stale Chart.lock detection
 run_test_header "New Chart.yaml detection & missing Chart.lock detection"
-mkdir -p "$TMPDIR/test10/my-chart"
-cat << 'EOF' > "$TMPDIR/test10/my-chart/Chart.yaml"
+mkdir -p "$TMPDIR/test8/my-chart"
+cat << 'EOF' > "$TMPDIR/test8/my-chart/Chart.yaml"
 apiVersion: v2
 name: my-chart
 version: 1.0.0
@@ -265,7 +210,7 @@ dependencies:
     repository: https://charts.bitnami.com/bitnami
 EOF
 
-HELM_DISC=$(python3 scripts/supply-chain/discover-helm.py --repo-root "$TMPDIR/test10")
+HELM_DISC=$(python3 scripts/supply-chain/discover-helm.py --repo-root "$TMPDIR/test8")
 LOCK_STATE=$(echo "$HELM_DISC" | jq -r '.helm_charts[0].chart_lock_state')
 
 if [ "$LOCK_STATE" = "MISSING" ]; then
@@ -274,22 +219,22 @@ else
     fail_test "Chart.lock detection" "Expected MISSING lock state, got $LOCK_STATE"
 fi
 
-# TEST 11: Internal GitOps vs OCI candidate chart classification
+# TEST 9: Internal GitOps vs OCI candidate chart classification
 run_test_header "Internal GitOps vs OCI candidate chart classification"
-mkdir -p "$TMPDIR/test11/platform-charts/my-oci-chart"
-mkdir -p "$TMPDIR/test11/gitops/addons/my-addon-chart"
-cat << 'EOF' > "$TMPDIR/test11/platform-charts/my-oci-chart/Chart.yaml"
+mkdir -p "$TMPDIR/test9/platform-charts/my-oci-chart"
+mkdir -p "$TMPDIR/test9/gitops/addons/my-addon-chart"
+cat << 'EOF' > "$TMPDIR/test9/platform-charts/my-oci-chart/Chart.yaml"
 apiVersion: v2
 name: my-oci-chart
 version: 0.1.0
 EOF
-cat << 'EOF' > "$TMPDIR/test11/gitops/addons/my-addon-chart/Chart.yaml"
+cat << 'EOF' > "$TMPDIR/test9/gitops/addons/my-addon-chart/Chart.yaml"
 apiVersion: v2
 name: my-addon-chart
 version: 0.1.0
 EOF
 
-HELM_CLASS=$(python3 scripts/supply-chain/discover-helm.py --repo-root "$TMPDIR/test11")
+HELM_CLASS=$(python3 scripts/supply-chain/discover-helm.py --repo-root "$TMPDIR/test9")
 CLASS_OCI=$(echo "$HELM_CLASS" | jq -r '.helm_charts[] | select(.chart_name=="my-oci-chart") | .classification')
 CLASS_GITOPS=$(echo "$HELM_CLASS" | jq -r '.helm_charts[] | select(.chart_name=="my-addon-chart") | .classification')
 
@@ -299,25 +244,39 @@ else
     fail_test "Chart classification" "OCI=$CLASS_OCI, GitOps=$CLASS_GITOPS"
 fi
 
-# TEST 12: Deterministic findings JSON output comparison
-run_test_header "Deterministic findings output comparison"
-mkdir -p "$TMPDIR/test12/.supply-chain"
-cp .supply-chain/policy.yaml "$TMPDIR/test12/.supply-chain/"
-python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test12" --update-catalog --output "$TMPDIR/test12/out1.json"
-python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test12" --output "$TMPDIR/test12/out2.json"
+# TEST 10: Strict Deterministic Findings Comparison (diff -u)
+run_test_header "Strict Deterministic Findings Comparison (diff -u)"
+mkdir -p "$TMPDIR/test10/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test10/deploy.yaml"
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  template:
+    spec:
+      containers:
+      - name: redis
+        image: redis:latest
+EOF
 
-if [ -s "$TMPDIR/test12/out1.json" ] && [ -s "$TMPDIR/test12/out2.json" ]; then
-    pass_test "Deterministic findings JSON files generated successfully"
+cp .supply-chain/policy.yaml "$TMPDIR/test10/.supply-chain/"
+
+python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test10" --output "$TMPDIR/test10/raw1.json"
+python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test10" --output "$TMPDIR/test10/raw2.json"
+
+jq -S . "$TMPDIR/test10/raw1.json" > "$TMPDIR/test10/out1.json"
+jq -S . "$TMPDIR/test10/raw2.json" > "$TMPDIR/test10/out2.json"
+
+if diff -u "$TMPDIR/test10/out1.json" "$TMPDIR/test10/out2.json"; then
+    pass_test "Strict diff -u between run 1 and run 2 comparison outputs was byte-identical"
 else
-    fail_test "Findings output" "Failed to generate valid output files"
+    fail_test "Deterministic findings diff" "out1.json and out2.json differed!"
 fi
 
 echo "============================================="
 if [ "$FAILED" -eq 0 ]; then
-    echo "ALL $TOTAL_TESTS SELF-TESTS PASSED SUCCESSFULLY!"
+    echo "ALL $TOTAL_TESTS HERMETIC SELF-TESTS PASSED SUCCESSFULLY!"
     exit 0
 else
-    echo "$FAILED / $TOTAL_TESTS SELF-TESTS FAILED!"
+    echo "$FAILED / $TOTAL_TESTS HERMETIC SELF-TESTS FAILED!"
     exit 1
 fi
-EOF
