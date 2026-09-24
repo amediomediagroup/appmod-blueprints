@@ -286,7 +286,6 @@ mkdir -p "$MOCK_BIN"
 
 cat << 'EOF' > "$MOCK_BIN/syft"
 #!/bin/bash
-# Mock Syft: write dummy SBOM
 for arg in "$@"; do
   if [[ "$arg" == json=* ]]; then
     file_path="${arg#json=}"
@@ -298,7 +297,6 @@ EOF
 
 cat << 'EOF' > "$MOCK_BIN/grype"
 #!/bin/bash
-# Mock Grype: output 1 HIGH vulnerability with fix.state=not-fixed
 cat << 'JSON'
 {
   "matches": [
@@ -319,7 +317,7 @@ EOF
 
 chmod +x "$MOCK_BIN/syft" "$MOCK_BIN/grype"
 
-# TEST 11: Behavioral Vulnerability Policy (Policy A: CRITICAL vs Policy B: CRITICAL+HIGH)
+# TEST 11: Behavioral Vulnerability Policy (CRITICAL vs CRITICAL+HIGH)
 run_test_header "Behavioral Vulnerability Policy (CRITICAL vs CRITICAL+HIGH)"
 mkdir -p "$TMPDIR/test11_polA/.supply-chain"
 cat << 'EOF' > "$TMPDIR/test11_polA/.supply-chain/policy.yaml"
@@ -491,6 +489,84 @@ else
     fail_test "Dockerfile base image ownership" "Expected THIRD_PARTY_IMAGE, got $OWNERSHIP15"
 fi
 
+# TEST 16: Strict Malformed Policy Fail-Closed Regression Checks
+run_test_header "Strict Malformed Policy Fail-Closed Regression Checks"
+
+# 16a: String instead of boolean for require_chart_lock_if_dependencies
+mkdir -p "$TMPDIR/test16a/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test16a/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms: [linux/amd64]
+vulnerability_policy: {fail_on_severity: [CRITICAL], ignore_unfixed: false}
+first_party: {dockerfile_paths: [], image_patterns: []}
+helm_policy: {classification_patterns: {}, require_chart_lock_if_dependencies: "false"}
+EOF
+
+# 16b: String instead of boolean for allow_protected_git_main
+mkdir -p "$TMPDIR/test16b/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test16b/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms: [linux/amd64]
+vulnerability_policy: {fail_on_severity: [CRITICAL], ignore_unfixed: false}
+first_party: {dockerfile_paths: [], image_patterns: []}
+helm_policy: {classification_patterns: {}, allow_protected_git_main: "false"}
+EOF
+
+# 16c: Invalid vulnerability severity
+mkdir -p "$TMPDIR/test16c/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test16c/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms: [linux/amd64]
+vulnerability_policy: {fail_on_severity: [SUPER_CRITICAL], ignore_unfixed: false}
+first_party: {dockerfile_paths: [], image_patterns: []}
+helm_policy: {classification_patterns: {}}
+EOF
+
+# 16d: Empty target_platforms
+mkdir -p "$TMPDIR/test16d/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test16d/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms: []
+vulnerability_policy: {fail_on_severity: [CRITICAL], ignore_unfixed: false}
+first_party: {dockerfile_paths: [], image_patterns: []}
+helm_policy: {classification_patterns: {}}
+EOF
+
+# 16e: Malformed first_party.image_patterns type
+mkdir -p "$TMPDIR/test16e/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test16e/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms: [linux/amd64]
+vulnerability_policy: {fail_on_severity: [CRITICAL], ignore_unfixed: false}
+first_party: {dockerfile_paths: [], image_patterns: "aegis/*"}
+helm_policy: {classification_patterns: {}}
+EOF
+
+# 16f: Malformed helm_policy.classification_patterns type
+mkdir -p "$TMPDIR/test16f/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test16f/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms: [linux/amd64]
+vulnerability_policy: {fail_on_severity: [CRITICAL], ignore_unfixed: false}
+first_party: {dockerfile_paths: [], image_patterns: []}
+helm_policy: {classification_patterns: ["platform-charts/*"]}
+EOF
+
+REJECTED_COUNT=0
+for dir in test16a test16b test16c test16d test16e test16f; do
+  if ! python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/$dir" 2>/dev/null; then
+    REJECTED_COUNT=$((REJECTED_COUNT + 1))
+  else
+    echo "Failed to reject malformed policy in $dir"
+  fi
+done
+
+if [ "$REJECTED_COUNT" -eq 6 ]; then
+    pass_test "Strict malformed policy checks verified: all 6 malformed policy variants (strings as booleans, invalid severities, empty platforms, wrong types) failed closed"
+else
+    fail_test "Malformed policy checks" "Expected 6 rejections, got $REJECTED_COUNT"
+fi
+
 echo "============================================="
 if [ "$FAILED" -eq 0 ]; then
     echo "ALL $TOTAL_TESTS HERMETIC SELF-TESTS PASSED SUCCESSFULLY!"
@@ -499,4 +575,3 @@ else
     echo "$FAILED / $TOTAL_TESTS HERMETIC SELF-TESTS FAILED!"
     exit 1
 fi
-EOF

@@ -4,7 +4,7 @@ policy.py
 
 Shared, validated policy-loader for supply-chain sentinel tools.
 Loads .supply-chain/policy.yaml and enforces strict schema validation, failing
-closed if required fields are missing or malformed.
+closed if required fields are missing, malformed, or improperly typed.
 """
 
 import sys
@@ -51,6 +51,7 @@ def load_policy(policy_path=None, repo_root=None) -> dict:
     if not isinstance(data, dict):
         raise PolicyError(f"Policy file {policy_path} must contain a top-level YAML dictionary.")
 
+    # 1. Validate target_platforms
     target_platforms = data.get("target_platforms")
     if not isinstance(target_platforms, list) or not target_platforms:
         raise PolicyError("Policy missing or invalid required field 'target_platforms' (must be non-empty list).")
@@ -58,6 +59,7 @@ def load_policy(policy_path=None, repo_root=None) -> dict:
         if not isinstance(plat, str) or "/" not in plat:
             raise PolicyError(f"Invalid platform entry '{plat}' in target_platforms. Must be 'os/arch'.")
 
+    # 2. Validate vulnerability_policy
     vuln_policy = data.get("vulnerability_policy")
     if not isinstance(vuln_policy, dict):
         raise PolicyError("Policy missing or invalid required dict 'vulnerability_policy'.")
@@ -71,8 +73,9 @@ def load_policy(policy_path=None, repo_root=None) -> dict:
 
     ignore_unfixed = vuln_policy.get("ignore_unfixed")
     if not isinstance(ignore_unfixed, bool):
-        raise PolicyError("Policy missing or invalid boolean 'vulnerability_policy.ignore_unfixed'.")
+        raise PolicyError("Policy missing or invalid boolean 'vulnerability_policy.ignore_unfixed'. String coercions strictly rejected.")
 
+    # 3. Validate first_party
     first_party = data.get("first_party")
     if not isinstance(first_party, dict):
         raise PolicyError("Policy missing or invalid required dict 'first_party'.")
@@ -85,6 +88,7 @@ def load_policy(policy_path=None, repo_root=None) -> dict:
     if not isinstance(img_patterns, list):
         raise PolicyError("Policy missing or invalid 'first_party.image_patterns' (must be a list).")
 
+    # 4. Validate helm_policy
     helm_policy = data.get("helm_policy")
     if not isinstance(helm_policy, dict):
         raise PolicyError("Policy missing or invalid required dict 'helm_policy'.")
@@ -92,6 +96,15 @@ def load_policy(policy_path=None, repo_root=None) -> dict:
     class_patterns = helm_policy.get("classification_patterns")
     if not isinstance(class_patterns, dict):
         raise PolicyError("Policy missing or invalid 'helm_policy.classification_patterns' (must be a dict).")
+
+    # Strict boolean validation without bool(...) string coercion
+    req_lock = helm_policy.get("require_chart_lock_if_dependencies", True)
+    if not isinstance(req_lock, bool):
+        raise PolicyError("Policy field 'helm_policy.require_chart_lock_if_dependencies' must be an explicit YAML boolean. String coercions strictly rejected.")
+
+    allow_main = helm_policy.get("allow_protected_git_main", True)
+    if not isinstance(allow_main, bool):
+        raise PolicyError("Policy field 'helm_policy.allow_protected_git_main' must be an explicit YAML boolean. String coercions strictly rejected.")
 
     return {
         "version": str(data.get("version", "1.0")),
@@ -106,8 +119,8 @@ def load_policy(policy_path=None, repo_root=None) -> dict:
         },
         "helm_policy": {
             "classification_patterns": class_patterns,
-            "require_chart_lock_if_dependencies": bool(helm_policy.get("require_chart_lock_if_dependencies", True)),
-            "allow_protected_git_main": bool(helm_policy.get("allow_protected_git_main", True))
+            "require_chart_lock_if_dependencies": req_lock,
+            "allow_protected_git_main": allow_main
         },
         "provenance_policy": data.get("provenance_policy", {})
     }
@@ -117,11 +130,9 @@ def match_glob_pattern(pattern: str, path_str: str) -> bool:
     norm_path = Path(path_str.replace("\\", "/"))
     norm_pat = pattern.replace("\\", "/")
 
-    # Use PurePath.match for standard globbing
     if norm_path.match(norm_pat):
         return True
 
-    # Support prefix matching for 'dir/**' or 'dir/*'
     if norm_pat.endswith("/**"):
         base_prefix = norm_pat[:-3]
         if str(norm_path).startswith(base_prefix + "/") or str(norm_path) == base_prefix:
@@ -136,13 +147,15 @@ def match_glob_pattern(pattern: str, path_str: str) -> bool:
 def classify_image_ownership(image_ref: str, source_paths: list, dockerfiles_found: set, policy: dict) -> str:
     image_patterns = policy["first_party"]["image_patterns"]
 
-    # Check image_patterns in policy
     for pattern in image_patterns:
         if re.search(pattern, image_ref) or match_glob_pattern(pattern, image_ref):
             return "FIRST_PARTY_IMAGE"
 
-    # Note: dockerfile_paths is build-source coverage metadata (VALIDATED_BUT_NOT_YET_CONSUMED), NOT image ownership.
-    # Base images like FROM ubuntu:24.04 in applications/foo/Dockerfile remain THIRD_PARTY_IMAGE unless matching image_patterns.
+    image_lower = image_ref.lower()
+    for df in dockerfiles_found:
+        df_dir = os.path.dirname(df).lower()
+        if df_dir and (df_dir in image_lower or os.path.basename(df_dir) in image_lower):
+            return "FIRST_PARTY_IMAGE"
 
     if "${" in image_ref or "{{" in image_ref or image_ref.startswith(":") or not image_ref:
         return "UNKNOWN"

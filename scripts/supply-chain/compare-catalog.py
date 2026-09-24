@@ -1,4 +1,4 @@
-#!/usr/bin/env parser
+#!/usr/bin/env python3
 """
 compare-catalog.py
 
@@ -163,7 +163,7 @@ def main():
                     "source_paths": [sp],
                     "evidence": {
                         "source_path": sp,
-                        "classification": chart['classification'],
+                        "classification": classification,
                         "reason": "Missing OCI release digest for OCI candidate chart"
                     }
                 }
