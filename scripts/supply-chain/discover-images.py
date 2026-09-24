@@ -55,10 +55,6 @@ SCANNER_INTERNAL_PATHS = [
     '.supply-chain'
 ]
 
-FIRST_PARTY_DOCKERFILE_DIRS = [
-    'applications', 'backstage', 'cluster-providers', 'platform'
-]
-
 MUTABLE_CHANNEL_PATTERNS = [
     r'^(?:main|master|dev|canary|nightly|stable|head)$'
 ]
@@ -184,22 +180,6 @@ def is_valid_image_ref(img: str, allow_single_word: bool = True) -> bool:
             return False
 
     return True
-
-def classify_image(image_ref: str, source_paths: list, dockerfiles_found: set) -> str:
-    for pattern in policy_module.FIRST_PARTY_PATTERNS:
-        if re.search(pattern, image_ref):
-            return "FIRST_PARTY_IMAGE"
-
-    image_lower = image_ref.lower()
-    for df in dockerfiles_found:
-        df_dir = os.path.dirname(df).lower()
-        if df_dir and (df_dir in image_lower or os.path.basename(df_dir) in image_lower):
-            return "FIRST_PARTY_IMAGE"
-
-    if is_unresolved_dynamic_ref(image_ref) or image_ref.startswith(":") or not image_ref:
-        return "UNKNOWN"
-
-    return "THIRD_PARTY_IMAGE"
 
 def resolve_arg_variables(raw_value: str, args_env: dict) -> str:
     result = raw_value

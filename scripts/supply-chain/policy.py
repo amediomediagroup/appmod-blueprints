@@ -10,7 +10,8 @@ closed if required fields are missing or malformed.
 import sys
 import os
 import re
-from pathlib import Path
+from pathlib import Path, PurePath
+import fnmatch
 import yaml
 
 VALID_SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW", "NEGLIGIBLE", "UNKNOWN"}
@@ -100,7 +101,7 @@ def load_policy(policy_path=None, repo_root=None) -> dict:
             "ignore_unfixed": ignore_unfixed
         },
         "first_party": {
-            "dockerfile_paths": df_paths,
+            "dockerfile_paths": df_paths, # VALIDATED_BUT_NOT_YET_CONSUMED (build-source coverage metadata)
             "image_patterns": img_patterns
         },
         "helm_policy": {
@@ -112,24 +113,36 @@ def load_policy(policy_path=None, repo_root=None) -> dict:
     }
 
 def match_glob_pattern(pattern: str, path_str: str) -> bool:
-    path_norm = path_str.replace("\\", "/")
-    pat_norm = pattern.replace("\\", "/")
+    """Standard deterministic path/glob matching supporting recursive ** patterns."""
+    norm_path = Path(path_str.replace("\\", "/"))
+    norm_pat = pattern.replace("\\", "/")
 
-    regex_pat = "^" + pat_norm.replace(".", r"\.").replace("**", ".*").replace("*", r"[^/]*") + "$"
-    return bool(re.match(regex_pat, path_norm))
+    # Use PurePath.match for standard globbing
+    if norm_path.match(norm_pat):
+        return True
+
+    # Support prefix matching for 'dir/**' or 'dir/*'
+    if norm_pat.endswith("/**"):
+        base_prefix = norm_pat[:-3]
+        if str(norm_path).startswith(base_prefix + "/") or str(norm_path) == base_prefix:
+            return True
+    elif norm_pat.endswith("/*"):
+        base_prefix = norm_pat[:-2]
+        if str(norm_path).startswith(base_prefix + "/") or str(norm_path) == base_prefix:
+            return True
+
+    return False
 
 def classify_image_ownership(image_ref: str, source_paths: list, dockerfiles_found: set, policy: dict) -> str:
     image_patterns = policy["first_party"]["image_patterns"]
 
+    # Check image_patterns in policy
     for pattern in image_patterns:
         if re.search(pattern, image_ref) or match_glob_pattern(pattern, image_ref):
             return "FIRST_PARTY_IMAGE"
 
-    image_lower = image_ref.lower()
-    for df in dockerfiles_found:
-        df_dir = os.path.dirname(df).lower()
-        if df_dir and (df_dir in image_lower or os.path.basename(df_dir) in image_lower):
-            return "FIRST_PARTY_IMAGE"
+    # Note: dockerfile_paths is build-source coverage metadata (VALIDATED_BUT_NOT_YET_CONSUMED), NOT image ownership.
+    # Base images like FROM ubuntu:24.04 in applications/foo/Dockerfile remain THIRD_PARTY_IMAGE unless matching image_patterns.
 
     if "${" in image_ref or "{{" in image_ref or image_ref.startswith(":") or not image_ref:
         return "UNKNOWN"
@@ -143,7 +156,7 @@ def classify_helm_chart(rel_path: str, policy: dict) -> str:
     for category, patterns in patterns_map.items():
         if isinstance(patterns, list):
             for pat in patterns:
-                if match_glob_pattern(pat, path_str) or path_str.startswith(pat.rstrip("/*") + "/"):
+                if match_glob_pattern(pat, path_str):
                     return category.upper()
 
     return "UNKNOWN"

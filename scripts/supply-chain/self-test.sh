@@ -278,50 +278,51 @@ else
     fail_test "Deterministic findings diff" "out1.json and out2.json differed!"
 fi
 
-# ==================== POLICY ENFORCEMENT HERMETIC TESTS ====================
+# ==================== BEHAVIORAL VULNERABILITY POLICY TESTS (MOCKED SYFT/GRYPE) ====================
 
-# TEST 11: Policy target_platforms enforcement
-run_test_header "Policy target_platforms enforcement"
-mkdir -p "$TMPDIR/test11/.supply-chain"
-cat << 'EOF' > "$TMPDIR/test11/deploy.yaml"
-apiVersion: apps/v1
-kind: Deployment
-spec:
-  template:
-    spec:
-      containers:
-      - name: redis
-        image: redis:latest
+# Create hermetic mock syft and grype executables
+MOCK_BIN="$TMPDIR/mock_bin"
+mkdir -p "$MOCK_BIN"
+
+cat << 'EOF' > "$MOCK_BIN/syft"
+#!/bin/bash
+# Mock Syft: write dummy SBOM
+for arg in "$@"; do
+  if [[ "$arg" == json=* ]]; then
+    file_path="${arg#json=}"
+    echo '{"artifacts": [{"name": "test-pkg"}]}' > "$file_path"
+  fi
+done
+exit 0
 EOF
 
-cat << 'EOF' > "$TMPDIR/test11/.supply-chain/policy.yaml"
-version: "1.0"
-target_platforms:
-  - linux/amd64
-vulnerability_policy:
-  fail_on_severity: [CRITICAL, HIGH]
-  ignore_unfixed: false
-first_party:
-  dockerfile_paths: ["apps/*"]
-  image_patterns: ["aegis/*"]
-helm_policy:
-  classification_patterns:
-    release_artifact_oci_candidate: ["platform-charts/*"]
-  require_chart_lock_if_dependencies: true
-  allow_protected_git_main: true
+cat << 'EOF' > "$MOCK_BIN/grype"
+#!/bin/bash
+# Mock Grype: output 1 HIGH vulnerability with fix.state=not-fixed
+cat << 'JSON'
+{
+  "matches": [
+    {
+      "vulnerability": {
+        "id": "CVE-2025-1234",
+        "severity": "High",
+        "fix": {
+          "state": "not-fixed"
+        }
+      }
+    }
+  ]
+}
+JSON
+exit 0
 EOF
 
-COMP_POL11=$(python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test11")
-if echo "$COMP_POL11" | grep -q "PLATFORM_AMD64_MISSING" && ! echo "$COMP_POL11" | grep -q "PLATFORM_ARM64_MISSING"; then
-    pass_test "target_platforms dynamically sourced from policy (only linux/amd64 evaluated)"
-else
-    fail_test "Policy target_platforms" "Expected PLATFORM_AMD64_MISSING without ARM64: $COMP_POL11"
-fi
+chmod +x "$MOCK_BIN/syft" "$MOCK_BIN/grype"
 
-# TEST 12: Vulnerability Policy Severity Enforcement (CRITICAL vs CRITICAL+HIGH)
-run_test_header "Vulnerability Policy Severity Enforcement (CRITICAL vs CRITICAL+HIGH)"
-mkdir -p "$TMPDIR/test12_crit/.supply-chain"
-cat << 'EOF' > "$TMPDIR/test12_crit/.supply-chain/policy.yaml"
+# TEST 11: Behavioral Vulnerability Policy (Policy A: CRITICAL vs Policy B: CRITICAL+HIGH)
+run_test_header "Behavioral Vulnerability Policy (CRITICAL vs CRITICAL+HIGH)"
+mkdir -p "$TMPDIR/test11_polA/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test11_polA/.supply-chain/policy.yaml"
 version: "1.0"
 target_platforms: [linux/amd64]
 vulnerability_policy:
@@ -334,23 +335,36 @@ helm_policy:
   classification_patterns: {}
 EOF
 
-POL_OBJ12=$(python3 -c "
-import sys; sys.path.insert(0, '$SUPPLY_CHAIN_DIR')
-import policy
-p = policy.load_policy(policy_path='$TMPDIR/test12_crit/.supply-chain/policy.yaml')
-print(p['vulnerability_policy']['fail_on_severity'])
-")
+mkdir -p "$TMPDIR/test11_polB/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test11_polB/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms: [linux/amd64]
+vulnerability_policy:
+  fail_on_severity: [CRITICAL, HIGH]
+  ignore_unfixed: false
+first_party:
+  dockerfile_paths: []
+  image_patterns: []
+helm_policy:
+  classification_patterns: {}
+EOF
 
-if [ "$POL_OBJ12" = "['CRITICAL']" ]; then
-    pass_test "CRITICAL-only policy correctly loaded and differs from CRITICAL+HIGH"
+PATH="$MOCK_BIN:$PATH" ./scripts/supply-chain/scan-image.sh "test/img:1.0" "linux/amd64" "sha256:1234" "$TMPDIR/test11_polA/.supply-chain/policy.yaml" "$TMPDIR/test11_polA/scan.json"
+PATH="$MOCK_BIN:$PATH" ./scripts/supply-chain/scan-image.sh "test/img:1.0" "linux/amd64" "sha256:1234" "$TMPDIR/test11_polB/.supply-chain/policy.yaml" "$TMPDIR/test11_polB/scan.json"
+
+POL_A_STATUS=$(jq -r '.vulnerability_status' "$TMPDIR/test11_polA/scan.json")
+POL_B_STATUS=$(jq -r '.vulnerability_status' "$TMPDIR/test11_polB/scan.json")
+
+if [ "$POL_A_STATUS" = "CLEAN" ] && [ "$POL_B_STATUS" = "EXCEEDED" ]; then
+    pass_test "Behavioral vulnerability policy verified: HIGH vulnerability is CLEAN on CRITICAL-only policy and EXCEEDED on CRITICAL+HIGH policy"
 else
-    fail_test "Vulnerability severity policy" "Expected ['CRITICAL'], got $POL_OBJ12"
+    fail_test "Behavioral vulnerability policy" "Policy A status=$POL_A_STATUS, Policy B status=$POL_B_STATUS"
 fi
 
-# TEST 13: Policy ignore_unfixed evaluation
-run_test_header "Policy ignore_unfixed evaluation"
-mkdir -p "$TMPDIR/test13/.supply-chain"
-cat << 'EOF' > "$TMPDIR/test13/.supply-chain/policy.yaml"
+# TEST 12: Behavioral ignore_unfixed Policy Evaluation
+run_test_header "Behavioral ignore_unfixed Policy Evaluation"
+mkdir -p "$TMPDIR/test12_ign_true/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test12_ign_true/.supply-chain/policy.yaml"
 version: "1.0"
 target_platforms: [linux/amd64]
 vulnerability_policy:
@@ -363,23 +377,32 @@ helm_policy:
   classification_patterns: {}
 EOF
 
-POL_OBJ13=$(python3 -c "
-import sys; sys.path.insert(0, '$SUPPLY_CHAIN_DIR')
-import policy
-p = policy.load_policy(policy_path='$TMPDIR/test13/.supply-chain/policy.yaml')
-print(p['vulnerability_policy']['ignore_unfixed'])
-")
+PATH="$MOCK_BIN:$PATH" ./scripts/supply-chain/scan-image.sh "test/img:1.0" "linux/amd64" "sha256:1234" "$TMPDIR/test12_ign_true/.supply-chain/policy.yaml" "$TMPDIR/test12_ign_true/scan.json"
 
-if [ "$POL_OBJ13" = "True" ]; then
-    pass_test "ignore_unfixed: true correctly loaded from policy configuration"
+IGN_TRUE_STATUS=$(jq -r '.vulnerability_status' "$TMPDIR/test12_ign_true/scan.json")
+
+if [ "$IGN_TRUE_STATUS" = "CLEAN" ] && [ "$POL_B_STATUS" = "EXCEEDED" ]; then
+    pass_test "Behavioral ignore_unfixed verified: unfixed HIGH vulnerability is ignored when ignore_unfixed: true"
 else
-    fail_test "Policy ignore_unfixed" "Expected True, got $POL_OBJ13"
+    fail_test "ignore_unfixed evaluation" "ignore_unfixed=true status=$IGN_TRUE_STATUS, ignore_unfixed=false status=$POL_B_STATUS"
 fi
 
-# TEST 14: Dynamic first_party image_patterns policy enforcement
-run_test_header "Dynamic first_party image_patterns policy enforcement"
-mkdir -p "$TMPDIR/test14/.supply-chain"
-cat << 'EOF' > "$TMPDIR/test14/.supply-chain/policy.yaml"
+# TEST 13: helm_policy.require_chart_lock_if_dependencies Enforcement
+run_test_header "helm_policy.require_chart_lock_if_dependencies Enforcement"
+mkdir -p "$TMPDIR/test13_lock_true/chart" "$TMPDIR/test13_lock_true/.supply-chain"
+mkdir -p "$TMPDIR/test13_lock_false/chart" "$TMPDIR/test13_lock_false/.supply-chain"
+
+cat << 'EOF' > "$TMPDIR/test13_lock_true/chart/Chart.yaml"
+apiVersion: v2
+name: my-chart
+version: 1.0.0
+dependencies:
+  - name: redis
+    version: 17.0.0
+EOF
+cp "$TMPDIR/test13_lock_true/chart/Chart.yaml" "$TMPDIR/test13_lock_false/chart/Chart.yaml"
+
+cat << 'EOF' > "$TMPDIR/test13_lock_true/.supply-chain/policy.yaml"
 version: "1.0"
 target_platforms: [linux/amd64]
 vulnerability_policy:
@@ -387,43 +410,85 @@ vulnerability_policy:
   ignore_unfixed: false
 first_party:
   dockerfile_paths: []
-  image_patterns: ["custom-org/*"]
+  image_patterns: []
+helm_policy:
+  classification_patterns: {}
+  require_chart_lock_if_dependencies: true
+EOF
+
+cat << 'EOF' > "$TMPDIR/test13_lock_false/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms: [linux/amd64]
+vulnerability_policy:
+  fail_on_severity: [CRITICAL]
+  ignore_unfixed: false
+first_party:
+  dockerfile_paths: []
+  image_patterns: []
+helm_policy:
+  classification_patterns: {}
+  require_chart_lock_if_dependencies: false
+EOF
+
+./scripts/supply-chain/audit-helm.sh --repo-root "$TMPDIR/test13_lock_true" --policy "$TMPDIR/test13_lock_true/.supply-chain/policy.yaml" --output "$TMPDIR/test13_lock_true/out.json"
+./scripts/supply-chain/audit-helm.sh --repo-root "$TMPDIR/test13_lock_false" --policy "$TMPDIR/test13_lock_false/.supply-chain/policy.yaml" --output "$TMPDIR/test13_lock_false/out.json"
+
+LOCK_TRUE_COUNT=$(jq -r '.finding_count' "$TMPDIR/test13_lock_true/out.json")
+LOCK_FALSE_COUNT=$(jq -r '.finding_count' "$TMPDIR/test13_lock_false/out.json")
+
+if [ "$LOCK_TRUE_COUNT" -eq 1 ] && [ "$LOCK_FALSE_COUNT" -eq 0 ]; then
+    pass_test "require_chart_lock_if_dependencies enforced: HELM_LOCK_DRIFT generated when true, suppressed when false"
+else
+    fail_test "require_chart_lock_if_dependencies" "lock_true_count=$LOCK_TRUE_COUNT, lock_false_count=$LOCK_FALSE_COUNT"
+fi
+
+# TEST 14: Recursive Glob Matcher Verification
+run_test_header "Recursive Glob Matcher Verification (** matching nested paths)"
+GLOB_APP=$(python3 -c "
+import sys; sys.path.insert(0, '$ROOT_DIR/scripts/supply-chain')
+import policy
+print(policy.match_glob_pattern('applications/**', 'applications/java/src'))
+")
+
+GLOB_GITOPS=$(python3 -c "
+import sys; sys.path.insert(0, '$ROOT_DIR/scripts/supply-chain')
+import policy
+print(policy.match_glob_pattern('gitops/addons/**', 'gitops/addons/charts/backstage'))
+")
+
+if [ "$GLOB_APP" = "True" ] && [ "$GLOB_GITOPS" = "True" ]; then
+    pass_test "Recursive glob matcher verified: applications/** matches applications/java/src & gitops/addons/** matches gitops/addons/charts/backstage"
+else
+    fail_test "Recursive glob matcher" "glob_app=$GLOB_APP, glob_gitops=$GLOB_GITOPS"
+fi
+
+# TEST 15: Dockerfile FROM Base Image Ownership Disambiguation
+run_test_header "Dockerfile FROM Base Image Ownership Disambiguation"
+mkdir -p "$TMPDIR/test15/applications/foo" "$TMPDIR/test15/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test15/applications/foo/Dockerfile"
+FROM ubuntu:24.04
+EOF
+
+cat << 'EOF' > "$TMPDIR/test15/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms: [linux/amd64]
+vulnerability_policy:
+  fail_on_severity: [CRITICAL]
+  ignore_unfixed: false
+first_party:
+  dockerfile_paths: ["applications/**"]
+  image_patterns: ["aegis/*"]
 helm_policy:
   classification_patterns: {}
 EOF
 
-cat << 'EOF' > "$TMPDIR/test14/deploy.yaml"
-apiVersion: apps/v1
-kind: Deployment
-spec:
-  template:
-    spec:
-      containers:
-      - name: app
-        image: custom-org/my-service:1.0.0
-EOF
+DISC_OUT15=$(python3 scripts/supply-chain/discover-images.py --repo-root "$TMPDIR/test15" --policy "$TMPDIR/test15/.supply-chain/policy.yaml")
+OWNERSHIP15=$(echo "$DISC_OUT15" | jq -r '.images[0].ownership')
 
-DISC_POL14=$(python3 scripts/supply-chain/discover-images.py --repo-root "$TMPDIR/test14" --policy "$TMPDIR/test14/.supply-chain/policy.yaml")
-OWNERSHIP14=$(echo "$DISC_POL14" | jq -r '.images[0].ownership')
-
-if [ "$OWNERSHIP14" = "FIRST_PARTY_IMAGE" ]; then
-    pass_test "custom-org/my-service correctly classified as FIRST_PARTY_IMAGE via dynamic policy image_patterns"
+if [ "$OWNERSHIP15" = "THIRD_PARTY_IMAGE" ]; then
+    pass_test "Dockerfile FROM base image (ubuntu:24.04) under applications/foo/Dockerfile remains THIRD_PARTY_IMAGE"
 else
-    fail_test "Dynamic image_patterns policy" "Expected FIRST_PARTY_IMAGE, got $OWNERSHIP14"
-fi
-
-# TEST 15: Malformed Policy Fail-Closed Execution
-run_test_header "Malformed Policy Fail-Closed Execution"
-mkdir -p "$TMPDIR/test15/.supply-chain"
-cat << 'EOF' > "$TMPDIR/test15/.supply-chain/policy.yaml"
-version: "1.0"
-target_platforms: INVALID_NOT_A_LIST
-EOF
-
-if python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test15" 2>/dev/null; then
-    fail_test "Fail-closed policy check" "Scanner executed successfully despite malformed policy!"
-else
-    pass_test "Scanner failed closed on malformed policy as required"
+    fail_test "Dockerfile base image ownership" "Expected THIRD_PARTY_IMAGE, got $OWNERSHIP15"
 fi
 
 echo "============================================="

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env parser
 """
 compare-catalog.py
 
@@ -72,6 +72,7 @@ def main():
         sys.exit(1)
 
     target_platforms = policy["target_platforms"]
+    require_chart_lock = policy["helm_policy"]["require_chart_lock_if_dependencies"]
 
     catalog = load_yaml(catalog_path)
 
@@ -140,7 +141,7 @@ def main():
             }
             findings.append(f_uncat)
 
-        if chart['chart_lock_state'] == "MISSING":
+        if chart['chart_lock_state'] == "MISSING" and require_chart_lock:
             f = {
                 "type": "HELM_LOCK_DRIFT",
                 "artifact": chart['chart_name'],

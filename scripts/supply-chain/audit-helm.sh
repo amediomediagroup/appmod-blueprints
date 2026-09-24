@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # audit-helm.sh
-# Usage: ./audit-helm.sh [--repo-root PATH] [--output FILE]
+# Usage: ./audit-helm.sh [--repo-root PATH] [--policy PATH] [--output FILE]
 
 python3 - "$@" << 'EOF'
 import sys
@@ -12,30 +12,46 @@ import argparse
 from pathlib import Path
 import yaml
 
+def get_script_dir():
+    if "SUPPLY_CHAIN_DIR" in os.environ and os.path.exists(os.path.join(os.environ["SUPPLY_CHAIN_DIR"], "policy.py")):
+        return Path(os.environ["SUPPLY_CHAIN_DIR"]).resolve()
+    for p in sys.path:
+        if p and os.path.exists(os.path.join(p, "policy.py")):
+            return Path(p).resolve()
+    fixed = Path("/app/scripts/supply-chain").resolve()
+    if (fixed / "policy.py").exists():
+        return fixed
+    return Path(__file__).resolve().parent
+
+script_dir = get_script_dir()
+if str(script_dir) not in sys.path:
+    sys.path.insert(0, str(script_dir))
+
+import policy as policy_module
+
 def main():
     parser = argparse.ArgumentParser(description="Audit Helm charts in repository")
     parser.add_argument("--repo-root", default=".", help="Repository root path")
+    parser.add_argument("--policy", default=None, help="Policy YAML path")
     parser.add_argument("--output", default=None, help="Output JSON file")
     args = parser.parse_args(sys.argv[1:])
 
     repo_root = Path(args.repo_root).resolve()
-    script_dir = Path(__file__).parent.resolve()
+    policy_path = Path(args.policy).resolve() if args.policy else None
 
-    sys.path.insert(0, str(script_dir))
-    import importlib.util
+    policy = policy_module.load_policy(policy_path=policy_path, repo_root=repo_root)
 
     disc_helm_path = script_dir / "discover-helm.py"
-    if not disc_helm_path.exists():
-        disc_helm_path = repo_root / "scripts" / "supply-chain" / "discover-helm.py"
-
+    import importlib.util
     spec = importlib.util.spec_from_file_location("discover_helm", disc_helm_path)
     discover_helm = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(discover_helm)
 
-    charts = discover_helm.discover_helm_charts(repo_root)
+    charts = discover_helm.discover_helm_charts(repo_root, policy_path=policy_path)
 
     findings = []
     audited_charts = []
+    require_lock = policy["helm_policy"]["require_chart_lock_if_dependencies"]
 
     for chart in charts:
         chart_findings = []
@@ -46,8 +62,8 @@ def main():
         dependencies = chart.get('dependencies', [])
         has_lock = chart.get('has_lock', False)
 
-        # 1. Dependency checks: missing Chart.lock or range without lock
-        if dependencies:
+        # 1. Dependency checks: missing Chart.lock or range without lock (only if require_chart_lock_if_dependencies is true)
+        if dependencies and require_lock:
             if not has_lock:
                 f = {
                     "type": "HELM_LOCK_DRIFT",
