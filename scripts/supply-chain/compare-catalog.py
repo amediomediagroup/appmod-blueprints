@@ -10,6 +10,7 @@ Generates deterministic findings for:
 - NEW_DOCKERFILE
 - NEW_HELM_CHART
 - UNCATALOGUED_ARTIFACT
+- UNRESOLVED_DYNAMIC_IMAGE
 - MUTABLE_TAG
 - MUTABLE_TAG_DRIFT
 - IMAGE_DIGEST_MISSING
@@ -87,12 +88,29 @@ def main():
     discover_helm = importlib.util.module_from_spec(spec_helm)
     spec_helm.loader.exec_module(discover_helm)
 
-    discovered_images, dockerfile_list = discover_images.discover_all(repo_root)
+    discovered_images, dockerfile_list, unresolved_dynamic_images = discover_images.discover_all(repo_root)
     discovered_charts = discover_helm.discover_helm_charts(repo_root)
 
     findings = []
     updated_catalog_images = []
     updated_catalog_charts = []
+
+    # 0. Process UNRESOLVED_DYNAMIC_IMAGE findings
+    for unres in unresolved_dynamic_images:
+        sp = unres.get('source_path', '')
+        f = {
+            "type": "UNRESOLVED_DYNAMIC_IMAGE",
+            "artifact": unres.get('image', ''),
+            "source_paths": [sp] if sp else [],
+            "evidence": {
+                "source_path": sp,
+                "variable_name": unres.get('variable_name', ''),
+                "from_expression": unres.get('from_expression', ''),
+                "line": unres.get('line'),
+                "context": unres.get('context', '')
+            }
+        }
+        findings.append(f)
 
     # 1. Audit Helm Charts & Compare Catalog
     for chart in discovered_charts:

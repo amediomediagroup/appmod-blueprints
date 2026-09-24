@@ -173,6 +173,10 @@ devdbplan
 .beads/
 private/
 
+# Python
+__pycache__/
+*.pyc
+
 # Local platform config (user-specific, not committed)
 config.local.yaml
 
