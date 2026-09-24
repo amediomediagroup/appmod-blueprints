@@ -1,5 +1,5 @@
 version: '1.0'
-updated_at: '2026-09-23T14:31:49Z'
+updated_at: '2026-09-24T10:45:50Z'
 dockerfiles:
 - applications/java/functest/Dockerfile
 - applications/java/perftest/Dockerfile
@@ -252,25 +252,6 @@ images:
       sbom_status: MISSING
       vulnerability_status: UNSCANNED
   provenance_status: UNVERIFIED
-- id: mysql:8
-  image: mysql:8
-  ownership: THIRD_PARTY_IMAGE
-  source_paths:
-  - gitops/addons/charts/devlake/templates/setup-workflow.yaml
-  source_tag: '8'
-  top_level_digest: null
-  platforms:
-    linux/amd64:
-      digest: null
-      available: false
-      sbom_status: MISSING
-      vulnerability_status: UNSCANNED
-    linux/arm64:
-      digest: null
-      available: false
-      sbom_status: MISSING
-      vulnerability_status: UNSCANNED
-  provenance_status: UNVERIFIED
 - id: gitlab/gitlab-ce:latest
   image: gitlab/gitlab-ce:latest
   ownership: THIRD_PARTY_IMAGE
@@ -376,7 +357,7 @@ images:
   ownership: THIRD_PARTY_IMAGE
   source_paths:
   - gitops/addons/charts/karpenter/Chart.yaml
-  source_tag: //public.ecr.aws/karpenter
+  source_tag: ''
   top_level_digest: null
   platforms:
     linux/amd64:
@@ -524,25 +505,6 @@ images:
       sbom_status: MISSING
       vulnerability_status: UNSCANNED
   provenance_status: UNVERIFIED
-- id: debian:12
-  image: debian:12
-  ownership: THIRD_PARTY_IMAGE
-  source_paths:
-  - gitops/addons/charts/kro/resource-groups/manifests/cicd-pipeline/cicd-pipeline.yaml
-  source_tag: '12'
-  top_level_digest: null
-  platforms:
-    linux/amd64:
-      digest: null
-      available: false
-      sbom_status: MISSING
-      vulnerability_status: UNSCANNED
-    linux/arm64:
-      digest: null
-      available: false
-      sbom_status: MISSING
-      vulnerability_status: UNSCANNED
-  provenance_status: UNVERIFIED
 - id: python:3.11-slim
   image: python:3.11-slim
   ownership: THIRD_PARTY_IMAGE
@@ -605,7 +567,7 @@ images:
   ownership: THIRD_PARTY_IMAGE
   source_paths:
   - gitops/addons/charts/kargo/Chart.yaml
-  source_tag: //ghcr.io/akuity/kargo-charts
+  source_tag: ''
   top_level_digest: null
   platforms:
     linux/amd64:
@@ -701,6 +663,44 @@ images:
   source_paths:
   - platform-charts/keycloak-client-provisioner/templates/job.yaml
   source_tag: 2.22.35
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: nginx:latest
+  image: nginx:latest
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - platform/validation/cluster/validate-automode-cluster.sh
+  source_tag: latest
+  top_level_digest: null
+  platforms:
+    linux/amd64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+    linux/arm64:
+      digest: null
+      available: false
+      sbom_status: MISSING
+      vulnerability_status: UNSCANNED
+  provenance_status: UNVERIFIED
+- id: registry.k8s.io/hpa-example
+  image: registry.k8s.io/hpa-example
+  ownership: THIRD_PARTY_IMAGE
+  source_paths:
+  - platform/validation/cluster/validate-automode-cluster.sh
+  source_tag: ''
   top_level_digest: null
   platforms:
     linux/amd64:

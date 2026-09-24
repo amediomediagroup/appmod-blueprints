@@ -2,7 +2,7 @@
 """
 discover-images.py
 
-Discovers image references across the repository including:
+Discovers container image references across the repository including:
 - Dockerfile / Containerfile FROM / COPY --from (with ARG resolution)
 - Kubernetes manifests (containers, initContainers, ephemeralContainers, Jobs, CronJobs, sidecars, Helm hooks)
 - Helm values and templates
@@ -14,6 +14,7 @@ Discovers image references across the repository including:
 
 Classifies images into FIRST_PARTY_IMAGE, THIRD_PARTY_IMAGE, or UNKNOWN.
 Emits UNRESOLVED_DYNAMIC_IMAGE for unresolvable variable/templated references.
+Excludes scanner-internal scripts (scripts/supply-chain/) from artifact inventory.
 """
 
 import os
@@ -27,6 +28,11 @@ import yaml
 EXCLUDE_DIRS = {
     '.git', '.kiro', 'node_modules', '.venv', '__pycache__', 'dist', 'build', '.supply-chain'
 }
+
+SCANNER_INTERNAL_PATHS = [
+    'scripts/supply-chain',
+    '.supply-chain'
+]
 
 FIRST_PARTY_DOCKERFILE_DIRS = [
     'applications', 'backstage', 'cluster-providers', 'platform'
@@ -55,13 +61,20 @@ INVALID_IMAGE_VALUES = {
     'scratch', 'source', 'build', 'default', 'none', 'true', 'false',
     'http', 'https', 'git', 'ssh', 'file', 'echo', 'run', 'set', 'export',
     'bash', 'sh', 'python', 'python3', 'curl', 'wget', 'cat', 'grep', 'sed', 'awk',
-    'bin/bash', 'usr/bin/python', 'usr/bin/env'
+    'bin/bash', 'usr/bin/python', 'usr/bin/env', 'true', 'false', 'available', 'ready', 'sent'
 }
 
 NON_IMAGE_EXTENSIONS = (
     '.sh', '.py', '.yaml', '.yml', '.json', '.txt', '.md', '.tar.gz',
     '.tgz', '.tar', '.zip', '.gz', '.deb', '.rpm', '.js', '.ts', '.html'
 )
+
+def is_scanner_internal_path(rel_path: str) -> bool:
+    norm_path = rel_path.replace('\\', '/')
+    for prefix in SCANNER_INTERNAL_PATHS:
+        if norm_path == prefix or norm_path.startswith(prefix + '/'):
+            return True
+    return False
 
 def is_unresolved_dynamic_ref(img: str) -> bool:
     if not img or not isinstance(img, str):
@@ -73,7 +86,49 @@ def is_unresolved_dynamic_ref(img: str) -> bool:
         return True
     return False
 
-def is_valid_image_ref(img: str) -> bool:
+def parse_oci_ref(image_ref: str) -> dict:
+    ref = image_ref.strip()
+    digest = ""
+    tag = ""
+    host = ""
+    repo = ref
+
+    if "@sha256:" in ref:
+        parts = ref.split("@sha256:")
+        digest = "sha256:" + parts[1]
+        repo = parts[0]
+
+    if "/" in repo:
+        first_segment = repo.split("/")[0]
+        if "." in first_segment or ":" in first_segment or first_segment == "localhost":
+            host = first_segment
+            repo_path = repo[len(host)+1:]
+        else:
+            repo_path = repo
+    else:
+        repo_path = repo
+
+    if ":" in repo_path:
+        repo_clean, tag = repo_path.rsplit(":", 1)
+    else:
+        repo_clean = repo_path
+
+    is_mutable = False
+    if digest:
+        is_mutable = False
+    elif not tag or tag.lower() in ["latest", "main", "master", "dev", "canary", "nightly", "stable", "head"]:
+        is_mutable = True
+
+    return {
+        "raw": ref,
+        "host": host,
+        "repo": repo_clean,
+        "tag": tag,
+        "digest": digest,
+        "mutable_tag": is_mutable
+    }
+
+def is_valid_image_ref(img: str, allow_single_word: bool = True) -> bool:
     if not img or not isinstance(img, str):
         return False
     img_stripped = img.strip()
@@ -89,12 +144,10 @@ def is_valid_image_ref(img: str) -> bool:
     if img_stripped.startswith('/') or img_stripped.startswith('./') or img_stripped.startswith('../'):
         return False
 
-    # Filter out archive/script/doc extensions
     for ext in NON_IMAGE_EXTENSIONS:
         if img_lower.endswith(ext):
             return False
 
-    # Filter out GitHub Actions (e.g. actions/checkout@v4)
     if img_lower.startswith('actions/') or img_lower.startswith('github/'):
         return False
 
@@ -103,13 +156,15 @@ def is_valid_image_ref(img: str) -> bool:
     if not re.search(r'[a-zA-Z0-9]', img_stripped):
         return False
 
-    # Filter out standalone host:port without path (e.g. localhost:5000 or 127.0.0.1:8080)
+    # Filter out standalone localhost:5000 without repository path
     if (img_stripped.startswith('localhost:') or img_stripped.startswith('127.0.0.1:')) and '/' not in img_stripped:
         return False
 
-    # Must contain a tag, a digest, or a slash
     if ':' not in img_stripped and '@' not in img_stripped and '/' not in img_stripped:
-        return False
+        if not allow_single_word:
+            return False
+        if not re.match(r'^[a-zA-Z0-9_.-]+$', img_stripped):
+            return False
 
     return True
 
@@ -128,16 +183,6 @@ def classify_image(image_ref: str, source_paths: list, dockerfiles_found: set) -
         return "UNKNOWN"
 
     return "THIRD_PARTY_IMAGE"
-
-def is_mutable_tag(image_ref: str) -> bool:
-    if "@sha256:" in image_ref:
-        return False
-    if ":" not in image_ref:
-        return True
-    for pat in MUTABLE_TAG_PATTERNS:
-        if re.search(pat, image_ref, re.IGNORECASE):
-            return True
-    return False
 
 def resolve_arg_variables(raw_value: str, args_env: dict) -> str:
     result = raw_value
@@ -204,7 +249,7 @@ def parse_dockerfile(filepath: Path) -> tuple:
                             'line': line_no,
                             'context': 'FROM_ARG'
                         })
-                    elif is_valid_image_ref(resolved_img) and resolved_img.lower() not in stage_names:
+                    elif is_valid_image_ref(resolved_img, allow_single_word=True) and resolved_img.lower() not in stage_names:
                         images.append({
                             'image': resolved_img,
                             'line': line_no,
@@ -226,7 +271,7 @@ def parse_dockerfile(filepath: Path) -> tuple:
                             'line': line_no,
                             'context': 'COPY_FROM_ARG'
                         })
-                    elif is_valid_image_ref(resolved_img) and not resolved_img.isdigit() and resolved_img.lower() not in stage_names:
+                    elif is_valid_image_ref(resolved_img, allow_single_word=True) and not resolved_img.isdigit() and resolved_img.lower() not in stage_names:
                         images.append({
                             'image': resolved_img,
                             'line': line_no,
@@ -255,7 +300,7 @@ def extract_images_from_yaml_obj(obj, context="yaml", images_acc=None, unresolve
                     'from_expression': f"yaml: {img}",
                     'context': context
                 })
-            elif is_valid_image_ref(img):
+            elif is_valid_image_ref(img, allow_single_word=True):
                 images_acc.append({'image': img, 'context': context})
 
         if 'repository' in obj and isinstance(obj['repository'], str):
@@ -268,13 +313,13 @@ def extract_images_from_yaml_obj(obj, context="yaml", images_acc=None, unresolve
                     'from_expression': f"repository: {repo}, tag: {tag}",
                     'context': f"{context}.repository+tag"
                 })
-            elif is_valid_image_ref(repo):
+            elif is_valid_image_ref(repo, allow_single_word=True):
                 if isinstance(tag, (str, int, float)):
                     tag_str = str(tag).strip()
                     full_img = f"{repo}:{tag_str}" if tag_str and not tag_str.startswith('http') else repo
                 else:
                     full_img = repo
-                if is_valid_image_ref(full_img):
+                if is_valid_image_ref(full_img, allow_single_word=True):
                     images_acc.append({'image': full_img, 'context': f"{context}.repository+tag"})
 
         for k, v in obj.items():
@@ -299,7 +344,7 @@ def parse_yaml_file(filepath: Path) -> tuple:
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 for line_no, line in enumerate(f, 1):
-                    match = re.search(r'image:\s*["\']?([^\s"\'#]+)', line)
+                    match = re.search(r'(?:image|repository):\s*["\']?([^\s"\'#]+)', line)
                     if match:
                         img = match.group(1).strip()
                         if is_unresolved_dynamic_ref(img):
@@ -310,7 +355,7 @@ def parse_yaml_file(filepath: Path) -> tuple:
                                 'line': line_no,
                                 'context': f'line:{line_no}'
                             })
-                        elif is_valid_image_ref(img):
+                        elif is_valid_image_ref(img, allow_single_word=True):
                             images.append({'image': img, 'context': f'line:{line_no}'})
         except Exception:
             pass
@@ -322,21 +367,36 @@ def parse_code_or_script_file(filepath: Path) -> tuple:
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             for line_no, line in enumerate(f, 1):
-                if 'uses:' in line or 'curl' in line or 'wget' in line or 'http://' in line or 'https://' in line:
+                raw_line = line.strip()
+                if not raw_line or raw_line.startswith('#'):
                     continue
-                words = re.split(r'[\s"\'`=,]+', line.strip())
-                for tok in words:
-                    tok = tok.strip()
+
+                cli_match = re.search(r'\b(?:docker|podman|skopeo|crane|oras)\s+(?:pull|run|build|buildx|tag|push|inspect|copy|sync|manifest|export|attach|discover)\s+(?:--[a-z0-9-]+[=\s]+[^\s]+\s+)*([^\s"\'`]+)', raw_line, re.IGNORECASE)
+                if cli_match:
+                    tok = cli_match.group(1).strip()
                     if is_unresolved_dynamic_ref(tok):
-                        unresolved.append({
-                            'image': tok,
-                            'variable_name': tok,
-                            'from_expression': line.strip(),
-                            'line': line_no,
-                            'context': f'script_line:{line_no}'
-                        })
-                    elif is_valid_image_ref(tok):
+                        unresolved.append({'image': tok, 'variable_name': tok, 'from_expression': raw_line, 'line': line_no, 'context': 'cli_command'})
+                    elif is_valid_image_ref(tok, allow_single_word=True):
                         images.append({'image': tok, 'context': f'script_line:{line_no}'})
+                    continue
+
+                var_match = re.search(r'\b(?:[A-Z0-9_]*IMAGE[A-Z0-9_]*|[A-Z0-9_]*IMG[A-Z0-9_]*|CONTAINER[A-Z0-9_]*|BASE_IMAGE)=(?:["\'])?([^\s"\';]+)', raw_line)
+                if var_match:
+                    tok = var_match.group(1).strip()
+                    if is_unresolved_dynamic_ref(tok):
+                        unresolved.append({'image': tok, 'variable_name': tok, 'from_expression': raw_line, 'line': line_no, 'context': 'variable_assignment'})
+                    elif is_valid_image_ref(tok, allow_single_word=True):
+                        images.append({'image': tok, 'context': f'script_line:{line_no}'})
+                    continue
+
+                ci_match = re.search(r'\b(?:container|service|image):\s*(?:["\'])?([^\s"\'#]+)', raw_line, re.IGNORECASE)
+                if ci_match:
+                    tok = ci_match.group(1).strip()
+                    if is_unresolved_dynamic_ref(tok):
+                        unresolved.append({'image': tok, 'variable_name': tok, 'from_expression': raw_line, 'line': line_no, 'context': 'ci_container_field'})
+                    elif is_valid_image_ref(tok, allow_single_word=False):
+                        images.append({'image': tok, 'context': f'script_line:{line_no}'})
+
     except Exception:
         pass
     return images, unresolved
@@ -346,11 +406,17 @@ def discover_all(repo_root: Path):
     discovered_images = {}
     unresolved_dynamic_images = []
     dockerfile_list = []
+    excluded_scanner_internal_count = 0
 
     for root, dirs, files in os.walk(repo_root):
         dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
         for file in files:
             rel_path = os.path.relpath(os.path.join(root, file), repo_root)
+
+            if is_scanner_internal_path(rel_path):
+                excluded_scanner_internal_count += 1
+                continue
+
             if file.startswith('Dockerfile') or file.startswith('Containerfile'):
                 dockerfiles_found.add(rel_path)
                 dockerfile_list.append(rel_path)
@@ -360,6 +426,9 @@ def discover_all(repo_root: Path):
         for file in files:
             full_path = Path(root) / file
             rel_path = os.path.relpath(full_path, repo_root)
+
+            if is_scanner_internal_path(rel_path):
+                continue
 
             extracted_images = []
             extracted_unresolved = []
@@ -381,25 +450,16 @@ def discover_all(repo_root: Path):
                     continue
 
                 if img_ref not in discovered_images:
+                    parsed_oci = parse_oci_ref(img_ref)
                     classification = classify_image(img_ref, [rel_path], dockerfiles_found)
-                    mutable = is_mutable_tag(img_ref)
-                    tag = ""
-                    digest = ""
-                    if "@sha256:" in img_ref:
-                        parts = img_ref.split("@sha256:")
-                        digest = "sha256:" + parts[1]
-                        tag_part = parts[0]
-                        tag = tag_part.split(":")[-1] if ":" in tag_part else ""
-                    elif ":" in img_ref:
-                        tag = img_ref.split(":")[-1]
 
                     discovered_images[img_ref] = {
                         'image': img_ref,
                         'source_paths': [rel_path],
                         'ownership': classification,
-                        'source_tag': tag,
-                        'pinned_digest': digest,
-                        'mutable_tag': mutable,
+                        'source_tag': parsed_oci['tag'],
+                        'pinned_digest': parsed_oci['digest'],
+                        'mutable_tag': parsed_oci['mutable_tag'],
                         'contexts': [f"{rel_path} ({item['context']})"]
                     }
                 else:
@@ -409,7 +469,7 @@ def discover_all(repo_root: Path):
                     if ctx not in discovered_images[img_ref]['contexts']:
                         discovered_images[img_ref]['contexts'].append(ctx)
 
-    return list(discovered_images.values()), sorted(dockerfile_list), unresolved_dynamic_images
+    return list(discovered_images.values()), sorted(dockerfile_list), unresolved_dynamic_images, excluded_scanner_internal_count
 
 def main():
     parser = argparse.ArgumentParser(description="Discover image references across repository.")
@@ -418,12 +478,13 @@ def main():
     args = parser.parse_args()
 
     repo_root = Path(args.repo_root).resolve()
-    images, dockerfiles, unresolved_dynamics = discover_all(repo_root)
+    images, dockerfiles, unresolved_dynamics, excluded_internal_count = discover_all(repo_root)
 
     result = {
         'dockerfiles': dockerfiles,
         'image_count': len(images),
         'unresolved_dynamic_count': len(unresolved_dynamics),
+        'excluded_scanner_internal_count': excluded_internal_count,
         'images': images,
         'unresolved_dynamic_images': unresolved_dynamics
     }

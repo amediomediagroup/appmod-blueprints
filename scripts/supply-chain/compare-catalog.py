@@ -88,7 +88,7 @@ def main():
     discover_helm = importlib.util.module_from_spec(spec_helm)
     spec_helm.loader.exec_module(discover_helm)
 
-    discovered_images, dockerfile_list, unresolved_dynamic_images = discover_images.discover_all(repo_root)
+    discovered_images, dockerfile_list, unresolved_dynamic_images, _ = discover_images.discover_all(repo_root)
     discovered_charts = discover_helm.discover_helm_charts(repo_root)
 
     findings = []
