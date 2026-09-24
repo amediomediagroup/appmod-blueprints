@@ -12,7 +12,7 @@ Discovers container image references across the repository including:
 - CI workflows and scripts
 - Test manifests
 
-Classifies images into FIRST_PARTY_IMAGE, THIRD_PARTY_IMAGE, or UNKNOWN.
+Classifies images into FIRST_PARTY_IMAGE, THIRD_PARTY_IMAGE, or UNKNOWN using policy.py.
 Emits UNRESOLVED_DYNAMIC_IMAGE for unresolvable variable/templated references.
 Separates tag_classification from digest_pinned state.
 Excludes scanner-internal scripts (scripts/supply-chain/) from artifact inventory.
@@ -26,6 +26,26 @@ import argparse
 from pathlib import Path
 import yaml
 
+def get_script_dir():
+    if "SUPPLY_CHAIN_DIR" in os.environ and os.path.exists(os.path.join(os.environ["SUPPLY_CHAIN_DIR"], "policy.py")):
+        return Path(os.environ["SUPPLY_CHAIN_DIR"]).resolve()
+
+    for p in sys.path:
+        if p and os.path.exists(os.path.join(p, "policy.py")):
+            return Path(p).resolve()
+
+    fixed = Path("/app/scripts/supply-chain").resolve()
+    if (fixed / "policy.py").exists():
+        return fixed
+
+    return Path(__file__).resolve().parent
+
+SCRIPT_DIR = get_script_dir()
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+import policy as policy_module
+
 EXCLUDE_DIRS = {
     '.git', '.kiro', 'node_modules', '.venv', '__pycache__', 'dist', 'build', '.supply-chain'
 }
@@ -37,13 +57,6 @@ SCANNER_INTERNAL_PATHS = [
 
 FIRST_PARTY_DOCKERFILE_DIRS = [
     'applications', 'backstage', 'cluster-providers', 'platform'
-]
-
-FIRST_PARTY_PATTERNS = [
-    r'^public\.ecr\.aws/aegis/',
-    r'^aegis/',
-    r'^localhost/',
-    r'^internal/',
 ]
 
 MUTABLE_CHANNEL_PATTERNS = [
@@ -81,13 +94,6 @@ def is_unresolved_dynamic_ref(img: str) -> bool:
     return False
 
 def classify_tag(tag_str: str) -> str:
-    """
-    Classifies tag into:
-    - LATEST: tag is 'latest'
-    - UNTAGGED: no tag specified
-    - MUTABLE_CHANNEL: main, master, dev, canary, etc.
-    - EXACT_VERSION: SemVer or numeric/specific version string
-    """
     if not tag_str:
         return "UNTAGGED"
     tag_lower = tag_str.lower()
@@ -99,16 +105,6 @@ def classify_tag(tag_str: str) -> str:
     return "EXACT_VERSION"
 
 def parse_oci_ref(image_ref: str) -> dict:
-    """
-    Structured parsing of an OCI reference distinguishing:
-    - Host (with optional port, e.g., registry.example.com:5000)
-    - Repository path (e.g., team/image or postgres)
-    - Tag (e.g., 17, alpine, 1.2.3, or empty if untagged)
-    - Digest (e.g., sha256:...)
-    - digest_pinned (boolean: True ONLY if @sha256: digest is present)
-    - tag_classification (LATEST, UNTAGGED, MUTABLE_CHANNEL, EXACT_VERSION)
-    - mutable_tag (boolean: True if not digest_pinned)
-    """
     ref = image_ref.strip()
     digest = ""
     tag = ""
@@ -190,7 +186,7 @@ def is_valid_image_ref(img: str, allow_single_word: bool = True) -> bool:
     return True
 
 def classify_image(image_ref: str, source_paths: list, dockerfiles_found: set) -> str:
-    for pattern in FIRST_PARTY_PATTERNS:
+    for pattern in policy_module.FIRST_PARTY_PATTERNS:
         if re.search(pattern, image_ref):
             return "FIRST_PARTY_IMAGE"
 
@@ -422,7 +418,9 @@ def parse_code_or_script_file(filepath: Path) -> tuple:
         pass
     return images, unresolved
 
-def discover_all(repo_root: Path):
+def discover_all(repo_root: Path, policy_path: Path = None):
+    policy = policy_module.load_policy(policy_path=policy_path, repo_root=repo_root)
+
     dockerfiles_found = set()
     discovered_images = {}
     unresolved_dynamic_images = []
@@ -472,7 +470,7 @@ def discover_all(repo_root: Path):
 
                 if img_ref not in discovered_images:
                     parsed_oci = parse_oci_ref(img_ref)
-                    classification = classify_image(img_ref, [rel_path], dockerfiles_found)
+                    classification = policy_module.classify_image_ownership(img_ref, [rel_path], dockerfiles_found, policy)
 
                     discovered_images[img_ref] = {
                         'image': img_ref,
@@ -497,11 +495,14 @@ def discover_all(repo_root: Path):
 def main():
     parser = argparse.ArgumentParser(description="Discover image references across repository.")
     parser.add_argument("--repo-root", default=".", help="Repository root path")
+    parser.add_argument("--policy", default=None, help="Policy YAML path")
     parser.add_argument("--output", default=None, help="Output JSON file path")
     args = parser.parse_args()
 
     repo_root = Path(args.repo_root).resolve()
-    images, dockerfiles, unresolved_dynamics, excluded_internal_count = discover_all(repo_root)
+    policy_path = Path(args.policy).resolve() if args.policy else None
+
+    images, dockerfiles, unresolved_dynamics, excluded_internal_count = discover_all(repo_root, policy_path=policy_path)
 
     result = {
         'dockerfiles': dockerfiles,

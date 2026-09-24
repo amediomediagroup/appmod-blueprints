@@ -2,12 +2,16 @@
 set -euo pipefail
 
 # self-test.sh
-# Hermetic offline self-test suite proving supply-chain sentinel logic.
+# Hermetic offline self-test suite proving supply-chain sentinel logic and policy enforcement.
 
 echo "=== Running Supply-Chain Sentinel Hermetic Self-Tests ==="
 
 FAILED=0
 TOTAL_TESTS=0
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export SUPPLY_CHAIN_DIR="$SCRIPT_DIR"
+export PYTHONPATH="$SCRIPT_DIR:${PYTHONPATH:-}"
 
 pass_test() {
     echo "  [PASS] $1"
@@ -25,6 +29,8 @@ run_test_header() {
 
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
+
+ROOT_DIR="$(pwd)"
 
 # TEST 1: Dockerfile FROM & ARG default resolution
 run_test_header "Dockerfile FROM discovery & ARG default resolution"
@@ -272,6 +278,154 @@ else
     fail_test "Deterministic findings diff" "out1.json and out2.json differed!"
 fi
 
+# ==================== POLICY ENFORCEMENT HERMETIC TESTS ====================
+
+# TEST 11: Policy target_platforms enforcement
+run_test_header "Policy target_platforms enforcement"
+mkdir -p "$TMPDIR/test11/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test11/deploy.yaml"
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  template:
+    spec:
+      containers:
+      - name: redis
+        image: redis:latest
+EOF
+
+cat << 'EOF' > "$TMPDIR/test11/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms:
+  - linux/amd64
+vulnerability_policy:
+  fail_on_severity: [CRITICAL, HIGH]
+  ignore_unfixed: false
+first_party:
+  dockerfile_paths: ["apps/*"]
+  image_patterns: ["aegis/*"]
+helm_policy:
+  classification_patterns:
+    release_artifact_oci_candidate: ["platform-charts/*"]
+  require_chart_lock_if_dependencies: true
+  allow_protected_git_main: true
+EOF
+
+COMP_POL11=$(python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test11")
+if echo "$COMP_POL11" | grep -q "PLATFORM_AMD64_MISSING" && ! echo "$COMP_POL11" | grep -q "PLATFORM_ARM64_MISSING"; then
+    pass_test "target_platforms dynamically sourced from policy (only linux/amd64 evaluated)"
+else
+    fail_test "Policy target_platforms" "Expected PLATFORM_AMD64_MISSING without ARM64: $COMP_POL11"
+fi
+
+# TEST 12: Vulnerability Policy Severity Enforcement (CRITICAL vs CRITICAL+HIGH)
+run_test_header "Vulnerability Policy Severity Enforcement (CRITICAL vs CRITICAL+HIGH)"
+mkdir -p "$TMPDIR/test12_crit/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test12_crit/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms: [linux/amd64]
+vulnerability_policy:
+  fail_on_severity: [CRITICAL]
+  ignore_unfixed: false
+first_party:
+  dockerfile_paths: []
+  image_patterns: []
+helm_policy:
+  classification_patterns: {}
+EOF
+
+POL_OBJ12=$(python3 -c "
+import sys; sys.path.insert(0, '$SUPPLY_CHAIN_DIR')
+import policy
+p = policy.load_policy(policy_path='$TMPDIR/test12_crit/.supply-chain/policy.yaml')
+print(p['vulnerability_policy']['fail_on_severity'])
+")
+
+if [ "$POL_OBJ12" = "['CRITICAL']" ]; then
+    pass_test "CRITICAL-only policy correctly loaded and differs from CRITICAL+HIGH"
+else
+    fail_test "Vulnerability severity policy" "Expected ['CRITICAL'], got $POL_OBJ12"
+fi
+
+# TEST 13: Policy ignore_unfixed evaluation
+run_test_header "Policy ignore_unfixed evaluation"
+mkdir -p "$TMPDIR/test13/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test13/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms: [linux/amd64]
+vulnerability_policy:
+  fail_on_severity: [CRITICAL, HIGH]
+  ignore_unfixed: true
+first_party:
+  dockerfile_paths: []
+  image_patterns: []
+helm_policy:
+  classification_patterns: {}
+EOF
+
+POL_OBJ13=$(python3 -c "
+import sys; sys.path.insert(0, '$SUPPLY_CHAIN_DIR')
+import policy
+p = policy.load_policy(policy_path='$TMPDIR/test13/.supply-chain/policy.yaml')
+print(p['vulnerability_policy']['ignore_unfixed'])
+")
+
+if [ "$POL_OBJ13" = "True" ]; then
+    pass_test "ignore_unfixed: true correctly loaded from policy configuration"
+else
+    fail_test "Policy ignore_unfixed" "Expected True, got $POL_OBJ13"
+fi
+
+# TEST 14: Dynamic first_party image_patterns policy enforcement
+run_test_header "Dynamic first_party image_patterns policy enforcement"
+mkdir -p "$TMPDIR/test14/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test14/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms: [linux/amd64]
+vulnerability_policy:
+  fail_on_severity: [CRITICAL]
+  ignore_unfixed: false
+first_party:
+  dockerfile_paths: []
+  image_patterns: ["custom-org/*"]
+helm_policy:
+  classification_patterns: {}
+EOF
+
+cat << 'EOF' > "$TMPDIR/test14/deploy.yaml"
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  template:
+    spec:
+      containers:
+      - name: app
+        image: custom-org/my-service:1.0.0
+EOF
+
+DISC_POL14=$(python3 scripts/supply-chain/discover-images.py --repo-root "$TMPDIR/test14" --policy "$TMPDIR/test14/.supply-chain/policy.yaml")
+OWNERSHIP14=$(echo "$DISC_POL14" | jq -r '.images[0].ownership')
+
+if [ "$OWNERSHIP14" = "FIRST_PARTY_IMAGE" ]; then
+    pass_test "custom-org/my-service correctly classified as FIRST_PARTY_IMAGE via dynamic policy image_patterns"
+else
+    fail_test "Dynamic image_patterns policy" "Expected FIRST_PARTY_IMAGE, got $OWNERSHIP14"
+fi
+
+# TEST 15: Malformed Policy Fail-Closed Execution
+run_test_header "Malformed Policy Fail-Closed Execution"
+mkdir -p "$TMPDIR/test15/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test15/.supply-chain/policy.yaml"
+version: "1.0"
+target_platforms: INVALID_NOT_A_LIST
+EOF
+
+if python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test15" 2>/dev/null; then
+    fail_test "Fail-closed policy check" "Scanner executed successfully despite malformed policy!"
+else
+    pass_test "Scanner failed closed on malformed policy as required"
+fi
+
 echo "============================================="
 if [ "$FAILED" -eq 0 ]; then
     echo "ALL $TOTAL_TESTS HERMETIC SELF-TESTS PASSED SUCCESSFULLY!"
@@ -280,3 +434,4 @@ else
     echo "$FAILED / $TOTAL_TESTS HERMETIC SELF-TESTS FAILED!"
     exit 1
 fi
+EOF

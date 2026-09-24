@@ -9,6 +9,10 @@ echo "=== Running Supply-Chain Sentinel Integration Tests (Live Network/Registry
 FAILED=0
 TOTAL_TESTS=0
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export SUPPLY_CHAIN_DIR="$SCRIPT_DIR"
+export PYTHONPATH="$SCRIPT_DIR:${PYTHONPATH:-}"
+
 pass_test() {
     echo "  [PASS] $1"
 }
@@ -69,10 +73,7 @@ images:
         available: true
 EOF
 
-cat << 'EOF' > "$TMPDIR/test_drift/.supply-chain/policy.yaml"
-version: "1.0"
-target_platforms: ["linux/amd64", "linux/arm64"]
-EOF
+cp .supply-chain/policy.yaml "$TMPDIR/test_drift/.supply-chain/"
 
 COMP_OUT=$(python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test_drift" --scan)
 if echo "$COMP_OUT" | grep -q "PLATFORM_DIGEST_DRIFT"; then

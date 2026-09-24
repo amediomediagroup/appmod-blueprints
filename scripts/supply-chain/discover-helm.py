@@ -8,14 +8,9 @@ Discovers all Helm charts and references across the repository:
 - Dependencies
 - ArgoCD Helm sources
 - OCI references
-- Versioning and classification
+- Versioning and classification using policy.py
 
-Classifies charts into:
-- RELEASE_ARTIFACT_OCI_CANDIDATE
-- INTERNAL_GITOPS_WRAPPER
-- INTERNAL_ABSTRACTION
-- TEST_DEMO_ONLY
-- UNKNOWN
+Classifies charts into categories defined in .supply-chain/policy.yaml.
 """
 
 import os
@@ -25,23 +20,32 @@ import argparse
 from pathlib import Path
 import yaml
 
+def get_script_dir():
+    if "SUPPLY_CHAIN_DIR" in os.environ and os.path.exists(os.path.join(os.environ["SUPPLY_CHAIN_DIR"], "policy.py")):
+        return Path(os.environ["SUPPLY_CHAIN_DIR"]).resolve()
+
+    for p in sys.path:
+        if p and os.path.exists(os.path.join(p, "policy.py")):
+            return Path(p).resolve()
+
+    fixed = Path("/app/scripts/supply-chain").resolve()
+    if (fixed / "policy.py").exists():
+        return fixed
+
+    return Path(__file__).resolve().parent
+
+SCRIPT_DIR = get_script_dir()
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+import policy as policy_module
+
 EXCLUDE_DIRS = {
     '.git', '.kiro', 'node_modules', '.venv', '__pycache__', 'dist', 'build', '.supply-chain'
 }
 
-def classify_helm_chart(rel_path: str) -> str:
-    path_str = rel_path.replace('\\', '/')
-    if path_str.startswith('platform-charts/'):
-        return "RELEASE_ARTIFACT_OCI_CANDIDATE"
-    if path_str.startswith('gitops/abstractions/'):
-        return "INTERNAL_ABSTRACTION"
-    if path_str.startswith('gitops/addons/') or path_str.startswith('gitops/overlays/') or path_str.startswith('workshop/overlay/'):
-        return "INTERNAL_GITOPS_WRAPPER"
-    if 'templates' in path_str or 'manifests' in path_str or 'test' in path_str or 'demo' in path_str:
-        return "TEST_DEMO_ONLY"
-    return "UNKNOWN"
-
-def discover_helm_charts(repo_root: Path):
+def discover_helm_charts(repo_root: Path, policy_path: Path = None):
+    policy = policy_module.load_policy(policy_path=policy_path, repo_root=repo_root)
     charts = []
 
     for root, dirs, files in os.walk(repo_root):
@@ -68,7 +72,6 @@ def discover_helm_charts(repo_root: Path):
             chart_version = chart_data.get('version', '')
             dependencies = chart_data.get('dependencies', [])
 
-            # Determine lock state
             if dependencies:
                 if has_lock:
                     chart_lock_state = "PRESENT"
@@ -77,7 +80,7 @@ def discover_helm_charts(repo_root: Path):
             else:
                 chart_lock_state = "NOT_REQUIRED"
 
-            classification = classify_helm_chart(rel_chart_dir)
+            classification = policy_module.classify_helm_chart(rel_chart_dir, policy)
 
             charts.append({
                 'source_path': rel_chart_file,
@@ -99,11 +102,14 @@ def discover_helm_charts(repo_root: Path):
 def main():
     parser = argparse.ArgumentParser(description="Discover Helm charts and dependencies.")
     parser.add_argument("--repo-root", default=".", help="Repository root path")
+    parser.add_argument("--policy", default=None, help="Policy YAML path")
     parser.add_argument("--output", default=None, help="Output JSON file path")
     args = parser.parse_args()
 
     repo_root = Path(args.repo_root).resolve()
-    charts = discover_helm_charts(repo_root)
+    policy_path = Path(args.policy).resolve() if args.policy else None
+
+    charts = discover_helm_charts(repo_root, policy_path=policy_path)
 
     result = {
         'chart_count': len(charts),

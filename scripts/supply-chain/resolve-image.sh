@@ -2,45 +2,46 @@
 set -euo pipefail
 
 # resolve-image.sh
-# Usage: ./resolve-image.sh <image_ref> [output_file]
+# Usage: ./resolve-image.sh <image_ref> [policy_path] [output_file]
 
 IMAGE_REF="${1:-}"
-OUTPUT_FILE="${2:-}"
+POLICY_PATH="${2:-}"
+OUTPUT_FILE="${3:-}"
 
 if [ -z "$IMAGE_REF" ]; then
-    echo "Usage: $0 <image_ref> [output_file]" >&2
+    echo "Usage: $0 <image_ref> [policy_path] [output_file]" >&2
     exit 1
 fi
 
-python3 - "$IMAGE_REF" "$OUTPUT_FILE" << 'EOF'
+python3 - "$IMAGE_REF" "$POLICY_PATH" "$OUTPUT_FILE" << 'EOF'
 import sys
 import json
 import subprocess
 import hashlib
+from pathlib import Path
 
 image_ref = sys.argv[1]
-output_file = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
+policy_path = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
+output_file = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
+
+script_dir = Path("scripts/supply-chain").resolve()
+sys.path.insert(0, str(script_dir))
+
+import policy as policy_module
+
+policy = policy_module.load_policy(policy_path=policy_path)
+target_platforms = policy["target_platforms"]
 
 res = {
     "image": image_ref,
     "top_level_digest": None,
     "is_multi_platform": False,
-    "platforms": {
-        "linux/amd64": {
-            "digest": None,
-            "available": False
-        },
-        "linux/arm64": {
-            "digest": None,
-            "available": False
-        }
-    },
+    "platforms": {plat: {"digest": None, "available": False} for plat in target_platforms},
     "findings": [],
     "error": None
 }
 
 try:
-    # 1. Inspect top level raw manifest
     cmd_raw = ["skopeo", "inspect", "--raw", f"docker://{image_ref}"]
     proc_raw = subprocess.run(cmd_raw, capture_output=True, text=True)
 
@@ -54,7 +55,6 @@ try:
         raw_manifest_str = proc_raw.stdout
         top_digest = "sha256:" + hashlib.sha256(raw_manifest_str.encode('utf-8')).hexdigest()
 
-        # Try skopeo inspect to get top-level canonical digest if available
         cmd_insp = ["skopeo", "inspect", f"docker://{image_ref}"]
         proc_insp = subprocess.run(cmd_insp, capture_output=True, text=True)
         if proc_insp.returncode == 0:
@@ -69,49 +69,38 @@ try:
 
         try:
             manifest_data = json.loads(raw_manifest_str)
-            # Check if index / manifest list
             if "manifests" in manifest_data and isinstance(manifest_data["manifests"], list):
                 res["is_multi_platform"] = True
                 for m in manifest_data["manifests"]:
-                    platform = m.get("platform", {})
-                    arch = platform.get("architecture")
-                    os_name = platform.get("os")
+                    platform_info = m.get("platform", {})
+                    arch = platform_info.get("architecture")
+                    os_name = platform_info.get("os")
                     digest = m.get("digest")
 
-                    if os_name == "linux" and arch == "amd64":
-                        res["platforms"]["linux/amd64"]["digest"] = digest
-                        res["platforms"]["linux/amd64"]["available"] = True
-                    elif os_name == "linux" and arch == "arm64":
-                        res["platforms"]["linux/arm64"]["digest"] = digest
-                        res["platforms"]["linux/arm64"]["available"] = True
+                    plat_key = f"{os_name}/{arch}"
+                    if plat_key in res["platforms"]:
+                        res["platforms"][plat_key]["digest"] = digest
+                        res["platforms"][plat_key]["available"] = True
             else:
-                # Single platform
                 res["is_multi_platform"] = False
-                # Use skopeo inspect to get arch
                 if proc_insp.returncode == 0:
                     insp_json = json.loads(proc_insp.stdout)
                     arch = insp_json.get("Architecture")
                     os_name = insp_json.get("Os", "linux")
-                    if os_name == "linux" and arch == "amd64":
-                        res["platforms"]["linux/amd64"]["digest"] = top_digest
-                        res["platforms"]["linux/amd64"]["available"] = True
-                    elif os_name == "linux" and arch == "arm64":
-                        res["platforms"]["linux/arm64"]["digest"] = top_digest
-                        res["platforms"]["linux/arm64"]["available"] = True
+                    plat_key = f"{os_name}/{arch}"
+                    if plat_key in res["platforms"]:
+                        res["platforms"][plat_key]["digest"] = top_digest
+                        res["platforms"][plat_key]["available"] = True
         except Exception as e:
             res["error"] = f"Failed to parse raw manifest: {e}"
 
-    # Evaluate missing platform findings
-    if not res["platforms"]["linux/amd64"]["available"]:
-        res["findings"].append({
-            "type": "PLATFORM_AMD64_MISSING",
-            "message": f"Image {image_ref} is missing required linux/amd64 artifact"
-        })
-    if not res["platforms"]["linux/arm64"]["available"]:
-        res["findings"].append({
-            "type": "PLATFORM_ARM64_MISSING",
-            "message": f"Image {image_ref} is missing required linux/arm64 artifact"
-        })
+    for plat in target_platforms:
+        if not res["platforms"][plat]["available"]:
+            arch_label = "AMD64" if "amd64" in plat else "ARM64"
+            res["findings"].append({
+                "type": f"PLATFORM_{arch_label}_MISSING",
+                "message": f"Image {image_ref} is missing required {plat} artifact"
+            })
 
 except Exception as ex:
     res["error"] = str(ex)

@@ -5,27 +5,7 @@ compare-catalog.py
 Compares current codebase artifacts (discovered images and Helm charts)
 against the canonical catalog (.supply-chain/artifacts.yaml) and policy (.supply-chain/policy.yaml).
 
-Generates deterministic findings for:
-- NEW_IMAGE
-- NEW_DOCKERFILE
-- NEW_HELM_CHART
-- UNCATALOGUED_ARTIFACT
-- UNRESOLVED_DYNAMIC_IMAGE
-- MUTABLE_TAG
-- MUTABLE_TAG_DRIFT
-- IMAGE_DIGEST_MISSING
-- PLATFORM_AMD64_MISSING
-- PLATFORM_ARM64_MISSING
-- PLATFORM_DIGEST_DRIFT
-- SBOM_AMD64_MISSING
-- SBOM_ARM64_MISSING
-- VULNERABILITY_AMD64_THRESHOLD_EXCEEDED
-- VULNERABILITY_ARM64_THRESHOLD_EXCEEDED
-- UPSTREAM_PROVENANCE_UNVERIFIED
-- FIRST_PARTY_SIGNATURE_MISSING
-- HELM_LOCK_DRIFT
-- HELM_OCI_MISSING
-- HELM_OCI_TAG_MUTATED
+Uses shared policy.py module to enforce policy rules and fail closed on invalid configuration.
 """
 
 import os
@@ -33,8 +13,31 @@ import sys
 import json
 import argparse
 import subprocess
+import importlib.util
 from pathlib import Path
 import yaml
+
+def get_script_dir():
+    if "SUPPLY_CHAIN_DIR" in os.environ and os.path.exists(os.path.join(os.environ["SUPPLY_CHAIN_DIR"], "policy.py")):
+        return Path(os.environ["SUPPLY_CHAIN_DIR"]).resolve()
+
+    for p in sys.path:
+        if p and os.path.exists(os.path.join(p, "policy.py")):
+            return Path(p).resolve()
+
+    fixed = Path("/app/scripts/supply-chain").resolve()
+    if (fixed / "policy.py").exists():
+        return fixed
+
+    return Path(__file__).resolve().parent
+
+SCRIPT_DIR = get_script_dir()
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+spec_pol = importlib.util.spec_from_file_location("policy", SCRIPT_DIR / "policy.py")
+policy_module = importlib.util.module_from_spec(spec_pol)
+spec_pol.loader.exec_module(policy_module)
 
 def load_yaml(filepath: Path):
     if not filepath.exists():
@@ -58,38 +61,35 @@ def main():
     args = parser.parse_args()
 
     repo_root = Path(args.repo_root).resolve()
-    script_dir = Path(__file__).parent.resolve()
-
     catalog_path = repo_root / args.catalog
-    policy_path = repo_root / args.policy
+    policy_path = repo_root / args.policy if args.policy else None
+
+    # Load validated policy - fails closed if missing/malformed
+    try:
+        policy = policy_module.load_policy(policy_path=policy_path, repo_root=repo_root)
+    except Exception as ex:
+        sys.stderr.write(f"Policy validation error: {ex}\n")
+        sys.exit(1)
+
+    target_platforms = policy["target_platforms"]
 
     catalog = load_yaml(catalog_path)
-    policy = load_yaml(policy_path)
 
     catalog_images_map = {img['image']: img for img in catalog.get('images', [])}
     catalog_charts_map = {c['source_path']: c for c in catalog.get('helm_charts', [])}
 
-    sys.path.insert(0, str(script_dir))
-    import importlib.util
-
-    disc_img_path = script_dir / "discover-images.py"
-    if not disc_img_path.exists():
-        disc_img_path = repo_root / "scripts" / "supply-chain" / "discover-images.py"
-
+    disc_img_path = SCRIPT_DIR / "discover-images.py"
     spec_img = importlib.util.spec_from_file_location("discover_images", disc_img_path)
     discover_images = importlib.util.module_from_spec(spec_img)
     spec_img.loader.exec_module(discover_images)
 
-    disc_helm_path = script_dir / "discover-helm.py"
-    if not disc_helm_path.exists():
-        disc_helm_path = repo_root / "scripts" / "supply-chain" / "discover-helm.py"
-
+    disc_helm_path = SCRIPT_DIR / "discover-helm.py"
     spec_helm = importlib.util.spec_from_file_location("discover_helm", disc_helm_path)
     discover_helm = importlib.util.module_from_spec(spec_helm)
     spec_helm.loader.exec_module(discover_helm)
 
-    discovered_images, dockerfile_list, unresolved_dynamic_images, _ = discover_images.discover_all(repo_root)
-    discovered_charts = discover_helm.discover_helm_charts(repo_root)
+    discovered_images, dockerfile_list, unresolved_dynamic_images, _ = discover_images.discover_all(repo_root, policy_path=policy_path)
+    discovered_charts = discover_helm.discover_helm_charts(repo_root, policy_path=policy_path)
 
     findings = []
     updated_catalog_images = []
@@ -181,17 +181,9 @@ def main():
         })
 
     # Helper script locations
-    resolve_script = script_dir / "resolve-image.sh"
-    if not resolve_script.exists():
-        resolve_script = repo_root / "scripts" / "supply-chain" / "resolve-image.sh"
-
-    scan_script = script_dir / "scan-image.sh"
-    if not scan_script.exists():
-        scan_script = repo_root / "scripts" / "supply-chain" / "scan-image.sh"
-
-    verify_script = script_dir / "verify-image.sh"
-    if not verify_script.exists():
-        verify_script = repo_root / "scripts" / "supply-chain" / "verify-image.sh"
+    resolve_script = SCRIPT_DIR / "resolve-image.sh"
+    scan_script = SCRIPT_DIR / "scan-image.sh"
+    verify_script = SCRIPT_DIR / "verify-image.sh"
 
     # 2. Audit Images & Compare Catalog
     for img in discovered_images:
@@ -240,81 +232,67 @@ def main():
             findings.append(f)
 
         top_digest = prev_entry.get('top_level_digest')
-        amd64_digest = prev_entry.get('platforms', {}).get('linux/amd64', {}).get('digest')
-        arm64_digest = prev_entry.get('platforms', {}).get('linux/arm64', {}).get('digest')
-        amd64_avail = prev_entry.get('platforms', {}).get('linux/amd64', {}).get('available', False)
-        arm64_avail = prev_entry.get('platforms', {}).get('linux/arm64', {}).get('available', False)
-        amd64_sbom = prev_entry.get('platforms', {}).get('linux/amd64', {}).get('sbom_status', 'MISSING')
-        arm64_sbom = prev_entry.get('platforms', {}).get('linux/arm64', {}).get('sbom_status', 'MISSING')
-        amd64_vuln = prev_entry.get('platforms', {}).get('linux/amd64', {}).get('vulnerability_status', 'UNSCANNED')
-        arm64_vuln = prev_entry.get('platforms', {}).get('linux/arm64', {}).get('vulnerability_status', 'UNSCANNED')
+
+        # Build platform state dynamically based on policy target_platforms
+        platforms_dict = {}
+        for plat in target_platforms:
+            prev_plat = prev_entry.get('platforms', {}).get(plat, {})
+            platforms_dict[plat] = {
+                "digest": prev_plat.get('digest'),
+                "available": prev_plat.get('available', False),
+                "sbom_status": prev_plat.get('sbom_status', 'MISSING'),
+                "vulnerability_status": prev_plat.get('vulnerability_status', 'UNSCANNED')
+            }
+
         prov_status = prev_entry.get('provenance_status', 'UNVERIFIED')
 
         # If --scan is enabled, run online resolution, scanning, and verification
         if args.scan:
             if resolve_script.exists():
                 try:
-                    proc_res = subprocess.run([str(resolve_script), img_ref], capture_output=True, text=True)
+                    proc_res = subprocess.run([str(resolve_script), img_ref, str(policy_path or "")], capture_output=True, text=True)
                     if proc_res.returncode == 0:
                         res_data = json.loads(proc_res.stdout)
                         curr_top_digest = res_data.get('top_level_digest')
-                        curr_amd64 = res_data.get('platforms', {}).get('linux/amd64', {})
-                        curr_arm64 = res_data.get('platforms', {}).get('linux/arm64', {})
+                        curr_platforms = res_data.get('platforms', {})
 
-                        # Check PLATFORM_DIGEST_DRIFT
-                        if amd64_digest and curr_amd64.get('digest') and amd64_digest != curr_amd64.get('digest'):
-                            f = {
-                                "type": "PLATFORM_DIGEST_DRIFT",
-                                "artifact": img_ref,
-                                "source_paths": source_paths,
-                                "evidence": {
-                                    "platform": "linux/amd64",
-                                    "previous_digest": amd64_digest,
-                                    "current_digest": curr_amd64.get('digest')
-                                }
-                            }
-                            findings.append(f)
+                        for plat in target_platforms:
+                            curr_p = curr_platforms.get(plat, {})
+                            prev_d = platforms_dict[plat]["digest"]
+                            curr_d = curr_p.get('digest')
 
-                        if arm64_digest and curr_arm64.get('digest') and arm64_digest != curr_arm64.get('digest'):
-                            f = {
-                                "type": "PLATFORM_DIGEST_DRIFT",
-                                "artifact": img_ref,
-                                "source_paths": source_paths,
-                                "evidence": {
-                                    "platform": "linux/arm64",
-                                    "previous_digest": arm64_digest,
-                                    "current_digest": curr_arm64.get('digest')
+                            if prev_d and curr_d and prev_d != curr_d:
+                                f = {
+                                    "type": "PLATFORM_DIGEST_DRIFT",
+                                    "artifact": img_ref,
+                                    "source_paths": source_paths,
+                                    "evidence": {
+                                        "platform": plat,
+                                        "previous_digest": prev_d,
+                                        "current_digest": curr_d
+                                    }
                                 }
-                            }
-                            findings.append(f)
+                                findings.append(f)
+
+                            platforms_dict[plat]["digest"] = curr_d
+                            platforms_dict[plat]["available"] = curr_p.get('available', False)
 
                         top_digest = curr_top_digest
-                        amd64_digest = curr_amd64.get('digest')
-                        amd64_avail = curr_amd64.get('available', False)
-                        arm64_digest = curr_arm64.get('digest')
-                        arm64_avail = curr_arm64.get('available', False)
 
                 except Exception as ex:
                     sys.stderr.write(f"Resolution failed for {img_ref}: {ex}\n")
 
-            # Perform Syft/Grype scan for available platforms if new/changed/unscanned
+            # Perform Syft/Grype scan for available platforms
             if scan_script.exists():
-                for platform, p_avail, p_digest in [("linux/amd64", amd64_avail, amd64_digest), ("linux/arm64", arm64_avail, arm64_digest)]:
-                    if p_avail:
-                        arch_key = "amd64" if "amd64" in platform else "arm64"
+                for plat in target_platforms:
+                    if platforms_dict[plat]["available"]:
+                        p_digest = platforms_dict[plat]["digest"] or ""
                         try:
-                            proc_scan = subprocess.run([str(scan_script), img_ref, platform, p_digest or ""], capture_output=True, text=True)
+                            proc_scan = subprocess.run([str(scan_script), img_ref, plat, p_digest, str(policy_path or "")], capture_output=True, text=True)
                             if proc_scan.returncode == 0:
                                 scan_data = json.loads(proc_scan.stdout)
-                                s_status = scan_data.get('sbom_status', 'MISSING')
-                                v_status = scan_data.get('vulnerability_status', 'UNSCANNED')
-
-                                if arch_key == "amd64":
-                                    amd64_sbom = s_status
-                                    amd64_vuln = v_status
-                                else:
-                                    arm64_sbom = s_status
-                                    arm64_vuln = v_status
+                                platforms_dict[plat]["sbom_status"] = scan_data.get('sbom_status', 'MISSING')
+                                platforms_dict[plat]["vulnerability_status"] = scan_data.get('vulnerability_status', 'UNSCANNED')
 
                                 for sf in scan_data.get('findings', []):
                                     f_obj = {
@@ -322,18 +300,18 @@ def main():
                                         "artifact": img_ref,
                                         "source_paths": source_paths,
                                         "evidence": {
-                                            "platform": platform,
+                                            "platform": plat,
                                             "message": sf.get('message')
                                         }
                                     }
                                     findings.append(f_obj)
                         except Exception as ex:
-                            sys.stderr.write(f"Scan failed for {img_ref} ({platform}): {ex}\n")
+                            sys.stderr.write(f"Scan failed for {img_ref} ({plat}): {ex}\n")
 
             # Perform Cosign verification
             if verify_script.exists():
                 try:
-                    proc_ver = subprocess.run([str(verify_script), img_ref, ownership], capture_output=True, text=True)
+                    proc_ver = subprocess.run([str(verify_script), img_ref, ownership, str(policy_path or "")], capture_output=True, text=True)
                     if proc_ver.returncode == 0:
                         ver_data = json.loads(proc_ver.stdout)
                         prov_status = ver_data.get('provenance_status', 'UNVERIFIED')
@@ -351,30 +329,20 @@ def main():
                 except Exception as ex:
                     sys.stderr.write(f"Verify failed for {img_ref}: {ex}\n")
 
-        # Platform missing findings
-        if not amd64_avail:
-            f = {
-                "type": "PLATFORM_AMD64_MISSING",
-                "artifact": img_ref,
-                "source_paths": source_paths,
-                "evidence": {
-                    "image": img_ref,
-                    "platform": "linux/amd64"
+        # Check platform availability for target_platforms dynamically
+        for plat in target_platforms:
+            arch_label = "AMD64" if "amd64" in plat else ("ARM64" if "arm64" in plat else plat.replace("/", "_").upper())
+            if not platforms_dict[plat]["available"]:
+                f = {
+                    "type": f"PLATFORM_{arch_label}_MISSING",
+                    "artifact": img_ref,
+                    "source_paths": source_paths,
+                    "evidence": {
+                        "image": img_ref,
+                        "platform": plat
+                    }
                 }
-            }
-            findings.append(f)
-
-        if not arm64_avail:
-            f = {
-                "type": "PLATFORM_ARM64_MISSING",
-                "artifact": img_ref,
-                "source_paths": source_paths,
-                "evidence": {
-                    "image": img_ref,
-                    "platform": "linux/arm64"
-                }
-            }
-            findings.append(f)
+                findings.append(f)
 
         if not top_digest:
             f = {
@@ -387,42 +355,28 @@ def main():
             }
             findings.append(f)
 
-        # SBOM & Vulnerability checks
-        if amd64_avail and amd64_sbom == "MISSING":
-            f = {
-                "type": "SBOM_AMD64_MISSING",
-                "artifact": img_ref,
-                "source_paths": source_paths,
-                "evidence": {"platform": "linux/amd64"}
-            }
-            findings.append(f)
+        # Check SBOM & Vulnerability status per target platform
+        for plat in target_platforms:
+            arch_label = "AMD64" if "amd64" in plat else ("ARM64" if "arm64" in plat else plat.replace("/", "_").upper())
+            p_state = platforms_dict[plat]
 
-        if arm64_avail and arm64_sbom == "MISSING":
-            f = {
-                "type": "SBOM_ARM64_MISSING",
-                "artifact": img_ref,
-                "source_paths": source_paths,
-                "evidence": {"platform": "linux/arm64"}
-            }
-            findings.append(f)
+            if p_state["available"] and p_state["sbom_status"] == "MISSING":
+                f = {
+                    "type": f"SBOM_{arch_label}_MISSING",
+                    "artifact": img_ref,
+                    "source_paths": source_paths,
+                    "evidence": {"platform": plat}
+                }
+                findings.append(f)
 
-        if amd64_vuln == "EXCEEDED":
-            f = {
-                "type": "VULNERABILITY_AMD64_THRESHOLD_EXCEEDED",
-                "artifact": img_ref,
-                "source_paths": source_paths,
-                "evidence": {"platform": "linux/amd64"}
-            }
-            findings.append(f)
-
-        if arm64_vuln == "EXCEEDED":
-            f = {
-                "type": "VULNERABILITY_ARM64_THRESHOLD_EXCEEDED",
-                "artifact": img_ref,
-                "source_paths": source_paths,
-                "evidence": {"platform": "linux/arm64"}
-            }
-            findings.append(f)
+            if p_state["vulnerability_status"] == "EXCEEDED":
+                f = {
+                    "type": f"VULNERABILITY_{arch_label}_THRESHOLD_EXCEEDED",
+                    "artifact": img_ref,
+                    "source_paths": source_paths,
+                    "evidence": {"platform": plat}
+                }
+                findings.append(f)
 
         # Provenance check
         if ownership == "FIRST_PARTY_IMAGE":
@@ -451,20 +405,7 @@ def main():
             "source_paths": source_paths,
             "source_tag": img['source_tag'],
             "top_level_digest": top_digest,
-            "platforms": {
-                "linux/amd64": {
-                    "digest": amd64_digest,
-                    "available": amd64_avail,
-                    "sbom_status": amd64_sbom,
-                    "vulnerability_status": amd64_vuln
-                },
-                "linux/arm64": {
-                    "digest": arm64_digest,
-                    "available": arm64_avail,
-                    "sbom_status": arm64_sbom,
-                    "vulnerability_status": arm64_vuln
-                }
-            },
+            "platforms": platforms_dict,
             "provenance_status": prov_status
         })
 
@@ -480,7 +421,7 @@ def main():
             }
             findings.append(f)
 
-    # Remove duplicates from findings based on (type, artifact, source_path)
+    # Deduplicate findings deterministically
     unique_findings = []
     seen_findings = set()
     for fn in findings:

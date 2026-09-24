@@ -2,26 +2,36 @@
 set -euo pipefail
 
 # verify-image.sh
-# Usage: ./verify-image.sh <image_ref> <ownership> [output_file]
-# ownership: FIRST_PARTY_IMAGE or THIRD_PARTY_IMAGE or UNKNOWN
+# Usage: ./verify-image.sh <image_ref> [ownership] [policy_path] [output_file]
 
 IMAGE_REF="${1:-}"
 OWNERSHIP="${2:-UNKNOWN}"
-OUTPUT_FILE="${3:-}"
+POLICY_PATH="${3:-}"
+OUTPUT_FILE="${4:-}"
 
 if [ -z "$IMAGE_REF" ]; then
-    echo "Usage: $0 <image_ref> <ownership> [output_file]" >&2
+    echo "Usage: $0 <image_ref> [ownership] [policy_path] [output_file]" >&2
     exit 1
 fi
 
-python3 - "$IMAGE_REF" "$OWNERSHIP" "$OUTPUT_FILE" << 'EOF'
+python3 - "$IMAGE_REF" "$OWNERSHIP" "$POLICY_PATH" "$OUTPUT_FILE" << 'EOF'
 import sys
 import json
 import subprocess
+from pathlib import Path
 
 image_ref = sys.argv[1]
-ownership = sys.argv[2]
-output_file = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
+ownership = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else "UNKNOWN"
+policy_path = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
+output_file = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else None
+
+script_dir = Path("scripts/supply-chain").resolve()
+sys.path.insert(0, str(script_dir))
+
+import policy as policy_module
+
+policy = policy_module.load_policy(policy_path=policy_path)
+prov_policy = policy.get("provenance_policy", {})
 
 res = {
     "image": image_ref,
@@ -33,8 +43,6 @@ res = {
 }
 
 if ownership == "FIRST_PARTY_IMAGE":
-    # For first party, run cosign verify
-    # (Without public key or keyless setup, cosign verify-attestation or cosign verify checks signature)
     cmd = ["cosign", "verify", "--keyless", image_ref]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode == 0:
@@ -48,7 +56,6 @@ if ownership == "FIRST_PARTY_IMAGE":
         })
 else:
     # Third party
-    # Try verifying upstream signature if cosign supports keyless/public certs for upstream
     cmd = ["cosign", "verify", image_ref]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode == 0:
