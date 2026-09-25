@@ -55,6 +55,7 @@ def main():
     parser.add_argument("--repo-root", default=".", help="Repository root directory")
     parser.add_argument("--catalog", default=".supply-chain/artifacts.yaml", help="Path to catalog YAML")
     parser.add_argument("--policy", default=".supply-chain/policy.yaml", help="Path to policy YAML")
+    parser.add_argument("--lock-file", default=".supply-chain/resolved.lock.yaml", help="Path to resolved lock YAML cache")
     parser.add_argument("--update-catalog", action="store_true", help="Update catalog file with current state")
     parser.add_argument("--scan", action="store_true", help="Perform online OCI resolution, SBOM generation, vulnerability scanning, and provenance verification")
     parser.add_argument("--output", default=None, help="Output JSON file path for findings")
@@ -63,6 +64,7 @@ def main():
     repo_root = Path(args.repo_root).resolve()
     catalog_path = repo_root / args.catalog
     policy_path = repo_root / args.policy if args.policy else None
+    lock_path = repo_root / args.lock_file
 
     # Load validated policy - fails closed if missing/malformed
     try:
@@ -186,6 +188,10 @@ def main():
     scan_script = SCRIPT_DIR / "scan-image.sh"
     verify_script = SCRIPT_DIR / "verify-image.sh"
 
+    # Load explicit resolved lock cache outside image loop
+    resolved_lock = load_yaml(lock_path) if args.scan else {}
+    res_platforms = resolved_lock.get("resolved_platforms", {})
+
     # 2. Audit Images & Compare Catalog
     for img in discovered_images:
         img_ref = img['image']
@@ -234,15 +240,18 @@ def main():
 
         top_digest = prev_entry.get('top_level_digest')
 
-        # Build platform state dynamically based on policy target_platforms
+        # Build platform state dynamically based on policy target_platforms and resolved lock
         platforms_dict = {}
+        cached_img_platforms = res_platforms.get(img_ref, {}).get("platforms", {})
         for plat in target_platforms:
             prev_plat = prev_entry.get('platforms', {}).get(plat, {})
+            c_plat = cached_img_platforms.get(plat, {})
+            plat_d = prev_plat.get('digest') or c_plat.get('digest')
             platforms_dict[plat] = {
-                "digest": prev_plat.get('digest'),
+                "digest": plat_d,
                 "available": prev_plat.get('available', False),
-                "sbom_status": prev_plat.get('sbom_status', 'MISSING'),
-                "vulnerability_status": prev_plat.get('vulnerability_status', 'UNSCANNED')
+                "sbom_status": prev_plat.get('sbom_status') or c_plat.get('sbom_status', 'MISSING'),
+                "vulnerability_status": prev_plat.get('vulnerability_status') or c_plat.get('vulnerability_status', 'UNSCANNED')
             }
 
         prov_status = prev_entry.get('provenance_status', 'UNVERIFIED')
@@ -283,31 +292,45 @@ def main():
                 except Exception as ex:
                     sys.stderr.write(f"Resolution failed for {img_ref}: {ex}\n")
 
-            # Perform Syft/Grype scan for available platforms
+            # Perform Syft/Grype scan for available platforms using explicit resolved.lock.yaml
             if scan_script.exists():
                 for plat in target_platforms:
                     if platforms_dict[plat]["available"]:
                         p_digest = platforms_dict[plat]["digest"] or ""
-                        prev_plat_data = prev_entry.get('platforms', {}).get(plat, {})
-                        prev_plat_digest = prev_plat_data.get('digest')
-                        prev_sbom = prev_plat_data.get('sbom_status')
-                        prev_vuln = prev_plat_data.get('vulnerability_status')
+                        cached_entry = res_platforms.get(p_digest, {}) if p_digest else {}
 
-                        # Skip scan ONLY if exact platform digest is unchanged AND valid scan evidence exists
                         need_scan = True
-                        if prev_plat_digest and p_digest and prev_plat_digest == p_digest:
-                            if prev_sbom in ("GENERATED", "PRESENT") and prev_vuln not in ("UNSCANNED", "MISSING", None):
-                                need_scan = False
-                                platforms_dict[plat]["sbom_status"] = prev_sbom
-                                platforms_dict[plat]["vulnerability_status"] = prev_vuln
+                        if p_digest and cached_entry.get("sbom_status") in ("GENERATED", "PRESENT") and cached_entry.get("vulnerability_status") not in ("UNSCANNED", "MISSING", None):
+                            need_scan = False
+                            platforms_dict[plat]["sbom_status"] = cached_entry["sbom_status"]
+                            platforms_dict[plat]["vulnerability_status"] = cached_entry["vulnerability_status"]
 
                         if need_scan:
                             try:
                                 proc_scan = subprocess.run([str(scan_script), img_ref, plat, p_digest, str(policy_path or "")], capture_output=True, text=True)
                                 if proc_scan.returncode == 0:
                                     scan_data = json.loads(proc_scan.stdout)
-                                    platforms_dict[plat]["sbom_status"] = scan_data.get('sbom_status', 'MISSING')
-                                    platforms_dict[plat]["vulnerability_status"] = scan_data.get('vulnerability_status', 'UNSCANNED')
+                                    s_status = scan_data.get('sbom_status', 'MISSING')
+                                    v_status = scan_data.get('vulnerability_status', 'UNSCANNED')
+                                    platforms_dict[plat]["sbom_status"] = s_status
+                                    platforms_dict[plat]["vulnerability_status"] = v_status
+
+                                    if p_digest:
+                                        if img_ref not in res_platforms or not isinstance(res_platforms[img_ref], dict):
+                                            res_platforms[img_ref] = {"platforms": {}}
+                                        if "platforms" not in res_platforms[img_ref]:
+                                            res_platforms[img_ref]["platforms"] = {}
+                                        res_platforms[img_ref]["platforms"][plat] = {
+                                            "digest": p_digest,
+                                            "sbom_status": s_status,
+                                            "vulnerability_status": v_status
+                                        }
+                                        res_platforms[p_digest] = {
+                                            "sbom_status": s_status,
+                                            "vulnerability_status": v_status,
+                                            "image": img_ref,
+                                            "platform": plat
+                                        }
 
                                     for sf in scan_data.get('findings', []):
                                         f_obj = {
@@ -444,6 +467,10 @@ def main():
         if key not in seen_findings:
             seen_findings.add(key)
             unique_findings.append(fn)
+
+    if args.scan:
+        resolved_lock["resolved_platforms"] = res_platforms
+        save_yaml(lock_path, resolved_lock)
 
     # Output / Update
     if args.update_catalog:

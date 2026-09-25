@@ -26,6 +26,7 @@ first_party:
     - "cluster-providers/**"
     - "platform/**"
   image_patterns:
+    - "ghcr.io/amediomediagroup/*"
     - "public.ecr.aws/aegis/*"
     - "aegis/*"
     - "localhost/*"

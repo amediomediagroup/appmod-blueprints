@@ -1,0 +1,42 @@
+name: Publish All First-Party Helm OCI Charts
+
+on:
+  push:
+    paths:
+      - 'platform-charts/**'
+      - 'gitops/addons/charts/**'
+      - '.github/workflows/publish-helm.yml'
+      - '.github/workflows/publish-all-helm.yml'
+  workflow_dispatch:
+
+jobs:
+  discover-charts:
+    name: Discover Charts for Publication
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Discover Helm Charts
+        id: set-matrix
+        run: |
+          python3 -c "
+          import sys, json
+          sys.path.insert(0, 'scripts/supply-chain')
+          import discover_helm
+          charts = discover_helm.discover_helm_charts('.')
+          # Include all first-party charts under platform-charts
+          candidates = [c['chart_dir'] for c in charts if 'platform-charts' in c['source_path']]
+          print('matrix=' + json.dumps(candidates))
+          " >> $GITHUB_OUTPUT
+
+  publish-charts:
+    needs: discover-charts
+    strategy:
+      matrix:
+        chart_path: ${{ json(needs.discover-charts.outputs.matrix) }}
+    uses: ./.github/workflows/publish-helm.yml
+    with:
+      chart_path: ${{ matrix.chart_path }}

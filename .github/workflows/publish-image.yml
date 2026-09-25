@@ -80,27 +80,45 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ inputs.version_tag }}
 
-      - name: Resolve OCI Index & Platform Digests
+      - name: Resolve OCI Index & Platform Digests and Sign/Scan Immutable Digest
         run: |
           IMAGE_URI="ghcr.io/amediomediagroup/${{ inputs.image_name }}:${{ inputs.version_tag }}"
+          INDEX_DIGEST="${{ steps.build.outputs.digest }}"
+          IMMUTABLE_REF="ghcr.io/amediomediagroup/${{ inputs.image_name }}@${INDEX_DIGEST}"
 
-          # Cosign Keyless Sign
-          cosign sign --yes "$IMAGE_URI"
+          # Cosign Keyless Sign Immutable Digest
+          cosign sign --yes "$IMMUTABLE_REF"
 
-          # Cosign Verify Expected Identity & Issuer
+          # Cosign Verify Expected Certificate Identity & Issuer
           cosign verify \
             --certificate-identity-regexp "^https://github.com/${{ github.repository }}/.*" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            "$IMAGE_URI"
+            "$IMMUTABLE_REF"
 
-          # Generate Syft SBOM & Grype Scan
-          syft "$IMAGE_URI" -o json > sbom.json
-          grype sbom:sbom.json -o json > vuln.json
+          # Resolve child platform digests
+          chmod +x scripts/supply-chain/*.sh
+          ./scripts/supply-chain/resolve-image.sh "$IMMUTABLE_REF" .supply-chain/policy.yaml /tmp/res.json
+
+          AMD64_DIGEST=$(jq -r '.platforms["linux/amd64"].digest' /tmp/res.json)
+          ARM64_DIGEST=$(jq -r '.platforms["linux/arm64"].digest' /tmp/res.json)
+
+          BASE_REPO="ghcr.io/amediomediagroup/${{ inputs.image_name }}"
+
+          # Per-platform independent Syft SBOM and Grype scanning
+          if [ -n "$AMD64_DIGEST" ] && [ "$AMD64_DIGEST" != "null" ]; then
+            syft "${BASE_REPO}@${AMD64_DIGEST}" -o json > sbom-amd64.json
+            grype sbom:sbom-amd64.json -o json > vuln-amd64.json
+          fi
+
+          if [ -n "$ARM64_DIGEST" ] && [ "$ARM64_DIGEST" != "null" ]; then
+            syft "${BASE_REPO}@${ARM64_DIGEST}" -o json > sbom-arm64.json
+            grype sbom:sbom-arm64.json -o json > vuln-arm64.json
+          fi
 
       - name: Upload SBOM & Scan Evidence
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: ${{ inputs.image_name }}-evidence
           path: |
-            sbom.json
-            vuln.json
+            sbom-*.json
+            vuln-*.json

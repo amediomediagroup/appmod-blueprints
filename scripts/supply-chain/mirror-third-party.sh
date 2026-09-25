@@ -91,8 +91,9 @@ else:
         except Exception as ex:
             res["error"] = f"Multi-arch resolution failed for mirrored image: {ex}"
 
-    # 5. Cosign sign as AEGIS IMPORT/APPROVAL
-    cmd_sign = ["cosign", "sign", "--yes", dest_ref]
+    # 5. Cosign sign immutable digest as AEGIS IMPORT/APPROVAL
+    sign_target = f"{dest_ref}@{res['mirrored_top_level_digest']}" if res["mirrored_top_level_digest"] else dest_ref
+    cmd_sign = ["cosign", "sign", "--yes", sign_target]
     proc_sign = subprocess.run(cmd_sign, capture_output=True, text=True)
     if proc_sign.returncode == 0:
         res["signature_verified"] = True

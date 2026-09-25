@@ -106,24 +106,24 @@ def load_policy(policy_path=None, repo_root=None) -> dict:
     if not isinstance(allow_main, bool):
         raise PolicyError("Policy field 'helm_policy.allow_protected_git_main' must be an explicit YAML boolean. String coercions strictly rejected.")
 
-    # 5. Validate registries
-    registries = data.get("registries", {})
-    if not isinstance(registries, dict):
-        raise PolicyError("Policy field 'registries' must be a dictionary.")
+    # 5. Validate registries (fails closed if missing or malformed)
+    if "registries" not in data or not isinstance(data.get("registries"), dict):
+        raise PolicyError("Policy missing required dict 'registries'. Failing closed.")
 
-    container_reg = registries.get("container_registry", "ghcr.io/amediomediagroup")
-    upstream_reg = registries.get("upstream_mirror_registry", "ghcr.io/amediomediagroup/upstream")
-    helm_oci_reg = registries.get("helm_oci_registry", "ghcr.io/amediomediagroup/charts")
-    helm_upstream_reg = registries.get("helm_upstream_mirror_registry", "ghcr.io/amediomediagroup/charts/upstream")
+    registries = data["registries"]
+    container_reg = registries.get("container_registry")
+    upstream_reg = registries.get("upstream_mirror_registry")
+    helm_oci_reg = registries.get("helm_oci_registry")
+    helm_upstream_reg = registries.get("helm_upstream_mirror_registry")
 
     if not isinstance(container_reg, str) or not container_reg.strip():
-        raise PolicyError("Policy field 'registries.container_registry' must be a non-empty string.")
+        raise PolicyError("Policy missing or invalid required field 'registries.container_registry'.")
     if not isinstance(upstream_reg, str) or not upstream_reg.strip():
-        raise PolicyError("Policy field 'registries.upstream_mirror_registry' must be a non-empty string.")
+        raise PolicyError("Policy missing or invalid required field 'registries.upstream_mirror_registry'.")
     if not isinstance(helm_oci_reg, str) or not helm_oci_reg.strip():
-        raise PolicyError("Policy field 'registries.helm_oci_registry' must be a non-empty string.")
+        raise PolicyError("Policy missing or invalid required field 'registries.helm_oci_registry'.")
     if not isinstance(helm_upstream_reg, str) or not helm_upstream_reg.strip():
-        raise PolicyError("Policy field 'registries.helm_upstream_mirror_registry' must be a non-empty string.")
+        raise PolicyError("Policy missing or invalid required field 'registries.helm_upstream_mirror_registry'.")
 
     return {
         "version": str(data.get("version", "1.0")),
@@ -170,6 +170,10 @@ def match_glob_pattern(pattern: str, path_str: str) -> bool:
     return False
 
 def classify_image_ownership(image_ref: str, source_paths: list, dockerfiles_found: set, policy: dict) -> str:
+    # Explicitly exclude /upstream/ namespace from first-party ownership
+    if "/upstream/" in image_ref or "/upstream" in image_ref:
+        return "THIRD_PARTY_IMAGE"
+
     image_patterns = policy["first_party"]["image_patterns"]
 
     for pattern in image_patterns:

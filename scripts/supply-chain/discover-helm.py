@@ -92,8 +92,8 @@ def discover_helm_charts(repo_root: Path, policy_path: Path = None):
                 'has_lock': has_lock,
                 'chart_lock_file': rel_lock_file,
                 'chart_lock_state': chart_lock_state,
-                'oci_requirement': (classification == "RELEASE_ARTIFACT_OCI_CANDIDATE"),
-                'oci_repository': f"oci://{policy['registries']['helm_oci_registry']}/{chart_name}" if classification == "RELEASE_ARTIFACT_OCI_CANDIDATE" else None,
+                'oci_requirement': True,
+                'oci_repository': f"oci://{policy['registries']['helm_oci_registry']}/{chart_name}",
                 'known_oci_digest': None
             })
 

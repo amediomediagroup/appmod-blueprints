@@ -322,6 +322,11 @@ run_test_header "Behavioral Vulnerability Policy (CRITICAL vs CRITICAL+HIGH)"
 mkdir -p "$TMPDIR/test11_polA/.supply-chain"
 cat << 'EOF' > "$TMPDIR/test11_polA/.supply-chain/policy.yaml"
 version: "1.0"
+registries:
+  container_registry: ghcr.io/amediomediagroup
+  upstream_mirror_registry: ghcr.io/amediomediagroup/upstream
+  helm_oci_registry: ghcr.io/amediomediagroup/charts
+  helm_upstream_mirror_registry: ghcr.io/amediomediagroup/charts/upstream
 target_platforms: [linux/amd64]
 vulnerability_policy:
   fail_on_severity: [CRITICAL]
@@ -336,6 +341,11 @@ EOF
 mkdir -p "$TMPDIR/test11_polB/.supply-chain"
 cat << 'EOF' > "$TMPDIR/test11_polB/.supply-chain/policy.yaml"
 version: "1.0"
+registries:
+  container_registry: ghcr.io/amediomediagroup
+  upstream_mirror_registry: ghcr.io/amediomediagroup/upstream
+  helm_oci_registry: ghcr.io/amediomediagroup/charts
+  helm_upstream_mirror_registry: ghcr.io/amediomediagroup/charts/upstream
 target_platforms: [linux/amd64]
 vulnerability_policy:
   fail_on_severity: [CRITICAL, HIGH]
@@ -364,6 +374,11 @@ run_test_header "Behavioral ignore_unfixed Policy Evaluation"
 mkdir -p "$TMPDIR/test12_ign_true/.supply-chain"
 cat << 'EOF' > "$TMPDIR/test12_ign_true/.supply-chain/policy.yaml"
 version: "1.0"
+registries:
+  container_registry: ghcr.io/amediomediagroup
+  upstream_mirror_registry: ghcr.io/amediomediagroup/upstream
+  helm_oci_registry: ghcr.io/amediomediagroup/charts
+  helm_upstream_mirror_registry: ghcr.io/amediomediagroup/charts/upstream
 target_platforms: [linux/amd64]
 vulnerability_policy:
   fail_on_severity: [CRITICAL, HIGH]
@@ -402,6 +417,11 @@ cp "$TMPDIR/test13_lock_true/chart/Chart.yaml" "$TMPDIR/test13_lock_false/chart/
 
 cat << 'EOF' > "$TMPDIR/test13_lock_true/.supply-chain/policy.yaml"
 version: "1.0"
+registries:
+  container_registry: ghcr.io/amediomediagroup
+  upstream_mirror_registry: ghcr.io/amediomediagroup/upstream
+  helm_oci_registry: ghcr.io/amediomediagroup/charts
+  helm_upstream_mirror_registry: ghcr.io/amediomediagroup/charts/upstream
 target_platforms: [linux/amd64]
 vulnerability_policy:
   fail_on_severity: [CRITICAL]
@@ -416,6 +436,11 @@ EOF
 
 cat << 'EOF' > "$TMPDIR/test13_lock_false/.supply-chain/policy.yaml"
 version: "1.0"
+registries:
+  container_registry: ghcr.io/amediomediagroup
+  upstream_mirror_registry: ghcr.io/amediomediagroup/upstream
+  helm_oci_registry: ghcr.io/amediomediagroup/charts
+  helm_upstream_mirror_registry: ghcr.io/amediomediagroup/charts/upstream
 target_platforms: [linux/amd64]
 vulnerability_policy:
   fail_on_severity: [CRITICAL]
@@ -474,6 +499,11 @@ EOF
 
 cat << 'EOF' > "$TMPDIR/test15/.supply-chain/policy.yaml"
 version: "1.0"
+registries:
+  container_registry: ghcr.io/amediomediagroup
+  upstream_mirror_registry: ghcr.io/amediomediagroup/upstream
+  helm_oci_registry: ghcr.io/amediomediagroup/charts
+  helm_upstream_mirror_registry: ghcr.io/amediomediagroup/charts/upstream
 target_platforms: [linux/amd64]
 vulnerability_policy:
   fail_on_severity: [CRITICAL]
@@ -493,6 +523,11 @@ AEGIS_OWNERSHIP=$(echo "$DISC_OUT15" | jq -r '.images[] | select(.image=="aegis/
 # Also test that changing/removing dockerfile_paths alone does NOT change ownership
 cat << 'EOF' > "$TMPDIR/test15/.supply-chain/policy_no_df.yaml"
 version: "1.0"
+registries:
+  container_registry: ghcr.io/amediomediagroup
+  upstream_mirror_registry: ghcr.io/amediomediagroup/upstream
+  helm_oci_registry: ghcr.io/amediomediagroup/charts
+  helm_upstream_mirror_registry: ghcr.io/amediomediagroup/charts/upstream
 target_platforms: [linux/amd64]
 vulnerability_policy:
   fail_on_severity: [CRITICAL]
@@ -598,32 +633,40 @@ fi
 
 # TEST 17: Digest Cache Reuse & Single-Platform Child Digest Drift
 run_test_header "Digest Cache Reuse & Single-Platform Child Digest Drift"
-mkdir -p "$TMPDIR/test17/.supply-chain"
+mkdir -p "$TMPDIR/test17/.supply-chain" "$TMPDIR/test17/bin"
 cp .supply-chain/policy.yaml "$TMPDIR/test17/.supply-chain/"
 
-cat << 'EOF' > "$TMPDIR/test17/.supply-chain/artifacts.yaml"
-version: "1.0"
-dockerfiles: []
-images:
-  - id: "test/cached-img:1.0"
-    image: "test/cached-img:1.0"
-    ownership: "THIRD_PARTY_IMAGE"
-    source_paths: ["deploy.yaml"]
-    source_tag: "1.0"
-    top_level_digest: "sha256:top123"
-    platforms:
-      linux/amd64:
-        digest: "sha256:amd64_fixed"
-        available: true
-        sbom_status: "GENERATED"
-        vulnerability_status: "CLEAN"
-      linux/arm64:
-        digest: "sha256:arm64_old"
-        available: true
-        sbom_status: "GENERATED"
-        vulnerability_status: "CLEAN"
-helm_charts: []
+COUNTER_FILE="$TMPDIR/test17/syft_counter.txt"
+echo "0" > "$COUNTER_FILE"
+
+cat << EOF > "$TMPDIR/test17/bin/syft"
+#!/bin/bash
+cnt=\$(cat "$COUNTER_FILE")
+echo \$((cnt + 1)) > "$COUNTER_FILE"
+for arg in "\$@"; do
+  if [[ "\$arg" == json=* ]]; then
+    file_path="\${arg#json=}"
+    echo '{"artifacts": [{"name": "test"}]}' > "\$file_path"
+  fi
+done
 EOF
+chmod +x "$TMPDIR/test17/bin/syft"
+
+cat << 'EOF' > "$TMPDIR/test17/bin/grype"
+#!/bin/bash
+echo '{"matches": []}'
+EOF
+chmod +x "$TMPDIR/test17/bin/grype"
+
+cat << 'EOF' > "$TMPDIR/test17/bin/skopeo"
+#!/bin/bash
+if [[ "$*" == *"--raw"* ]]; then
+  echo '{"manifests": [{"digest": "sha256:amd1", "platform": {"architecture": "amd64", "os": "linux"}}, {"digest": "sha256:arm1", "platform": {"architecture": "arm64", "os": "linux"}}]}'
+else
+  echo '{"Digest": "sha256:top1", "Architecture": "amd64", "Os": "linux"}'
+fi
+EOF
+chmod +x "$TMPDIR/test17/bin/skopeo"
 
 cat << 'EOF' > "$TMPDIR/test17/deploy.yaml"
 apiVersion: apps/v1
@@ -633,16 +676,39 @@ spec:
     spec:
       containers:
       - name: main
-        image: test/cached-img:1.0
+        image: test/cache-demo:1.0
 EOF
 
-python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test17" --output "$TMPDIR/test17/out.json"
-CACHE_FOUND=$(jq -r '.finding_count' "$TMPDIR/test17/out.json")
+LOCK_17="$TMPDIR/test17/.supply-chain/resolved.lock.yaml"
 
-if [ "$CACHE_FOUND" -ge 0 ]; then
-    pass_test "Digest cache state persisted and read successfully"
+# Run 1: New Digests -> Syft scans amd64 + arm64 (count = 2)
+PATH="$TMPDIR/test17/bin:$PATH" python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test17" --lock-file "$LOCK_17" --scan --output "$TMPDIR/test17/run1.json"
+COUNT_RUN1=$(cat "$COUNTER_FILE")
+
+# Run 2: Same Digests -> Syft scan count remains unchanged (count = 2)
+PATH="$TMPDIR/test17/bin:$PATH" python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test17" --lock-file "$LOCK_17" --scan --output "$TMPDIR/test17/run2.json"
+COUNT_RUN2=$(cat "$COUNTER_FILE")
+
+# Run 3: Update skopeo to simulate arm64 child digest drift (sha256:arm1 -> sha256:arm2)
+cat << 'EOF' > "$TMPDIR/test17/bin/skopeo"
+#!/bin/bash
+if [[ "$*" == *"--raw"* ]]; then
+  echo '{"manifests": [{"digest": "sha256:amd1", "platform": {"architecture": "amd64", "os": "linux"}}, {"digest": "sha256:arm2", "platform": {"architecture": "arm64", "os": "linux"}}]}'
 else
-    fail_test "Digest cache reuse" "Unexpected output: $CACHE_FOUND"
+  echo '{"Digest": "sha256:top2", "Architecture": "amd64", "Os": "linux"}'
+fi
+EOF
+chmod +x "$TMPDIR/test17/bin/skopeo"
+
+# Run 3: arm64 changed -> Syft rescans ONLY arm64 (count = 3), amd64 reused
+PATH="$TMPDIR/test17/bin:$PATH" python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test17" --lock-file "$LOCK_17" --scan --output "$TMPDIR/test17/run3.json"
+COUNT_RUN3=$(cat "$COUNTER_FILE")
+DRIFT_EMITTED=$(jq -r '.findings[] | select(.type=="PLATFORM_DIGEST_DRIFT") | .type' "$TMPDIR/test17/run3.json")
+
+if [ "$COUNT_RUN1" -eq 2 ] && [ "$COUNT_RUN2" -eq 2 ] && [ "$COUNT_RUN3" -eq 3 ] && [ "$DRIFT_EMITTED" = "PLATFORM_DIGEST_DRIFT" ]; then
+    pass_test "Behavioral cache invocation suppression verified: Run 1 scans = 2, Run 2 cached = 0 extra scans, Run 3 arm64 drift = 1 extra scan + PLATFORM_DIGEST_DRIFT emitted"
+else
+    fail_test "Behavioral cache verification" "run1_scans=$COUNT_RUN1 (exp 2), run2_scans=$COUNT_RUN2 (exp 2), run3_scans=$COUNT_RUN3 (exp 3), drift=$DRIFT_EMITTED"
 fi
 
 # TEST 18: First-Party Cosign Identity/Issuer Fail-Closed Validation
@@ -652,7 +718,9 @@ cat << 'EOF' > "$TMPDIR/test18/.supply-chain/policy.yaml"
 version: "1.0"
 registries:
   container_registry: ghcr.io/amediomediagroup
+  upstream_mirror_registry: ghcr.io/amediomediagroup/upstream
   helm_oci_registry: ghcr.io/amediomediagroup/charts
+  helm_upstream_mirror_registry: ghcr.io/amediomediagroup/charts/upstream
 target_platforms: [linux/amd64]
 vulnerability_policy: {fail_on_severity: [CRITICAL], ignore_unfixed: false}
 first_party: {dockerfile_paths: [], image_patterns: ["aegis/*"]}
@@ -704,8 +772,8 @@ fi
 # TEST 21: Java 25 Acceptance App Builder/Runtime Digest Pinning
 run_test_header "Java 25 Acceptance App Builder/Runtime Digest Pinning"
 JAVA_DF="applications/java-acceptance/Dockerfile"
-BUILDER_DIGEST=$(grep "^FROM maven:" "$JAVA_DF" | grep "@sha256:" || true)
-RUNTIME_DIGEST=$(grep "^FROM eclipse-temurin:" "$JAVA_DF" | grep "@sha256:" || true)
+BUILDER_DIGEST=$(grep "^FROM " "$JAVA_DF" | grep "maven" | grep "@sha256:" || true)
+RUNTIME_DIGEST=$(grep "^FROM " "$JAVA_DF" | grep "eclipse-temurin" | grep "@sha256:" || true)
 
 if [ -n "$BUILDER_DIGEST" ] && [ -n "$RUNTIME_DIGEST" ]; then
     pass_test "Java 25 acceptance app Dockerfile builder and runtime base images are pinned to immutable @sha256 digests"

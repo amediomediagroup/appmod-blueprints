@@ -70,62 +70,80 @@ res = {
 with tempfile.TemporaryDirectory() as tmpdir:
     pkg_dir = Path(tmpdir)
 
-    # 1. Dependency build if needed
+    # 1. Dependency build if needed (fail closed on error)
     if chart_yaml.get("dependencies"):
         cmd_dep = ["helm", "dependency", "build", str(chart_dir)]
-        subprocess.run(cmd_dep, check=False)
+        proc_dep = subprocess.run(cmd_dep, capture_output=True, text=True)
+        if proc_dep.returncode != 0:
+            raise RuntimeError(f"Helm dependency build failed for {chart_name}: {proc_dep.stderr.strip()}")
 
-    # 2. Helm Lint
+    # 2. Helm Lint (fail closed on error)
     cmd_lint = ["helm", "lint", str(chart_dir)]
-    subprocess.run(cmd_lint, check=False)
+    proc_lint = subprocess.run(cmd_lint, capture_output=True, text=True)
+    if proc_lint.returncode != 0:
+        raise RuntimeError(f"Helm lint failed for {chart_name}: {proc_lint.stderr.strip()}")
 
-    # 3. Helm Package
+    # 3. Helm Package (fail closed on error)
     cmd_pkg = ["helm", "package", str(chart_dir), "-d", str(pkg_dir)]
     proc_pkg = subprocess.run(cmd_pkg, capture_output=True, text=True)
 
     if proc_pkg.returncode != 0:
-        res["error"] = f"Helm package failed: {proc_pkg.stderr.strip()}"
-    else:
-        pkg_files = list(pkg_dir.glob("*.tgz"))
-        if pkg_files:
-            pkg_file = pkg_files[0]
+        raise RuntimeError(f"Helm package failed for {chart_name}: {proc_pkg.stderr.strip()}")
 
-            # 4. Helm Push
-            cmd_push = ["helm", "push", str(pkg_file), target_oci_repo]
-            proc_push = subprocess.run(cmd_push, capture_output=True, text=True)
+    pkg_files = list(pkg_dir.glob("*.tgz"))
+    if not pkg_files:
+        raise RuntimeError(f"No packaged .tgz file found for {chart_name}")
 
-            if proc_push.returncode != 0:
-                res["error"] = f"Helm push failed: {proc_push.stderr.strip()}"
-            else:
-                # 5. Resolve OCI Digest via Skopeo
-                cmd_dig = ["skopeo", "inspect", f"docker://{full_oci_ref}"]
-                proc_dig = subprocess.run(cmd_dig, capture_output=True, text=True)
-                if proc_dig.returncode == 0:
-                    try:
-                        dig_json = json.loads(proc_dig.stdout)
-                        res["oci_digest"] = dig_json.get("Digest")
-                    except Exception:
-                        pass
+    pkg_file = pkg_files[0]
 
-                # 6. Cosign Keyless Sign & Verify
-                first_party_prov = prov_policy.get("first_party", {})
-                cert_id_regex = first_party_prov.get("expected_certificate_identity_regexp") or first_party_prov.get("expected_certificate_identity")
-                oidc_issuer = first_party_prov.get("expected_oidc_issuer")
+    # 4. Helm Push (fail closed on error)
+    cmd_push = ["helm", "push", str(pkg_file), target_oci_repo]
+    proc_push = subprocess.run(cmd_push, capture_output=True, text=True)
 
-                if cert_id_regex and oidc_issuer:
-                    cmd_sign = ["cosign", "sign", "--yes", full_oci_ref]
-                    subprocess.run(cmd_sign, capture_output=True, text=True)
+    if proc_push.returncode != 0:
+        raise RuntimeError(f"Helm push failed for {chart_name}: {proc_push.stderr.strip()}")
 
-                    cmd_ver = [
-                        "cosign", "verify",
-                        "--certificate-identity-regexp", cert_id_regex,
-                        "--certificate-oidc-issuer", oidc_issuer,
-                        full_oci_ref
-                    ]
-                    proc_ver = subprocess.run(cmd_ver, capture_output=True, text=True)
-                    if proc_ver.returncode == 0:
-                        res["signature_verified"] = True
-                        res["provenance_status"] = "VERIFIED_PRODUCER" if mode == "first-party" else "AEGIS_IMPORTED_AND_APPROVED"
+    # 5. Resolve OCI Digest via Skopeo
+    cmd_dig = ["skopeo", "inspect", f"docker://{full_oci_ref}"]
+    proc_dig = subprocess.run(cmd_dig, capture_output=True, text=True)
+    if proc_dig.returncode != 0:
+        raise RuntimeError(f"Digest resolution failed for {full_oci_ref}: {proc_dig.stderr.strip()}")
+
+    try:
+        dig_json = json.loads(proc_dig.stdout)
+        res["oci_digest"] = dig_json.get("Digest")
+    except Exception as e:
+        raise RuntimeError(f"Failed to parse digest for {full_oci_ref}: {e}")
+
+    if not res["oci_digest"]:
+        raise RuntimeError(f"Resolved empty OCI digest for {full_oci_ref}")
+
+    # 6. Cosign Keyless Sign & Verify Immutable Digest
+    sign_target = f"{oci_base}/{chart_name}@{res['oci_digest']}"
+    first_party_prov = prov_policy.get("first_party", {})
+    cert_id_regex = first_party_prov.get("expected_certificate_identity_regexp") or first_party_prov.get("expected_certificate_identity")
+    oidc_issuer = first_party_prov.get("expected_oidc_issuer")
+
+    if not cert_id_regex or not oidc_issuer:
+        raise RuntimeError("Missing expected_certificate_identity_regexp or expected_oidc_issuer in policy")
+
+    cmd_sign = ["cosign", "sign", "--yes", sign_target]
+    proc_sign = subprocess.run(cmd_sign, capture_output=True, text=True)
+    if proc_sign.returncode != 0:
+        raise RuntimeError(f"Cosign sign failed for {sign_target}: {proc_sign.stderr.strip()}")
+
+    cmd_ver = [
+        "cosign", "verify",
+        "--certificate-identity-regexp", cert_id_regex,
+        "--certificate-oidc-issuer", oidc_issuer,
+        sign_target
+    ]
+    proc_ver = subprocess.run(cmd_ver, capture_output=True, text=True)
+    if proc_ver.returncode != 0:
+        raise RuntimeError(f"Cosign verify failed for {sign_target}: {proc_ver.stderr.strip()}")
+
+    res["signature_verified"] = True
+    res["provenance_status"] = "VERIFIED_PRODUCER" if mode == "first-party" else "AEGIS_IMPORTED_AND_APPROVED"
 
 out_str = json.dumps(res, indent=2)
 if output_file:
