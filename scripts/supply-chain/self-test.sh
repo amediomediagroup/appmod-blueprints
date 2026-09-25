@@ -745,6 +745,35 @@ else
     fail_test "OCI-only Helm policy enforcement" "Expected HELM_HTTP_REPO_DISALLOWED, got: $HTTP_FINDINGS"
 fi
 
+# TEST 23: Upstream Third-Party OCI Mirror Path Derivation
+run_test_header "Upstream Third-Party OCI Mirror Path Derivation"
+MIRROR_POLICY_OUT=$(python3 -c "
+import sys; sys.path.insert(0, '$ROOT_DIR/scripts/supply-chain')
+import policy
+pol = policy.load_policy()
+print(pol['registries']['upstream_mirror_registry'])
+")
+
+if [ "$MIRROR_POLICY_OUT" = "ghcr.io/amediomediagroup/upstream" ]; then
+    pass_test "Upstream third-party OCI mirror path derived strictly from policy: ghcr.io/amediomediagroup/upstream"
+else
+    fail_test "Upstream mirror path derivation" "Expected ghcr.io/amediomediagroup/upstream, got $MIRROR_POLICY_OUT"
+fi
+
+# TEST 24: Node & Python Acceptance App Base Image Digest Pinning
+run_test_header "Node & Python Acceptance App Base Image Digest Pinning"
+NODE_DF="applications/node/app/Dockerfile"
+PYTHON_DF="applications/python/app/Dockerfile"
+
+NODE_DIGEST=$(grep "^FROM " "$NODE_DF" | grep "@sha256:" || true)
+PYTHON_DIGEST=$(grep "^FROM " "$PYTHON_DF" | grep "@sha256:" || true)
+
+if [ -n "$NODE_DIGEST" ] && [ -n "$PYTHON_DIGEST" ]; then
+    pass_test "Node and Python Dockerfiles consume mirrored base images pinned by immutable @sha256 digests"
+else
+    fail_test "Node/Python base image digest pinning" "Node digest: '$NODE_DIGEST', Python digest: '$PYTHON_DIGEST'"
+fi
+
 echo "============================================="
 if [ "$FAILED" -eq 0 ]; then
     echo "ALL $TOTAL_TESTS HERMETIC SELF-TESTS PASSED SUCCESSFULLY!"

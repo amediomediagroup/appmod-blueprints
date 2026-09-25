@@ -1,0 +1,19 @@
+name: Publish Python App Image
+
+on:
+  push:
+    paths:
+      - 'applications/python/app/**'
+      - '.github/workflows/publish-python.yml'
+      - '.github/workflows/publish-image.yml'
+  workflow_dispatch:
+
+jobs:
+  publish-python-app:
+    name: Build & Publish Python App
+    uses: ./.github/workflows/publish-image.yml
+    with:
+      image_name: python-sample-app
+      dockerfile_path: applications/python/app/Dockerfile
+      build_context: applications/python/app
+      version_tag: 1.0.0

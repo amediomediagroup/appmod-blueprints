@@ -1,0 +1,19 @@
+name: Publish Node App Image
+
+on:
+  push:
+    paths:
+      - 'applications/node/app/**'
+      - '.github/workflows/publish-node.yml'
+      - '.github/workflows/publish-image.yml'
+  workflow_dispatch:
+
+jobs:
+  publish-node-app:
+    name: Build & Publish Node App
+    uses: ./.github/workflows/publish-image.yml
+    with:
+      image_name: node-sample-app
+      dockerfile_path: applications/node/app/Dockerfile
+      build_context: applications/node/app
+      version_tag: 1.0.0
