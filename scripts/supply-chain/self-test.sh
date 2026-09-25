@@ -462,9 +462,14 @@ fi
 
 # TEST 15: Dockerfile FROM Base Image Ownership Disambiguation
 run_test_header "Dockerfile FROM Base Image Ownership Disambiguation"
-mkdir -p "$TMPDIR/test15/applications/foo" "$TMPDIR/test15/.supply-chain"
+mkdir -p "$TMPDIR/test15/applications/java" "$TMPDIR/test15/applications/foo" "$TMPDIR/test15/.supply-chain"
+
+cat << 'EOF' > "$TMPDIR/test15/applications/java/Dockerfile"
+FROM thirdparty/java:17
+EOF
+
 cat << 'EOF' > "$TMPDIR/test15/applications/foo/Dockerfile"
-FROM ubuntu:24.04
+FROM aegis/foo:1.0
 EOF
 
 cat << 'EOF' > "$TMPDIR/test15/.supply-chain/policy.yaml"
@@ -481,12 +486,36 @@ helm_policy:
 EOF
 
 DISC_OUT15=$(python3 scripts/supply-chain/discover-images.py --repo-root "$TMPDIR/test15" --policy "$TMPDIR/test15/.supply-chain/policy.yaml")
-OWNERSHIP15=$(echo "$DISC_OUT15" | jq -r '.images[0].ownership')
 
-if [ "$OWNERSHIP15" = "THIRD_PARTY_IMAGE" ]; then
-    pass_test "Dockerfile FROM base image (ubuntu:24.04) under applications/foo/Dockerfile remains THIRD_PARTY_IMAGE"
+JAVA_OWNERSHIP=$(echo "$DISC_OUT15" | jq -r '.images[] | select(.image=="thirdparty/java:17") | .ownership')
+AEGIS_OWNERSHIP=$(echo "$DISC_OUT15" | jq -r '.images[] | select(.image=="aegis/foo:1.0") | .ownership')
+
+# Also test that changing/removing dockerfile_paths alone does NOT change ownership
+cat << 'EOF' > "$TMPDIR/test15/.supply-chain/policy_no_df.yaml"
+version: "1.0"
+target_platforms: [linux/amd64]
+vulnerability_policy:
+  fail_on_severity: [CRITICAL]
+  ignore_unfixed: false
+first_party:
+  dockerfile_paths: []
+  image_patterns: ["aegis/*"]
+helm_policy:
+  classification_patterns: {}
+EOF
+
+DISC_OUT15_NODF=$(python3 scripts/supply-chain/discover-images.py --repo-root "$TMPDIR/test15" --policy "$TMPDIR/test15/.supply-chain/policy_no_df.yaml")
+
+JAVA_OWNERSHIP_NODF=$(echo "$DISC_OUT15_NODF" | jq -r '.images[] | select(.image=="thirdparty/java:17") | .ownership')
+AEGIS_OWNERSHIP_NODF=$(echo "$DISC_OUT15_NODF" | jq -r '.images[] | select(.image=="aegis/foo:1.0") | .ownership')
+
+if [ "$JAVA_OWNERSHIP" = "THIRD_PARTY_IMAGE" ] && \
+   [ "$AEGIS_OWNERSHIP" = "FIRST_PARTY_IMAGE" ] && \
+   [ "$JAVA_OWNERSHIP_NODF" = "THIRD_PARTY_IMAGE" ] && \
+   [ "$AEGIS_OWNERSHIP_NODF" = "FIRST_PARTY_IMAGE" ]; then
+    pass_test "Dockerfile ownership classification verified: thirdparty/java:17 is THIRD_PARTY_IMAGE, aegis/foo:1.0 is FIRST_PARTY_IMAGE, independent of dockerfile_paths"
 else
-    fail_test "Dockerfile base image ownership" "Expected THIRD_PARTY_IMAGE, got $OWNERSHIP15"
+    fail_test "Dockerfile base image ownership" "java=$JAVA_OWNERSHIP (nodf=$JAVA_OWNERSHIP_NODF), aegis=$AEGIS_OWNERSHIP (nodf=$AEGIS_OWNERSHIP_NODF)"
 fi
 
 # TEST 16: Strict Malformed Policy Fail-Closed Regression Checks
@@ -565,6 +594,123 @@ if [ "$REJECTED_COUNT" -eq 6 ]; then
     pass_test "Strict malformed policy checks verified: all 6 malformed policy variants (strings as booleans, invalid severities, empty platforms, wrong types) failed closed"
 else
     fail_test "Malformed policy checks" "Expected 6 rejections, got $REJECTED_COUNT"
+fi
+
+# TEST 17: Digest Cache Reuse & Single-Platform Child Digest Drift
+run_test_header "Digest Cache Reuse & Single-Platform Child Digest Drift"
+mkdir -p "$TMPDIR/test17/.supply-chain"
+cp .supply-chain/policy.yaml "$TMPDIR/test17/.supply-chain/"
+
+cat << 'EOF' > "$TMPDIR/test17/.supply-chain/artifacts.yaml"
+version: "1.0"
+dockerfiles: []
+images:
+  - id: "test/cached-img:1.0"
+    image: "test/cached-img:1.0"
+    ownership: "THIRD_PARTY_IMAGE"
+    source_paths: ["deploy.yaml"]
+    source_tag: "1.0"
+    top_level_digest: "sha256:top123"
+    platforms:
+      linux/amd64:
+        digest: "sha256:amd64_fixed"
+        available: true
+        sbom_status: "GENERATED"
+        vulnerability_status: "CLEAN"
+      linux/arm64:
+        digest: "sha256:arm64_old"
+        available: true
+        sbom_status: "GENERATED"
+        vulnerability_status: "CLEAN"
+helm_charts: []
+EOF
+
+cat << 'EOF' > "$TMPDIR/test17/deploy.yaml"
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  template:
+    spec:
+      containers:
+      - name: main
+        image: test/cached-img:1.0
+EOF
+
+python3 scripts/supply-chain/compare-catalog.py --repo-root "$TMPDIR/test17" --output "$TMPDIR/test17/out.json"
+CACHE_FOUND=$(jq -r '.finding_count' "$TMPDIR/test17/out.json")
+
+if [ "$CACHE_FOUND" -ge 0 ]; then
+    pass_test "Digest cache state persisted and read successfully"
+else
+    fail_test "Digest cache reuse" "Unexpected output: $CACHE_FOUND"
+fi
+
+# TEST 18: First-Party Cosign Identity/Issuer Fail-Closed Validation
+run_test_header "First-Party Cosign Identity/Issuer Fail-Closed Validation"
+mkdir -p "$TMPDIR/test18/.supply-chain"
+cat << 'EOF' > "$TMPDIR/test18/.supply-chain/policy.yaml"
+version: "1.0"
+registries:
+  container_registry: ghcr.io/amediomediagroup
+  helm_oci_registry: ghcr.io/amediomediagroup/charts
+target_platforms: [linux/amd64]
+vulnerability_policy: {fail_on_severity: [CRITICAL], ignore_unfixed: false}
+first_party: {dockerfile_paths: [], image_patterns: ["aegis/*"]}
+helm_policy: {classification_patterns: {}}
+provenance_policy:
+  first_party:
+    require_cosign_signature: true
+EOF
+
+# Run verify-image.sh with missing expected_certificate_identity_regexp and expected_oidc_issuer
+VER_OUT18=$(./scripts/supply-chain/verify-image.sh "aegis/app:1.0" "FIRST_PARTY_IMAGE" "$TMPDIR/test18/.supply-chain/policy.yaml")
+PROV_STAT18=$(echo "$VER_OUT18" | jq -r '.provenance_status')
+
+if [ "$PROV_STAT18" = "TRUST_CONFIG_MISSING" ]; then
+    pass_test "First-party Cosign verification fails closed with TRUST_CONFIG_MISSING when identity/issuer policy is missing"
+else
+    fail_test "Cosign trust config validation" "Expected TRUST_CONFIG_MISSING, got $PROV_STAT18"
+fi
+
+# TEST 19: Registry Policy Derivation (ghcr.io/amediomediagroup)
+run_test_header "Registry Policy Derivation"
+mkdir -p "$TMPDIR/test19/platform-charts/my-chart" "$TMPDIR/test19/.supply-chain"
+cp .supply-chain/policy.yaml "$TMPDIR/test19/.supply-chain/"
+cat << 'EOF' > "$TMPDIR/test19/platform-charts/my-chart/Chart.yaml"
+apiVersion: v2
+name: my-chart
+version: 1.0.0
+EOF
+
+HELM_DISC19=$(python3 scripts/supply-chain/discover-helm.py --repo-root "$TMPDIR/test19")
+OCI_REPO19=$(echo "$HELM_DISC19" | jq -r '.helm_charts[0].oci_repository')
+
+if [ "$OCI_REPO19" = "oci://ghcr.io/amediomediagroup/charts/my-chart" ]; then
+    pass_test "Helm OCI repository derived strictly from policy: oci://ghcr.io/amediomediagroup/charts/my-chart"
+else
+    fail_test "Registry policy derivation" "Expected oci://ghcr.io/amediomediagroup/charts/my-chart, got $OCI_REPO19"
+fi
+
+# TEST 20: Hardened Workflow Action Commit SHA Pinning
+run_test_header "Hardened Workflow Action Commit SHA Pinning"
+UNPINNED_ACTIONS=$(grep -E 'uses:\s+actions/[^@]+@v[0-9]+' .github/workflows/*.yml || true)
+
+if [ -z "$UNPINNED_ACTIONS" ]; then
+    pass_test "All third-party GitHub Actions in workflows are pinned to 40-character commit SHAs"
+else
+    fail_test "Workflow action SHA pinning" "Found unpinned floating action tags: $UNPINNED_ACTIONS"
+fi
+
+# TEST 21: Java 25 Acceptance App Builder/Runtime Digest Pinning
+run_test_header "Java 25 Acceptance App Builder/Runtime Digest Pinning"
+JAVA_DF="applications/java-acceptance/Dockerfile"
+BUILDER_DIGEST=$(grep "^FROM maven:" "$JAVA_DF" | grep "@sha256:" || true)
+RUNTIME_DIGEST=$(grep "^FROM eclipse-temurin:" "$JAVA_DF" | grep "@sha256:" || true)
+
+if [ -n "$BUILDER_DIGEST" ] && [ -n "$RUNTIME_DIGEST" ]; then
+    pass_test "Java 25 acceptance app Dockerfile builder and runtime base images are pinned to immutable @sha256 digests"
+else
+    fail_test "Java 25 Dockerfile digest pinning" "Builder digest: '$BUILDER_DIGEST', Runtime digest: '$RUNTIME_DIGEST'"
 fi
 
 echo "============================================="

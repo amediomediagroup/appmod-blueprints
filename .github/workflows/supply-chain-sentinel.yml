@@ -17,10 +17,10 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           python-version: "3.12"
 
@@ -29,41 +29,46 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyyaml
 
-      - name: Install Toolchain (Skopeo, Syft, Grype, Cosign, Helm, Crane, ORAS)
+      - name: Install Hardened Toolchain (Skopeo, Syft, Grype, Cosign, Helm, Crane, ORAS, yq)
         run: |
           mkdir -p "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-          # Skopeo
+          # Skopeo & jq
           sudo apt-get update && sudo apt-get install -y skopeo jq
 
-          # Helm
-          curl -fsSL https://get.helm.sh/helm-v3.16.3-linux-amd64.tar.gz | tar -xz -C /tmp
+          # Helm v3.16.3
+          curl -fsSL -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.16.3-linux-amd64.tar.gz
+          echo "c830a3f89025fa2dd910f54e17efee83dd4fa75fb98a4422e118ae26c929a508  /tmp/helm.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/helm.tar.gz -C /tmp linux-amd64/helm
           mv /tmp/linux-amd64/helm "$HOME/.local/bin/"
 
-          # Syft
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "$HOME/.local/bin"
+          # Syft v1.18.0
+          curl -fsSL -o /tmp/syft.tar.gz https://github.com/anchore/syft/releases/download/v1.18.0/syft_1.18.0_linux_amd64.tar.gz
+          echo "0b6fd1e0dd5b00b19585e5cde8e1c1f4ef60dc8fba8b41fab55f00852a2fbb8d  /tmp/syft.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/syft.tar.gz -C "$HOME/.local/bin" syft
 
-          # Grype
-          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b "$HOME/.local/bin"
+          # Grype v0.87.0
+          curl -fsSL -o /tmp/grype.tar.gz https://github.com/anchore/grype/releases/download/v0.87.0/grype_0.87.0_linux_amd64.tar.gz
+          echo "be710d15f5477e5c77ce03d14e480263415d7ab135e04b8483663f688823087d  /tmp/grype.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/grype.tar.gz -C "$HOME/.local/bin" grype
 
-          # Cosign
-          curl -LO https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64
-          chmod +x cosign-linux-amd64
-          mv cosign-linux-amd64 "$HOME/.local/bin/cosign"
+          # Cosign v2.4.1
+          curl -fsSL -o "$HOME/.local/bin/cosign" https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-amd64
+          echo "8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b  $HOME/.local/bin/cosign" | sha256sum -c -
+          chmod +x "$HOME/.local/bin/cosign"
 
-          # Crane
-          curl -sSL https://github.com/google/go-containerregistry/releases/download/v0.20.2/go-containerregistry_Linux_x86_64.tar.gz | tar -xz -C /tmp crane
-          mv /tmp/crane "$HOME/.local/bin/"
+          # Crane v0.20.2
+          curl -fsSL -o /tmp/crane.tar.gz https://github.com/google/go-containerregistry/releases/download/v0.20.2/go-containerregistry_Linux_x86_64.tar.gz
+          tar -xzf /tmp/crane.tar.gz -C "$HOME/.local/bin" crane
 
-          # ORAS
-          curl -LO "https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz"
-          tar -xzf oras_1.2.0_linux_amd64.tar.gz -C "$HOME/.local/bin" oras
-          rm oras_1.2.0_linux_amd64.tar.gz
+          # ORAS v1.2.0
+          curl -fsSL -o /tmp/oras.tar.gz https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz
+          tar -xzf /tmp/oras.tar.gz -C "$HOME/.local/bin" oras
 
-          # yq
-          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
-          sudo chmod +x /usr/bin/yq
+          # yq v4.44.5
+          curl -fsSL -o "$HOME/.local/bin/yq" https://github.com/mikefarah/yq/releases/download/v4.44.5/yq_linux_amd64
+          chmod +x "$HOME/.local/bin/yq"
 
       - name: Verify Toolchain Installation
         run: |
@@ -90,7 +95,7 @@ jobs:
           ./scripts/supply-chain/audit-helm.sh --output .supply-chain/findings/helm-findings.json
 
       - name: Upload Supply Chain Findings Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4bec402d631622312d8a5f80b9f2986427d11f26 # v4.6.0
         with:
           name: supply-chain-findings
           path: .supply-chain/findings/

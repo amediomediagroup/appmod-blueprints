@@ -288,26 +288,40 @@ def main():
                 for plat in target_platforms:
                     if platforms_dict[plat]["available"]:
                         p_digest = platforms_dict[plat]["digest"] or ""
-                        try:
-                            proc_scan = subprocess.run([str(scan_script), img_ref, plat, p_digest, str(policy_path or "")], capture_output=True, text=True)
-                            if proc_scan.returncode == 0:
-                                scan_data = json.loads(proc_scan.stdout)
-                                platforms_dict[plat]["sbom_status"] = scan_data.get('sbom_status', 'MISSING')
-                                platforms_dict[plat]["vulnerability_status"] = scan_data.get('vulnerability_status', 'UNSCANNED')
+                        prev_plat_data = prev_entry.get('platforms', {}).get(plat, {})
+                        prev_plat_digest = prev_plat_data.get('digest')
+                        prev_sbom = prev_plat_data.get('sbom_status')
+                        prev_vuln = prev_plat_data.get('vulnerability_status')
 
-                                for sf in scan_data.get('findings', []):
-                                    f_obj = {
-                                        "type": sf.get('type'),
-                                        "artifact": img_ref,
-                                        "source_paths": source_paths,
-                                        "evidence": {
-                                            "platform": plat,
-                                            "message": sf.get('message')
+                        # Skip scan ONLY if exact platform digest is unchanged AND valid scan evidence exists
+                        need_scan = True
+                        if prev_plat_digest and p_digest and prev_plat_digest == p_digest:
+                            if prev_sbom in ("GENERATED", "PRESENT") and prev_vuln not in ("UNSCANNED", "MISSING", None):
+                                need_scan = False
+                                platforms_dict[plat]["sbom_status"] = prev_sbom
+                                platforms_dict[plat]["vulnerability_status"] = prev_vuln
+
+                        if need_scan:
+                            try:
+                                proc_scan = subprocess.run([str(scan_script), img_ref, plat, p_digest, str(policy_path or "")], capture_output=True, text=True)
+                                if proc_scan.returncode == 0:
+                                    scan_data = json.loads(proc_scan.stdout)
+                                    platforms_dict[plat]["sbom_status"] = scan_data.get('sbom_status', 'MISSING')
+                                    platforms_dict[plat]["vulnerability_status"] = scan_data.get('vulnerability_status', 'UNSCANNED')
+
+                                    for sf in scan_data.get('findings', []):
+                                        f_obj = {
+                                            "type": sf.get('type'),
+                                            "artifact": img_ref,
+                                            "source_paths": source_paths,
+                                            "evidence": {
+                                                "platform": plat,
+                                                "message": sf.get('message')
+                                            }
                                         }
-                                    }
-                                    findings.append(f_obj)
-                        except Exception as ex:
-                            sys.stderr.write(f"Scan failed for {img_ref} ({plat}): {ex}\n")
+                                        findings.append(f_obj)
+                            except Exception as ex:
+                                sys.stderr.write(f"Scan failed for {img_ref} ({plat}): {ex}\n")
 
             # Perform Cosign verification
             if verify_script.exists():

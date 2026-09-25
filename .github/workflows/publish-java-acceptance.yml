@@ -1,0 +1,19 @@
+name: Publish Java 25 Acceptance Image
+
+on:
+  push:
+    paths:
+      - 'applications/java-acceptance/**'
+      - '.github/workflows/publish-java-acceptance.yml'
+      - '.github/workflows/publish-image.yml'
+  workflow_dispatch:
+
+jobs:
+  publish-java-app:
+    name: Build & Publish Java 25 Acceptance App
+    uses: ./.github/workflows/publish-image.yml
+    with:
+      image_name: java-acceptance
+      dockerfile_path: applications/java-acceptance/Dockerfile
+      build_context: applications/java-acceptance
+      version_tag: 1.0.0

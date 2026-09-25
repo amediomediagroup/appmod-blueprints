@@ -106,8 +106,24 @@ def load_policy(policy_path=None, repo_root=None) -> dict:
     if not isinstance(allow_main, bool):
         raise PolicyError("Policy field 'helm_policy.allow_protected_git_main' must be an explicit YAML boolean. String coercions strictly rejected.")
 
+    # 5. Validate registries
+    registries = data.get("registries", {})
+    if not isinstance(registries, dict):
+        raise PolicyError("Policy field 'registries' must be a dictionary.")
+
+    container_reg = registries.get("container_registry", "ghcr.io/amediomediagroup")
+    helm_oci_reg = registries.get("helm_oci_registry", "ghcr.io/amediomediagroup/charts")
+    if not isinstance(container_reg, str) or not container_reg.strip():
+        raise PolicyError("Policy field 'registries.container_registry' must be a non-empty string.")
+    if not isinstance(helm_oci_reg, str) or not helm_oci_reg.strip():
+        raise PolicyError("Policy field 'registries.helm_oci_registry' must be a non-empty string.")
+
     return {
         "version": str(data.get("version", "1.0")),
+        "registries": {
+            "container_registry": container_reg.strip(),
+            "helm_oci_registry": helm_oci_reg.strip()
+        },
         "target_platforms": target_platforms,
         "vulnerability_policy": {
             "fail_on_severity": [s.upper() for s in fail_on],
@@ -149,12 +165,6 @@ def classify_image_ownership(image_ref: str, source_paths: list, dockerfiles_fou
 
     for pattern in image_patterns:
         if re.search(pattern, image_ref) or match_glob_pattern(pattern, image_ref):
-            return "FIRST_PARTY_IMAGE"
-
-    image_lower = image_ref.lower()
-    for df in dockerfiles_found:
-        df_dir = os.path.dirname(df).lower()
-        if df_dir and (df_dir in image_lower or os.path.basename(df_dir) in image_lower):
             return "FIRST_PARTY_IMAGE"
 
     if "${" in image_ref or "{{" in image_ref or image_ref.startswith(":") or not image_ref:

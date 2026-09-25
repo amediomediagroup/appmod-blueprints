@@ -24,7 +24,10 @@ image_ref = sys.argv[1]
 policy_path = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
 output_file = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
 
-script_dir = Path("scripts/supply-chain").resolve()
+import os
+script_dir = Path(os.environ.get("SUPPLY_CHAIN_DIR", "scripts/supply-chain")).resolve()
+if not (script_dir / "policy.py").exists():
+    script_dir = Path(__file__).resolve().parent
 sys.path.insert(0, str(script_dir))
 
 import policy as policy_module

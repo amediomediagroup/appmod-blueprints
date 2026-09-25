@@ -2,6 +2,10 @@
 
 version: "1.0"
 
+registries:
+  container_registry: ghcr.io/amediomediagroup
+  helm_oci_registry: ghcr.io/amediomediagroup/charts
+
 target_platforms:
   - linux/amd64
   - linux/arm64
@@ -44,6 +48,8 @@ helm_policy:
 provenance_policy:
   first_party:
     require_cosign_signature: true
+    expected_certificate_identity_regexp: "^https://github.com/amediomediagroup/appmod-blueprints/.*"
+    expected_oidc_issuer: "https://token.actions.githubusercontent.com"
   third_party:
     verify_upstream_when_evidence_exists: true
     never_sign_as_first_party: true

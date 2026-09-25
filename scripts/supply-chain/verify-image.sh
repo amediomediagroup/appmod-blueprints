@@ -25,7 +25,10 @@ ownership = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else "UNKNOWN"
 policy_path = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
 output_file = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else None
 
-script_dir = Path("scripts/supply-chain").resolve()
+import os
+script_dir = Path(os.environ.get("SUPPLY_CHAIN_DIR", "scripts/supply-chain")).resolve()
+if not (script_dir / "policy.py").exists():
+    script_dir = Path(__file__).resolve().parent
 sys.path.insert(0, str(script_dir))
 
 import policy as policy_module
@@ -43,17 +46,33 @@ res = {
 }
 
 if ownership == "FIRST_PARTY_IMAGE":
-    cmd = ["cosign", "verify", "--keyless", image_ref]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    if proc.returncode == 0:
-        res["provenance_status"] = "VERIFIED"
-        res["signature_verified"] = True
-    else:
-        res["provenance_status"] = "FIRST_PARTY_SIGNATURE_MISSING"
+    first_party_prov = prov_policy.get("first_party", {})
+    cert_id_regex = first_party_prov.get("expected_certificate_identity_regexp") or first_party_prov.get("expected_certificate_identity")
+    oidc_issuer = first_party_prov.get("expected_oidc_issuer")
+
+    if not cert_id_regex or not oidc_issuer:
+        res["provenance_status"] = "TRUST_CONFIG_MISSING"
         res["findings"].append({
-            "type": "FIRST_PARTY_SIGNATURE_MISSING",
-            "message": f"First-party image {image_ref} is missing required Cosign signature"
+            "type": "TRUST_CONFIG_MISSING",
+            "message": f"First-party image {image_ref} verification failed: missing expected_certificate_identity_regexp or expected_oidc_issuer in policy"
         })
+    else:
+        cmd = [
+            "cosign", "verify",
+            "--certificate-identity-regexp", cert_id_regex,
+            "--certificate-oidc-issuer", oidc_issuer,
+            image_ref
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode == 0:
+            res["provenance_status"] = "VERIFIED"
+            res["signature_verified"] = True
+        else:
+            res["provenance_status"] = "FIRST_PARTY_SIGNATURE_MISSING"
+            res["findings"].append({
+                "type": "FIRST_PARTY_SIGNATURE_MISSING",
+                "message": f"First-party image {image_ref} failed Cosign verification for identity '{cert_id_regex}' and issuer '{oidc_issuer}'"
+            })
 else:
     # Third party
     cmd = ["cosign", "verify", image_ref]

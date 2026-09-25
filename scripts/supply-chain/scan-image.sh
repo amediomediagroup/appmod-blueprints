@@ -29,7 +29,9 @@ digest = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
 policy_path = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else None
 output_file = sys.argv[5] if len(sys.argv) > 5 and sys.argv[5] else None
 
-script_dir = Path("scripts/supply-chain").resolve()
+script_dir = Path(os.environ.get("SUPPLY_CHAIN_DIR", "scripts/supply-chain")).resolve()
+if not (script_dir / "policy.py").exists():
+    script_dir = Path(__file__).resolve().parent
 sys.path.insert(0, str(script_dir))
 
 import policy as policy_module
