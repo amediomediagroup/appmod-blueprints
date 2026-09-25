@@ -12,4 +12,4 @@ version: 0.1.0
 dependencies:
   - name: kargo
     version: '1.11.0'
-    repository: oci://ghcr.io/akuity/kargo-charts
+    repository: oci://ghcr.io/amediomediagroup/charts/upstream/akuity

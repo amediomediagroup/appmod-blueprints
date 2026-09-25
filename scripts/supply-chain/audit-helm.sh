@@ -62,6 +62,24 @@ def main():
         dependencies = chart.get('dependencies', [])
         has_lock = chart.get('has_lock', False)
 
+        # Check dependency repositories for classic HTTP/HTTPS repos (OCI-only requirement)
+        for dep in dependencies:
+            repo = dep.get("repository", "")
+            if repo.startswith("http://") or repo.startswith("https://"):
+                f = {
+                    "type": "HELM_HTTP_REPO_DISALLOWED",
+                    "artifact": chart_name,
+                    "source_paths": [source_path],
+                    "evidence": {
+                        "source_path": source_path,
+                        "dependency": dep.get("name"),
+                        "repository": repo,
+                        "reason": f"Chart dependency '{dep.get('name')}' uses classic HTTP/HTTPS repository '{repo}' instead of Aegis OCI mirror"
+                    }
+                }
+                chart_findings.append(f)
+                findings.append(f)
+
         # 1. Dependency checks: missing Chart.lock or range without lock (only if require_chart_lock_if_dependencies is true)
         if dependencies and require_lock:
             if not has_lock:

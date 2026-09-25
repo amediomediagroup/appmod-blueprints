@@ -25,5 +25,5 @@ appVersion: "1.0"
 dependencies:
 - name: vela-core
   version: 1.10.0
-  repository: https://kubevela.github.io/charts
+  repository: oci://ghcr.io/amediomediagroup/charts/upstream/kubevela
 

@@ -15,4 +15,4 @@ dependencies:
   - name: karpenter
     # First upstream release with cpuOptions.nestedVirtualization (Kata).
     version: '1.14.0'
-    repository: oci://public.ecr.aws/karpenter
+    repository: oci://ghcr.io/amediomediagroup/charts/upstream/karpenter

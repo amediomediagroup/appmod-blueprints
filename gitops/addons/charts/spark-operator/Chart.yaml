@@ -6,4 +6,4 @@ version: 0.1.0
 dependencies:
   - name: spark-operator
     version: '2.4.0'
-    repository: https://kubeflow.github.io/spark-operator
+    repository: oci://ghcr.io/amediomediagroup/charts/upstream/kubeflow

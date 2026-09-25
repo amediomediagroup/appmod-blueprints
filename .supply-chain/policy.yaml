@@ -4,7 +4,9 @@ version: "1.0"
 
 registries:
   container_registry: ghcr.io/amediomediagroup
+  upstream_mirror_registry: ghcr.io/amediomediagroup/upstream
   helm_oci_registry: ghcr.io/amediomediagroup/charts
+  helm_upstream_mirror_registry: ghcr.io/amediomediagroup/charts/upstream
 
 target_platforms:
   - linux/amd64

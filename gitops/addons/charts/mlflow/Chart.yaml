@@ -6,4 +6,4 @@ version: 0.1.0
 dependencies:
   - name: mlflow
     version: '0.7.19'
-    repository: https://community-charts.github.io/helm-charts
+    repository: oci://ghcr.io/amediomediagroup/charts/upstream/mlflow

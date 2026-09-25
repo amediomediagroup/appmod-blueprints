@@ -112,17 +112,26 @@ def load_policy(policy_path=None, repo_root=None) -> dict:
         raise PolicyError("Policy field 'registries' must be a dictionary.")
 
     container_reg = registries.get("container_registry", "ghcr.io/amediomediagroup")
+    upstream_reg = registries.get("upstream_mirror_registry", "ghcr.io/amediomediagroup/upstream")
     helm_oci_reg = registries.get("helm_oci_registry", "ghcr.io/amediomediagroup/charts")
+    helm_upstream_reg = registries.get("helm_upstream_mirror_registry", "ghcr.io/amediomediagroup/charts/upstream")
+
     if not isinstance(container_reg, str) or not container_reg.strip():
         raise PolicyError("Policy field 'registries.container_registry' must be a non-empty string.")
+    if not isinstance(upstream_reg, str) or not upstream_reg.strip():
+        raise PolicyError("Policy field 'registries.upstream_mirror_registry' must be a non-empty string.")
     if not isinstance(helm_oci_reg, str) or not helm_oci_reg.strip():
         raise PolicyError("Policy field 'registries.helm_oci_registry' must be a non-empty string.")
+    if not isinstance(helm_upstream_reg, str) or not helm_upstream_reg.strip():
+        raise PolicyError("Policy field 'registries.helm_upstream_mirror_registry' must be a non-empty string.")
 
     return {
         "version": str(data.get("version", "1.0")),
         "registries": {
             "container_registry": container_reg.strip(),
-            "helm_oci_registry": helm_oci_reg.strip()
+            "upstream_mirror_registry": upstream_reg.strip(),
+            "helm_oci_registry": helm_oci_reg.strip(),
+            "helm_upstream_mirror_registry": helm_upstream_reg.strip()
         },
         "target_platforms": target_platforms,
         "vulnerability_policy": {

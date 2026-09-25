@@ -713,6 +713,38 @@ else
     fail_test "Java 25 Dockerfile digest pinning" "Builder digest: '$BUILDER_DIGEST', Runtime digest: '$RUNTIME_DIGEST'"
 fi
 
+# TEST 22: OCI-Only Helm Dependency Policy Enforcement
+run_test_header "OCI-Only Helm Dependency Policy Enforcement"
+mkdir -p "$TMPDIR/test22/chart" "$TMPDIR/test22/.supply-chain"
+cp .supply-chain/policy.yaml "$TMPDIR/test22/.supply-chain/"
+
+cat << 'EOF' > "$TMPDIR/test22/chart/Chart.yaml"
+apiVersion: v2
+name: http-chart
+version: 1.0.0
+dependencies:
+  - name: redis
+    version: 17.0.0
+    repository: https://charts.bitnami.com/bitnami
+EOF
+
+cat << 'EOF' > "$TMPDIR/test22/chart/Chart.lock"
+dependencies:
+- name: redis
+  repository: https://charts.bitnami.com/bitnami
+  version: 17.0.0
+digest: sha256:1234
+EOF
+
+./scripts/supply-chain/audit-helm.sh --repo-root "$TMPDIR/test22" --policy "$TMPDIR/test22/.supply-chain/policy.yaml" --output "$TMPDIR/test22/out.json"
+HTTP_FINDINGS=$(jq -r '.findings[] | select(.type=="HELM_HTTP_REPO_DISALLOWED") | .type' "$TMPDIR/test22/out.json")
+
+if [ "$HTTP_FINDINGS" = "HELM_HTTP_REPO_DISALLOWED" ]; then
+    pass_test "Classic HTTP Helm dependency repository correctly rejected with HELM_HTTP_REPO_DISALLOWED finding"
+else
+    fail_test "OCI-only Helm policy enforcement" "Expected HELM_HTTP_REPO_DISALLOWED, got: $HTTP_FINDINGS"
+fi
+
 echo "============================================="
 if [ "$FAILED" -eq 0 ]; then
     echo "ALL $TOTAL_TESTS HERMETIC SELF-TESTS PASSED SUCCESSFULLY!"

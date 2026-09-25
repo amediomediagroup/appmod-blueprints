@@ -55,8 +55,13 @@ jobs:
           PKG_FILE=$(ls /tmp/chart-pkg/*.tgz | head -n 1)
           echo "PKG_FILE=$PKG_FILE" >> $GITHUB_OUTPUT
 
-      - name: Push Chart to OCI Registry
+      - name: Install Cosign v2.4.1
         run: |
-          PKG_FILE="${{ steps.package.outputs.PKG_FILE }}"
-          # Push to oci://ghcr.io/amediomediagroup/charts without appending chart name/version
-          helm push "$PKG_FILE" oci://ghcr.io/amediomediagroup/charts
+          curl -fsSL -o "$HOME/.local/bin/cosign" https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-amd64
+          echo "8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b  $HOME/.local/bin/cosign" | sha256sum -c -
+          chmod +x "$HOME/.local/bin/cosign"
+
+      - name: Push, Cosign Keyless Sign, & Verify OCI Chart Artifact
+        run: |
+          chmod +x scripts/supply-chain/*.sh
+          ./scripts/supply-chain/package-and-sign-helm.sh "${{ inputs.chart_path }}" "first-party"
