@@ -35,10 +35,10 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up QEMU for Multi-Arch Build
-        uses: docker/setup-qemu-action@49b3bc8e5bdd32a2640270609142962d49e109ab # v3.2.0
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@c47758b77c9736f4b4ef4b3927044c54195c8208 # v3.7.1
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.10.0
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
@@ -98,7 +98,7 @@ jobs:
           grype sbom:sbom.json -o json > vuln.json
 
       - name: Upload SBOM & Scan Evidence
-        uses: actions/upload-artifact@4bec402d631622312d8a5f80b9f2986427d11f26 # v4.6.0
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: ${{ inputs.image_name }}-evidence
           path: |
