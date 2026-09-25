@@ -1,0 +1,106 @@
+name: Reusable Image Publisher
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        required: true
+        type: string
+        description: "Target image name under ghcr.io/amediomediagroup/"
+      dockerfile_path:
+        required: true
+        type: string
+        description: "Path to Dockerfile"
+      build_context:
+        required: false
+        type: string
+        default: "."
+        description: "Build context path"
+      version_tag:
+        required: true
+        type: string
+        description: "Explicit version tag (e.g. 1.0.0). 'latest' is strictly prohibited."
+
+jobs:
+  publish-image:
+    name: Build, Publish, Attest, and Sign Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up QEMU for Multi-Arch Build
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.10.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Hardened Cosign, Syft, Grype
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+          # Cosign v2.4.1
+          curl -fsSL -o "$HOME/.local/bin/cosign" https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-amd64
+          echo "8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b  $HOME/.local/bin/cosign" | sha256sum -c -
+          chmod +x "$HOME/.local/bin/cosign"
+
+          # Syft v1.18.0
+          curl -fsSL -o /tmp/syft.tar.gz https://github.com/anchore/syft/releases/download/v1.18.0/syft_1.18.0_linux_amd64.tar.gz
+          echo "0b6fd1e0dd5b00b19585e5cde8e1c1f4ef60dc8fba8b41fab55f00852a2fbb8d  /tmp/syft.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/syft.tar.gz -C "$HOME/.local/bin" syft
+
+          # Grype v0.87.0
+          curl -fsSL -o /tmp/grype.tar.gz https://github.com/anchore/grype/releases/download/v0.87.0/grype_0.87.0_linux_amd64.tar.gz
+          echo "be710d15f5477e5c77ce03d14e480263415d7ab135e04b8483663f688823087d  /tmp/grype.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/grype.tar.gz -C "$HOME/.local/bin" grype
+
+      - name: Build and Push Multi-Arch Image
+        id: build
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        with:
+          context: ${{ inputs.build_context }}
+          file: ${{ inputs.dockerfile_path }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/amediomediagroup/${{ inputs.image_name }}:${{ inputs.version_tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ inputs.version_tag }}
+
+      - name: Resolve OCI Index & Platform Digests
+        run: |
+          IMAGE_URI="ghcr.io/amediomediagroup/${{ inputs.image_name }}:${{ inputs.version_tag }}"
+
+          # Cosign Keyless Sign
+          cosign sign --yes "$IMAGE_URI"
+
+          # Cosign Verify Expected Identity & Issuer
+          cosign verify \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/.*" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$IMAGE_URI"
+
+          # Generate Syft SBOM & Grype Scan
+          syft "$IMAGE_URI" -o json > sbom.json
+          grype sbom:sbom.json -o json > vuln.json
+
+      - name: Upload SBOM & Scan Evidence
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: ${{ inputs.image_name }}-evidence
+          path: |
+            sbom.json
+            vuln.json
