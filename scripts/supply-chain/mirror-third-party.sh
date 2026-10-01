@@ -53,8 +53,11 @@ res = {
     "error": None
 }
 
+docker_cfg = Path.home() / ".docker" / "config.json"
+auth_args = ["--authfile", str(docker_cfg)] if docker_cfg.exists() else []
+
 # 1. Resolve upstream digest via Skopeo
-cmd_insp_up = ["skopeo", "inspect", f"docker://{upstream_ref}"]
+cmd_insp_up = ["skopeo", "inspect"] + auth_args + [f"docker://{upstream_ref}"]
 proc_up = subprocess.run(cmd_insp_up, capture_output=True, text=True)
 if proc_up.returncode == 0:
     try:
@@ -64,39 +67,41 @@ if proc_up.returncode == 0:
         pass
 
 # 2. Skopeo copy multi-arch OCI index preserve-exact
-cmd_copy = ["skopeo", "copy", "--all", f"docker://{upstream_ref}", f"docker://{dest_ref}"]
+cmd_copy = ["skopeo", "copy", "--all"] + auth_args + [f"docker://{upstream_ref}", f"docker://{dest_ref}"]
 proc_copy = subprocess.run(cmd_copy, capture_output=True, text=True)
 
 if proc_copy.returncode != 0:
-    res["error"] = f"Skopeo copy failed: {proc_copy.stderr.strip()}"
-else:
-    # 3. Resolve destination digest
-    cmd_insp_dest = ["skopeo", "inspect", f"docker://{dest_ref}"]
-    proc_dest = subprocess.run(cmd_insp_dest, capture_output=True, text=True)
-    if proc_dest.returncode == 0:
-        try:
-            dest_json = json.loads(proc_dest.stdout)
-            res["mirrored_top_level_digest"] = dest_json.get("Digest")
-        except Exception:
-            pass
+    raise RuntimeError(f"Skopeo copy failed for {upstream_ref} -> {dest_ref}: {proc_copy.stderr.strip()}")
 
-    # 4. Resolve multi-arch child digests
-    resolve_script = script_dir / "resolve-image.sh"
-    if resolve_script.exists():
-        try:
-            proc_res = subprocess.run([str(resolve_script), dest_ref, str(policy_path or "")], capture_output=True, text=True)
-            if proc_res.returncode == 0:
-                res_data = json.loads(proc_res.stdout)
-                res["platforms"] = res_data.get("platforms", res["platforms"])
-        except Exception as ex:
-            res["error"] = f"Multi-arch resolution failed for mirrored image: {ex}"
+# 3. Resolve destination digest
+cmd_insp_dest = ["skopeo", "inspect"] + auth_args + [f"docker://{dest_ref}"]
+proc_dest = subprocess.run(cmd_insp_dest, capture_output=True, text=True)
+if proc_dest.returncode != 0:
+    raise RuntimeError(f"Skopeo inspect failed for destination {dest_ref}: {proc_dest.stderr.strip()}")
 
-    # 5. Cosign sign immutable digest as AEGIS IMPORT/APPROVAL
-    sign_target = f"{dest_ref}@{res['mirrored_top_level_digest']}" if res["mirrored_top_level_digest"] else dest_ref
-    cmd_sign = ["cosign", "sign", "--yes", sign_target]
-    proc_sign = subprocess.run(cmd_sign, capture_output=True, text=True)
-    if proc_sign.returncode == 0:
-        res["signature_verified"] = True
+try:
+    dest_json = json.loads(proc_dest.stdout)
+    res["mirrored_top_level_digest"] = dest_json.get("Digest")
+except Exception as e:
+    raise RuntimeError(f"Failed to parse destination digest for {dest_ref}: {e}")
+
+if not res["mirrored_top_level_digest"]:
+    raise RuntimeError(f"Destination digest empty for {dest_ref}")
+
+# 4. Resolve multi-arch child digests
+resolve_script = script_dir / "resolve-image.sh"
+if resolve_script.exists():
+    proc_res = subprocess.run([str(resolve_script), dest_ref, str(policy_path or "")], capture_output=True, text=True)
+    if proc_res.returncode == 0:
+        res_data = json.loads(proc_res.stdout)
+        res["platforms"] = res_data.get("platforms", res["platforms"])
+
+# 5. Cosign sign immutable digest as AEGIS IMPORT/APPROVAL
+sign_target = f"{dest_ref}@{res['mirrored_top_level_digest']}"
+cmd_sign = ["cosign", "sign", "--yes", sign_target]
+proc_sign = subprocess.run(cmd_sign, capture_output=True, text=True)
+if proc_sign.returncode == 0:
+    res["signature_verified"] = True
 
 out_str = json.dumps(res, indent=2)
 if output_file:

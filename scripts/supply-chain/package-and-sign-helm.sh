@@ -104,7 +104,9 @@ with tempfile.TemporaryDirectory() as tmpdir:
         raise RuntimeError(f"Helm push failed for {chart_name}: {proc_push.stderr.strip()}")
 
     # 5. Resolve OCI Digest via Skopeo
-    cmd_dig = ["skopeo", "inspect", f"docker://{full_oci_ref}"]
+    docker_cfg = Path.home() / ".docker" / "config.json"
+    auth_args = ["--authfile", str(docker_cfg)] if docker_cfg.exists() else []
+    cmd_dig = ["skopeo", "inspect"] + auth_args + [f"docker://{full_oci_ref}"]
     proc_dig = subprocess.run(cmd_dig, capture_output=True, text=True)
     if proc_dig.returncode != 0:
         raise RuntimeError(f"Digest resolution failed for {full_oci_ref}: {proc_dig.stderr.strip()}")

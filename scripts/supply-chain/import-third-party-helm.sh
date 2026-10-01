@@ -86,7 +86,9 @@ with tempfile.TemporaryDirectory() as tmpdir:
                 res["error"] = f"Helm push to Aegis mirror failed: {proc_push.stderr.strip()}"
             else:
                 # 3. Resolve destination OCI digest
-                cmd_dig = ["skopeo", "inspect", f"docker://{full_oci_ref}"]
+                docker_cfg = Path.home() / ".docker" / "config.json"
+                auth_args = ["--authfile", str(docker_cfg)] if docker_cfg.exists() else []
+                cmd_dig = ["skopeo", "inspect"] + auth_args + [f"docker://{full_oci_ref}"]
                 proc_dig = subprocess.run(cmd_dig, capture_output=True, text=True)
                 if proc_dig.returncode == 0:
                     try:

@@ -45,7 +45,10 @@ res = {
 }
 
 try:
-    cmd_raw = ["skopeo", "inspect", "--raw", f"docker://{image_ref}"]
+    docker_cfg = Path.home() / ".docker" / "config.json"
+    auth_args = ["--authfile", str(docker_cfg)] if docker_cfg.exists() else []
+
+    cmd_raw = ["skopeo", "inspect"] + auth_args + ["--raw", f"docker://{image_ref}"]
     proc_raw = subprocess.run(cmd_raw, capture_output=True, text=True)
 
     if proc_raw.returncode != 0:
@@ -58,7 +61,7 @@ try:
         raw_manifest_str = proc_raw.stdout
         top_digest = "sha256:" + hashlib.sha256(raw_manifest_str.encode('utf-8')).hexdigest()
 
-        cmd_insp = ["skopeo", "inspect", f"docker://{image_ref}"]
+        cmd_insp = ["skopeo", "inspect"] + auth_args + [f"docker://{image_ref}"]
         proc_insp = subprocess.run(cmd_insp, capture_output=True, text=True)
         if proc_insp.returncode == 0:
             try:
