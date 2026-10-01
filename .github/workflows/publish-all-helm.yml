@@ -36,7 +36,7 @@ jobs:
     needs: discover-charts
     strategy:
       matrix:
-        chart_path: ${{ json(needs.discover-charts.outputs.matrix) }}
+        chart_path: ${{ fromJSON(needs.discover-charts.outputs.matrix) }}
     uses: ./.github/workflows/publish-helm.yml
     with:
       chart_path: ${{ matrix.chart_path }}
