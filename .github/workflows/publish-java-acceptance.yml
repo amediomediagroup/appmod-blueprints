@@ -17,3 +17,4 @@ jobs:
       dockerfile_path: applications/java-acceptance/Dockerfile
       build_context: applications/java-acceptance
       version_tag: 1.0.0
+      base_image_mirror: maven:3.9.16-eclipse-temurin-25-noble eclipse-temurin:25-jre-noble

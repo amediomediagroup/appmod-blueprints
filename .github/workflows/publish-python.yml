@@ -17,3 +17,4 @@ jobs:
       dockerfile_path: applications/python/app/Dockerfile
       build_context: applications/python/app
       version_tag: 1.0.0
+      base_image_mirror: python:3.12-alpine

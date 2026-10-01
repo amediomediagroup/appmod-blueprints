@@ -20,6 +20,11 @@ on:
         required: true
         type: string
         description: "Explicit version tag (e.g. 1.0.0). 'latest' is strictly prohibited."
+      base_image_mirror:
+        required: false
+        type: string
+        default: ""
+        description: "Space-separated upstream base images to mirror before build"
 
 jobs:
   publish-image:
@@ -66,6 +71,16 @@ jobs:
           curl -fsSL -o /tmp/grype.tar.gz https://github.com/anchore/grype/releases/download/v0.87.0/grype_0.87.0_linux_amd64.tar.gz
           echo "be710d15f5477e5c77ce03d14e480263415d7ab135e04b8483663f688823087d  /tmp/grype.tar.gz" | sha256sum -c -
           tar -xzf /tmp/grype.tar.gz -C "$HOME/.local/bin" grype
+
+      - name: Mirror Required Base Images to GHCR
+        if: ${{ inputs.base_image_mirror != '' }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y skopeo jq
+          chmod +x scripts/supply-chain/*.sh
+          for img in ${{ inputs.base_image_mirror }}; do
+            echo "Mirroring base image $img to GHCR..."
+            ./scripts/supply-chain/mirror-third-party.sh "$img"
+          done
 
       - name: Build and Push Multi-Arch Image
         id: build

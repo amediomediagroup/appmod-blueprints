@@ -17,3 +17,4 @@ jobs:
       dockerfile_path: applications/node/app/Dockerfile
       build_context: applications/node/app
       version_tag: 1.0.0
+      base_image_mirror: node:20-bullseye
