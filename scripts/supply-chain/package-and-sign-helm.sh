@@ -103,7 +103,8 @@ with tempfile.TemporaryDirectory() as tmpdir:
     if proc_push.returncode != 0:
         raise RuntimeError(f"Helm push failed for {chart_name}: {proc_push.stderr.strip()}")
 
-    # 5. Resolve OCI Digest via Skopeo
+    # 5. Resolve OCI Digest via Skopeo --raw or crane digest
+    import hashlib
     docker_cfg = Path.home() / ".docker" / "config.json"
     helm_cfg = Path.home() / ".config" / "helm" / "registry" / "config.json"
 
@@ -113,16 +114,19 @@ with tempfile.TemporaryDirectory() as tmpdir:
         auth_args = ["--authfile", str(helm_cfg)]
     else:
         auth_args = []
-    cmd_dig = ["skopeo", "inspect"] + auth_args + [f"docker://{full_oci_ref}"]
-    proc_dig = subprocess.run(cmd_dig, capture_output=True, text=True)
-    if proc_dig.returncode != 0:
-        raise RuntimeError(f"Digest resolution failed for {full_oci_ref}: {proc_dig.stderr.strip()}")
 
-    try:
-        dig_json = json.loads(proc_dig.stdout)
-        res["oci_digest"] = dig_json.get("Digest")
-    except Exception as e:
-        raise RuntimeError(f"Failed to parse digest for {full_oci_ref}: {e}")
+    cmd_raw = ["skopeo", "inspect", "--raw"] + auth_args + [f"docker://{full_oci_ref}"]
+    proc_raw = subprocess.run(cmd_raw, capture_output=True, text=True)
+
+    if proc_raw.returncode == 0:
+        res["oci_digest"] = "sha256:" + hashlib.sha256(proc_raw.stdout.encode('utf-8')).hexdigest()
+    else:
+        cmd_crane = ["crane", "digest", full_oci_ref]
+        proc_crane = subprocess.run(cmd_crane, capture_output=True, text=True)
+        if proc_crane.returncode == 0:
+            res["oci_digest"] = proc_crane.stdout.strip()
+        else:
+            raise RuntimeError(f"Digest resolution failed for {full_oci_ref}: {proc_raw.stderr.strip()}")
 
     if not res["oci_digest"]:
         raise RuntimeError(f"Resolved empty OCI digest for {full_oci_ref}")
