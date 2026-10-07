@@ -21,19 +21,24 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Install Hardened Helm Toolchain
+      - name: Install Hardened Toolchain (Skopeo, Helm, jq)
         run: |
           mkdir -p "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+          sudo apt-get update && sudo apt-get install -y skopeo jq
 
           curl -fsSL -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.16.3-linux-amd64.tar.gz
           echo "f5355c79190951eed23c5432a3b920e071f4c00a64f75e077de0dd4cb7b294ea  /tmp/helm.tar.gz" | sha256sum -c -
           tar -xzf /tmp/helm.tar.gz -C /tmp linux-amd64/helm
           mv /tmp/linux-amd64/helm "$HOME/.local/bin/"
 
-      - name: Log in to GitHub Container Registry (Helm OCI)
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Dependencies, Lint, and Package Chart
         id: package

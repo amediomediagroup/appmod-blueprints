@@ -87,7 +87,14 @@ with tempfile.TemporaryDirectory() as tmpdir:
             else:
                 # 3. Resolve destination OCI digest
                 docker_cfg = Path.home() / ".docker" / "config.json"
-                auth_args = ["--authfile", str(docker_cfg)] if docker_cfg.exists() else []
+                helm_cfg = Path.home() / ".config" / "helm" / "registry" / "config.json"
+
+                if docker_cfg.exists():
+                    auth_args = ["--authfile", str(docker_cfg)]
+                elif helm_cfg.exists():
+                    auth_args = ["--authfile", str(helm_cfg)]
+                else:
+                    auth_args = []
                 cmd_dig = ["skopeo", "inspect"] + auth_args + [f"docker://{full_oci_ref}"]
                 proc_dig = subprocess.run(cmd_dig, capture_output=True, text=True)
                 if proc_dig.returncode == 0:
