@@ -103,8 +103,20 @@ with tempfile.TemporaryDirectory() as tmpdir:
     if proc_push.returncode != 0:
         raise RuntimeError(f"Helm push failed for {chart_name}: {proc_push.stderr.strip()}")
 
-    # 5. Resolve OCI Digest via Skopeo --raw or crane digest
-    import hashlib
+    # Extract digest from helm push output (helm writes "Digest: sha256:..." to stderr)
+    push_digest = None
+    for line in (proc_push.stdout + proc_push.stderr).splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("digest:"):
+            candidate = stripped.split(":", 1)[-1].strip()
+            if candidate.startswith("sha256:"):
+                push_digest = candidate
+                break
+
+    # 5. Resolve OCI Digest - prefer helm push output, fall back to skopeo inspect
+    # skopeo inspect --raw fails on non-image OCI artifacts (Helm charts have
+    # mediaType application/vnd.cncf.helm.config.v1+json). Use structured inspect
+    # instead, which returns a Digest field and works with all OCI artifact types.
     docker_cfg = Path.home() / ".docker" / "config.json"
     helm_cfg = Path.home() / ".config" / "helm" / "registry" / "config.json"
 
@@ -115,18 +127,20 @@ with tempfile.TemporaryDirectory() as tmpdir:
     else:
         auth_args = []
 
-    cmd_raw = ["skopeo", "inspect", "--raw"] + auth_args + [f"docker://{full_oci_ref}"]
-    proc_raw = subprocess.run(cmd_raw, capture_output=True, text=True)
-
-    if proc_raw.returncode == 0:
-        res["oci_digest"] = "sha256:" + hashlib.sha256(proc_raw.stdout.encode('utf-8')).hexdigest()
+    if push_digest:
+        res["oci_digest"] = push_digest
     else:
-        cmd_crane = ["crane", "digest", full_oci_ref]
-        proc_crane = subprocess.run(cmd_crane, capture_output=True, text=True)
-        if proc_crane.returncode == 0:
-            res["oci_digest"] = proc_crane.stdout.strip()
-        else:
-            raise RuntimeError(f"Digest resolution failed for {full_oci_ref}: {proc_raw.stderr.strip()}")
+        # Fallback: skopeo inspect (without --raw) returns structured JSON with a
+        # Digest field and handles OCI artifacts correctly
+        cmd_inspect = ["skopeo", "inspect"] + auth_args + [f"docker://{full_oci_ref}"]
+        proc_inspect = subprocess.run(cmd_inspect, capture_output=True, text=True)
+        if proc_inspect.returncode == 0:
+            try:
+                res["oci_digest"] = json.loads(proc_inspect.stdout).get("Digest", "")
+            except json.JSONDecodeError:
+                pass
+        if not res["oci_digest"]:
+            raise RuntimeError(f"Digest resolution failed for {full_oci_ref}: could not extract digest from helm push output or skopeo inspect")
 
     if not res["oci_digest"]:
         raise RuntimeError(f"Resolved empty OCI digest for {full_oci_ref}")
