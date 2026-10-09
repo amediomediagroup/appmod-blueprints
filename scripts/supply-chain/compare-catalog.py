@@ -165,7 +165,7 @@ def main():
                     "source_paths": [sp],
                     "evidence": {
                         "source_path": sp,
-                        "classification": classification,
+                        "classification": chart['classification'],
                         "reason": "Missing OCI release digest for OCI candidate chart"
                     }
                 }
