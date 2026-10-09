@@ -85,7 +85,18 @@ with tempfile.TemporaryDirectory() as tmpdir:
             if proc_push.returncode != 0:
                 res["error"] = f"Helm push to Aegis mirror failed: {proc_push.stderr.strip()}"
             else:
-                # 3. Resolve destination OCI digest via Skopeo --raw or crane digest
+                # 3. Resolve destination OCI digest
+                # Prefer digest from helm push stdout/stderr ("Digest: sha256:...")
+                # skopeo inspect --raw fails on Helm OCI artifacts (non-image type)
+                push_digest = None
+                for line in (proc_push.stdout + proc_push.stderr).splitlines():
+                    stripped = line.strip()
+                    if stripped.lower().startswith("digest:"):
+                        candidate = stripped.split(":", 1)[-1].strip()
+                        if candidate.startswith("sha256:"):
+                            push_digest = candidate
+                            break
+
                 docker_cfg = Path.home() / ".docker" / "config.json"
                 helm_cfg = Path.home() / ".config" / "helm" / "registry" / "config.json"
 
@@ -96,16 +107,18 @@ with tempfile.TemporaryDirectory() as tmpdir:
                 else:
                     auth_args = []
 
-                cmd_raw = ["skopeo", "inspect", "--raw"] + auth_args + [f"docker://{full_oci_ref}"]
-                proc_raw = subprocess.run(cmd_raw, capture_output=True, text=True)
-
-                if proc_raw.returncode == 0:
-                    res["destination_oci_digest"] = "sha256:" + hashlib.sha256(proc_raw.stdout.encode('utf-8')).hexdigest()
+                if push_digest:
+                    res["destination_oci_digest"] = push_digest
                 else:
-                    cmd_crane = ["crane", "digest", full_oci_ref]
-                    proc_crane = subprocess.run(cmd_crane, capture_output=True, text=True)
-                    if proc_crane.returncode == 0:
-                        res["destination_oci_digest"] = proc_crane.stdout.strip()
+                    # Fallback: skopeo inspect (without --raw) returns structured JSON
+                    # with a Digest field and handles OCI artifacts correctly
+                    cmd_inspect = ["skopeo", "inspect"] + auth_args + [f"docker://{full_oci_ref}"]
+                    proc_inspect = subprocess.run(cmd_inspect, capture_output=True, text=True)
+                    if proc_inspect.returncode == 0:
+                        try:
+                            res["destination_oci_digest"] = json.loads(proc_inspect.stdout).get("Digest", "")
+                        except json.JSONDecodeError:
+                            pass
 
                 # 4. Cosign sign as AEGIS IMPORT/APPROVAL
                 sign_target = f"{full_oci_ref}@{res['destination_oci_digest']}" if res["destination_oci_digest"] else full_oci_ref

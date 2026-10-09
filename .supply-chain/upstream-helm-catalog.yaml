@@ -1,0 +1,96 @@
+# Upstream Helm Chart Import Catalog
+# ALL entries here are imported, OCI-mirrored, and Cosign-signed on every
+# scheduled run (weekly Monday 03:00 UTC) and on workflow_dispatch.
+#
+# vendor       : namespace under the GHCR mirror
+#                → ghcr.io/amediomediagroup/charts/upstream/<vendor>/<chart>:<version>
+# chart_name   : name used in `helm pull` (matches Chart.yaml dependency name)
+# version      : pinned upstream version to import
+# upstream_repo: oci://... or https://...
+#                OCI  → helm pull oci://<upstream_repo>/<chart_name> --version <v>
+#                HTTP → helm pull <chart_name> --repo <upstream_repo> --version <v>
+#
+# To bump a version: update `version:` here + the matching Chart.yaml dep,
+# then merge to main — the next scheduled run (or a manual workflow_dispatch)
+# will import the new version automatically.
+
+charts:
+
+  # ── GitOps / Delivery ──────────────────────────────────────────────────────
+  - vendor: argoproj
+    chart_name: argo-cd
+    version: "10.9.6"
+    upstream_repo: https://argoproj.github.io/argo-helm
+
+  - vendor: argoproj
+    chart_name: argo-workflows
+    version: "2.0.8"
+    upstream_repo: https://argoproj.github.io/argo-helm
+
+  - vendor: fluxcd
+    chart_name: flux2
+    version: "2.19.1"
+    upstream_repo: oci://ghcr.io/fluxcd-community/charts
+
+  - vendor: akuity
+    chart_name: kargo
+    version: "1.11.7"
+    upstream_repo: oci://ghcr.io/akuity/kargo-charts
+
+  # ── Compute / Networking ───────────────────────────────────────────────────
+  - vendor: karpenter
+    chart_name: karpenter
+    version: "1.14.1"
+    upstream_repo: oci://public.ecr.aws/karpenter
+
+  - vendor: jetstack
+    chart_name: cert-manager
+    version: "1.21.1"
+    upstream_repo: oci://quay.io/jetstack/charts
+
+  - vendor: envoyproxy
+    chart_name: gateway-helm
+    version: "1.8.2"
+    upstream_repo: oci://docker.io/envoyproxy
+
+  # ── ML / Data ──────────────────────────────────────────────────────────────
+  - vendor: apache
+    chart_name: airflow
+    version: "1.22.0"
+    upstream_repo: https://airflow.apache.org
+
+  - vendor: devlake
+    chart_name: devlake
+    version: "1.0.3-beta15"
+    upstream_repo: https://apache.github.io/incubator-devlake-helm-chart
+
+  - vendor: jupyterhub
+    chart_name: jupyterhub
+    version: "4.4.2"
+    upstream_repo: https://jupyterhub.github.io/helm-chart/
+
+  - vendor: mlflow
+    chart_name: mlflow
+    version: "1.11.7"
+    upstream_repo: https://community-charts.github.io/helm-charts
+
+  - vendor: ray
+    chart_name: kuberay-operator
+    version: "1.7.1"
+    upstream_repo: https://ray-project.github.io/kuberay/
+
+  - vendor: kubeflow
+    chart_name: spark-operator
+    version: "2.5.2"
+    upstream_repo: https://kubeflow.github.io/spark-operator/
+
+  - vendor: kubevela
+    chart_name: vela-core
+    version: "1.11.0"
+    upstream_repo: https://kubevela.github.io/charts
+
+  # ── AI / LLM ───────────────────────────────────────────────────────────────
+  - vendor: berriai
+    chart_name: litellm-helm
+    version: "1.94.1"
+    upstream_repo: oci://ghcr.io/berriai

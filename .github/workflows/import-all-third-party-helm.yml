@@ -1,0 +1,58 @@
+name: Import All Third-Party Helm Charts to GHCR Mirror
+
+on:
+  schedule:
+    # Every Monday at 03:00 UTC — after the weekend when upstream releases land
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  # ── Step 1: build the import matrix from catalog + Chart.yaml deps ─────────
+  discover:
+    name: Discover Charts to Import
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+      has_charts: ${{ steps.build.outputs.has_charts }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.12"
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml==6.0.2
+
+      - name: Build Import Matrix
+        id: build
+        run: |
+          python3 scripts/supply-chain/build-import-matrix.py >> $GITHUB_OUTPUT
+          MATRIX=$(python3 scripts/supply-chain/build-import-matrix.py | grep '^matrix=' | cut -d= -f2-)
+          if [ "$MATRIX" = "[]" ]; then
+            echo "has_charts=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_charts=true" >> $GITHUB_OUTPUT
+          fi
+
+  # ── Step 2: import each chart in parallel (fail-fast: false) ──────────────
+  import:
+    name: Import ${{ matrix.vendor }}/${{ matrix.chart_name }}:${{ matrix.version }}
+    needs: discover
+    if: needs.discover.outputs.has_charts == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    uses: ./.github/workflows/import-helm.yml
+    with:
+      vendor: ${{ matrix.vendor }}
+      chart_name: ${{ matrix.chart_name }}
+      version: ${{ matrix.version }}
+      upstream_repo_url: ${{ matrix.upstream_repo_url }}
+    secrets: inherit
