@@ -1,32 +1,205 @@
 # Upstream Helm Chart Import Catalog
-# ALL entries here are imported, OCI-mirrored, and Cosign-signed on every
-# scheduled run (weekly Monday 03:00 UTC) and on workflow_dispatch.
-#
-# vendor       : namespace under the GHCR mirror
-#                → ghcr.io/amediomediagroup/charts/upstream/<vendor>/<chart>:<version>
-# chart_name   : name used in `helm pull` (matches Chart.yaml dependency name)
-# version      : pinned upstream version to import
-# upstream_repo: oci://... or https://...
-#                OCI  → helm pull oci://<upstream_repo>/<chart_name> --version <v>
-#                HTTP → helm pull <chart_name> --repo <upstream_repo> --version <v>
-#
-# To bump a version: update `version:` here + the matching Chart.yaml dep,
-# then merge to main — the next scheduled run (or a manual workflow_dispatch)
-# will import the new version automatically.
+# Auto-populated from ArtifactHub top-starred Helm charts (kind=helm, sort=stars)
+# Filters: pre-release, bitnami-wrapped, and non-platform charts excluded.
+# To bump: update version → merge to main → import-all-third-party-helm.yml auto-runs.
+# Total: 83 charts across all groups
 
 charts:
 
-  # ── GitOps / Delivery ──────────────────────────────────────────────────────
+  # ── Observability / Prometheus ─────────────────────────────────────────────
+  - vendor: prometheus-community
+    chart_name: kube-prometheus-stack
+    version: "92.2.0"
+    upstream_repo: https://prometheus-community.github.io/helm-charts
+    # ★ 1235
+
+  - vendor: prometheus-community
+    chart_name: prometheus
+    version: "29.36.1"
+    upstream_repo: https://prometheus-community.github.io/helm-charts
+    # ★ 555
+
+  - vendor: prometheus-community
+    chart_name: kube-state-metrics
+    version: "8.6.0"
+    upstream_repo: https://prometheus-community.github.io/helm-charts
+    # ★ 93
+
+  - vendor: prometheus-community
+    chart_name: prometheus-blackbox-exporter
+    version: "11.20.0"
+    upstream_repo: https://prometheus-community.github.io/helm-charts
+    # ★ 83
+
+  - vendor: prometheus-community
+    chart_name: alertmanager
+    version: "2.1.0"
+    upstream_repo: https://prometheus-community.github.io/helm-charts
+    # ★ 60
+
+  - vendor: prometheus-community
+    chart_name: prometheus-node-exporter
+    version: "4.59.0"
+    upstream_repo: https://prometheus-community.github.io/helm-charts
+    # ★ 56
+
+  - vendor: prometheus-community
+    chart_name: prometheus-postgres-exporter
+    version: "8.2.0"
+    upstream_repo: https://prometheus-community.github.io/helm-charts
+    # ★ 46
+
+  - vendor: prometheus-community
+    chart_name: prometheus-adapter
+    version: "5.3.0"
+    upstream_repo: https://prometheus-community.github.io/helm-charts
+    # ★ 42
+
+  # ── Observability / Grafana ────────────────────────────────────────────────
+  - vendor: grafana
+    chart_name: loki
+    version: "7.3.0"
+    upstream_repo: https://grafana.github.io/helm-charts
+    # ★ 333
+
+  - vendor: grafana
+    chart_name: alloy
+    version: "1.13.1"
+    upstream_repo: https://grafana.github.io/helm-charts
+    # ★ 86
+
+  - vendor: grafana
+    chart_name: k8s-monitoring
+    version: "4.5.3"
+    upstream_repo: https://grafana.github.io/helm-charts
+    # ★ 44
+
+  # ── Observability / Tracing & Logs ─────────────────────────────────────────
+  - vendor: fluent
+    chart_name: fluent-bit
+    version: "0.58.3"
+    upstream_repo: https://fluent.github.io/helm-charts
+    # ★ 128
+
+  - vendor: jaegertracing
+    chart_name: jaeger
+    version: "4.14.1"
+    upstream_repo: https://jaegertracing.github.io/helm-charts
+    # ★ 80
+
+  - vendor: open-telemetry
+    chart_name: opentelemetry-collector
+    version: "0.175.1"
+    upstream_repo: https://open-telemetry.github.io/opentelemetry-helm-charts
+    # ★ 56
+
+  - vendor: victoriametrics
+    chart_name: victoria-metrics-k8s-stack
+    version: "0.95.2"
+    upstream_repo: https://victoriametrics.github.io/helm-charts/
+    # ★ 46
+
+  # ── Search & Logging (Elastic Stack) ───────────────────────────────────────
+  - vendor: elastic
+    chart_name: elasticsearch
+    version: "8.5.1"
+    upstream_repo: https://helm.elastic.co
+    # ★ 193
+
+  - vendor: elastic
+    chart_name: eck-operator
+    version: "3.5.0"
+    upstream_repo: https://helm.elastic.co
+    # ★ 84
+
+  - vendor: elastic
+    chart_name: kibana
+    version: "8.5.1"
+    upstream_repo: https://helm.elastic.co
+    # ★ 81
+
+  - vendor: elastic
+    chart_name: logstash
+    version: "8.5.1"
+    upstream_repo: https://helm.elastic.co
+    # ★ 46
+
+  - vendor: opensearch-project
+    chart_name: opensearch
+    version: "3.9.0"
+    upstream_repo: https://opensearch-project.github.io/helm-charts
+    # ★ 45
+
+  # ── Security / Certificates ────────────────────────────────────────────────
+  - vendor: jetstack
+    chart_name: cert-manager
+    version: "1.21.2"
+    upstream_repo: oci://quay.io/jetstack/charts
+    # ★ 997
+
+  # ── Security / Policy & Scanning ───────────────────────────────────────────
+  - vendor: kyverno
+    chart_name: kyverno
+    version: "3.9.1"
+    upstream_repo: https://kyverno.github.io/kyverno/
+    # ★ 140
+
+  - vendor: sealed-secrets
+    chart_name: sealed-secrets
+    version: "2.18.6"
+    upstream_repo: https://bitnami-labs.github.io/sealed-secrets/
+    # ★ 102
+
+  - vendor: falcosecurity
+    chart_name: falco
+    version: "9.2.0"
+    upstream_repo: https://falcosecurity.github.io/charts
+    # ★ 60
+
+  - vendor: aquasecurity
+    chart_name: trivy-operator
+    version: "0.37.0"
+    upstream_repo: https://aquasecurity.github.io/helm-charts/
+    # ★ 50
+
+  # ── GitOps / Argo Suite ────────────────────────────────────────────────────
   - vendor: argoproj
     chart_name: argo-cd
-    version: "10.9.6"
+    version: "10.10.1"
     upstream_repo: https://argoproj.github.io/argo-helm
+    # ★ 847
 
   - vendor: argoproj
     chart_name: argo-workflows
-    version: "2.0.8"
+    version: "2.0.11"
     upstream_repo: https://argoproj.github.io/argo-helm
+    # ★ 139
 
+  - vendor: argoproj
+    chart_name: argocd-apps
+    version: "2.0.6"
+    upstream_repo: https://argoproj.github.io/argo-helm
+    # ★ 100
+
+  - vendor: argoproj
+    chart_name: argo-rollouts
+    version: "2.43.6"
+    upstream_repo: https://argoproj.github.io/argo-helm
+    # ★ 82
+
+  - vendor: argoproj
+    chart_name: argocd-image-updater
+    version: "1.3.1"
+    upstream_repo: https://argoproj.github.io/argo-helm
+    # ★ 68
+
+  - vendor: argoproj
+    chart_name: argo-events
+    version: "2.4.27"
+    upstream_repo: https://argoproj.github.io/argo-helm
+    # ★ 49
+
+  # ── GitOps / Flux & Kargo ──────────────────────────────────────────────────
   - vendor: fluxcd
     chart_name: flux2
     version: "2.19.1"
@@ -37,27 +210,263 @@ charts:
     version: "1.11.7"
     upstream_repo: oci://ghcr.io/akuity/kargo-charts
 
-  # ── Compute / Networking ───────────────────────────────────────────────────
-  - vendor: karpenter
-    chart_name: karpenter
-    version: "1.14.1"
-    upstream_repo: oci://public.ecr.aws/karpenter
+  # ── Networking / Ingress & Gateway ─────────────────────────────────────────
+  - vendor: ingress-nginx
+    chart_name: ingress-nginx
+    version: "4.15.1"
+    upstream_repo: https://kubernetes.github.io/ingress-nginx
+    # ★ 822
 
-  - vendor: jetstack
-    chart_name: cert-manager
-    version: "1.21.1"
-    upstream_repo: oci://quay.io/jetstack/charts
+  - vendor: traefik
+    chart_name: traefik
+    version: "41.7.0"
+    upstream_repo: https://traefik.github.io/charts
+    # ★ 431
+
+  - vendor: metallb
+    chart_name: metallb
+    version: "0.16.1"
+    upstream_repo: https://metallb.github.io/metallb
+    # ★ 154
+
+  - vendor: nginx-inc
+    chart_name: nginx-ingress
+    version: "2.7.3"
+    upstream_repo: https://helm.nginx.com/stable
+    # ★ 100
+
+  - vendor: kong
+    chart_name: kong
+    version: "3.4.1"
+    upstream_repo: https://charts.konghq.com
+    # ★ 58
 
   - vendor: envoyproxy
     chart_name: gateway-helm
     version: "1.8.2"
     upstream_repo: oci://docker.io/envoyproxy
 
-  # ── ML / Data ──────────────────────────────────────────────────────────────
+  # ── AWS / EKS ──────────────────────────────────────────────────────────────
+  - vendor: eks-charts
+    chart_name: aws-load-balancer-controller
+    version: "3.6.0"
+    upstream_repo: https://aws.github.io/eks-charts
+    # ★ 210
+
+  - vendor: eks-charts
+    chart_name: aws-node-termination-handler
+    version: "0.21.0"
+    upstream_repo: https://aws.github.io/eks-charts
+    # ★ 43
+
+  # ── Compute / Scaling ──────────────────────────────────────────────────────
+  - vendor: autoscaler
+    chart_name: cluster-autoscaler
+    version: "9.59.0"
+    upstream_repo: https://kubernetes.github.io/autoscaler
+    # ★ 168
+
+  - vendor: kedacore
+    chart_name: keda
+    version: "2.21.0"
+    upstream_repo: https://kedacore.github.io/charts
+    # ★ 100
+
+  - vendor: descheduler
+    chart_name: descheduler
+    version: "0.37.0"
+    upstream_repo: https://kubernetes-sigs.github.io/descheduler/
+    # ★ 82
+
+  - vendor: kubereboot
+    chart_name: kured
+    version: "6.1.0"
+    upstream_repo: https://kubereboot.github.io/charts
+    # ★ 43
+
+  - vendor: karpenter
+    chart_name: karpenter
+    version: "1.14.1"
+    upstream_repo: oci://public.ecr.aws/karpenter
+
+  # ── Platform Utilities ─────────────────────────────────────────────────────
+  - vendor: kubernetes-dashboard
+    chart_name: kubernetes-dashboard
+    version: "7.14.0"
+    upstream_repo: https://kubernetes.github.io/dashboard/
+    # ★ 365
+
+  - vendor: metrics-server
+    chart_name: metrics-server
+    version: "3.14.0"
+    upstream_repo: https://kubernetes-sigs.github.io/metrics-server/
+    # ★ 320
+
+  - vendor: external-dns
+    chart_name: external-dns
+    version: "1.23.0"
+    upstream_repo: https://kubernetes-sigs.github.io/external-dns/
+    # ★ 240
+
+  - vendor: nfs-subdir
+    chart_name: nfs-subdir-external-provisioner
+    version: "4.0.18"
+    upstream_repo: https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner
+    # ★ 98
+
+  - vendor: headlamp
+    chart_name: headlamp
+    version: "0.45.0"
+    upstream_repo: https://kubernetes-sigs.github.io/headlamp/
+    # ★ 69
+
+  # ── Secrets / Identity ─────────────────────────────────────────────────────
+  - vendor: hashicorp
+    chart_name: vault
+    version: "0.34.1"
+    upstream_repo: https://helm.releases.hashicorp.com
+    # ★ 298
+
+  - vendor: external-secrets
+    chart_name: external-secrets
+    version: "2.12.0"
+    upstream_repo: https://charts.external-secrets.io/
+    # ★ 249
+
+  - vendor: oauth2-proxy
+    chart_name: oauth2-proxy
+    version: "10.7.1"
+    upstream_repo: https://oauth2-proxy.github.io/manifests
+    # ★ 112
+
+  - vendor: authentik
+    chart_name: authentik
+    version: "2026.8.3"
+    upstream_repo: https://charts.goauthentik.io/
+    # ★ 105
+
+  - vendor: dexidp
+    chart_name: dex
+    version: "0.26.0"
+    upstream_repo: oci://ghcr.io/dexidp/helm-charts
+    # ★ 64
+
+  - vendor: codecentric
+    chart_name: keycloak
+    version: "18.10.0"
+    upstream_repo: https://codecentric.github.io/helm-charts
+    # ★ 48
+
+  # ── Storage / Registry / Database ──────────────────────────────────────────
+  - vendor: goharbor
+    chart_name: harbor
+    version: "1.19.2"
+    upstream_repo: https://helm.goharbor.io
+    # ★ 275
+
+  - vendor: longhorn
+    chart_name: longhorn
+    version: "1.13.0"
+    upstream_repo: https://charts.longhorn.io
+    # ★ 225
+
+  - vendor: vmware-tanzu
+    chart_name: velero
+    version: "12.2.1"
+    upstream_repo: https://vmware-tanzu.github.io/helm-charts/
+    # ★ 191
+
+  - vendor: cloudnative-pg
+    chart_name: cloudnative-pg
+    version: "0.29.1"
+    upstream_repo: https://cloudnative-pg.io/charts/
+    # ★ 140
+
+  - vendor: minio
+    chart_name: minio
+    version: "8.0.10"
+    upstream_repo: https://helm.min.io/
+    # ★ 54
+
+  - vendor: rook
+    chart_name: rook-ceph
+    version: "1.21.0"
+    upstream_repo: https://charts.rook.io/release
+    # ★ 52
+
+  # ── Developer Platform ──────────────────────────────────────────────────────
+  - vendor: gitlab
+    chart_name: gitlab
+    version: "10.4.1"
+    upstream_repo: https://charts.gitlab.io/
+    # ★ 282
+
+  - vendor: jenkins
+    chart_name: jenkins
+    version: "5.9.67"
+    upstream_repo: https://charts.jenkins.io/
+    # ★ 255
+
+  - vendor: gitlab
+    chart_name: gitlab-runner
+    version: "0.93.0"
+    upstream_repo: https://charts.gitlab.io/
+    # ★ 213
+
+  - vendor: gitea
+    chart_name: gitea
+    version: "12.7.0"
+    upstream_repo: https://dl.gitea.com/charts
+    # ★ 135
+
+  - vendor: sonarsource
+    chart_name: sonarqube
+    version: "2026.5.1002"
+    upstream_repo: https://SonarSource.github.io/helm-chart-sonarqube
+    # ★ 135
+
+  - vendor: artifacthub
+    chart_name: artifact-hub
+    version: "1.23.0"
+    upstream_repo: https://artifacthub.github.io/helm-charts/
+    # ★ 96
+
+  - vendor: nats
+    chart_name: nats
+    version: "2.15.0"
+    upstream_repo: https://nats-io.github.io/k8s/helm/charts/
+    # ★ 68
+
+  - vendor: renovatebot
+    chart_name: renovate
+    version: "46.351.4"
+    upstream_repo: oci://ghcr.io/renovatebot/charts
+    # ★ 62
+
+  - vendor: forgejo
+    chart_name: forgejo
+    version: "17.2.0"
+    upstream_repo: oci://code.forgejo.org/forgejo-helm
+    # ★ 56
+
+  - vendor: kafbat
+    chart_name: kafka-ui
+    version: "1.6.5"
+    upstream_repo: https://ui.charts.kafbat.io/
+    # ★ 43
+
+  # ── IaC / Crossplane ───────────────────────────────────────────────────────
+  - vendor: crossplane-stable
+    chart_name: crossplane
+    version: "1.19.1"
+    upstream_repo: https://charts.crossplane.io/stable
+
+  # ── ML / Data ───────────────────────────────────────────────────────────────
   - vendor: apache
     chart_name: airflow
     version: "1.22.0"
     upstream_repo: https://airflow.apache.org
+    # ★ 198
 
   - vendor: devlake
     chart_name: devlake
@@ -90,7 +499,14 @@ charts:
     upstream_repo: https://kubevela.github.io/charts
 
   # ── AI / LLM ───────────────────────────────────────────────────────────────
+  - vendor: otwld
+    chart_name: ollama
+    version: "1.86.0"
+    upstream_repo: https://otwld.github.io/ollama-helm/
+    # ★ 59
+
   - vendor: berriai
     chart_name: litellm-helm
     version: "1.94.1"
     upstream_repo: oci://ghcr.io/berriai
+
