@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - 'platform-charts/**'
-      - 'gitops/addons/charts/**'
       - '.github/workflows/publish-helm.yml'
       - '.github/workflows/publish-all-helm.yml'
   workflow_dispatch:
@@ -39,8 +38,9 @@ jobs:
           discover_helm = importlib.util.module_from_spec(spec)
           spec.loader.exec_module(discover_helm)
           charts = discover_helm.discover_helm_charts('.')
-          # Include all first-party charts under platform-charts
-          candidates = [c['chart_dir'] for c in charts if 'platform-charts' in c['source_path']]
+          # Publish only charts classified as release artifacts per .supply-chain/policy.yaml
+          # (helm_policy.classification_patterns.release_artifact_oci_candidate)
+          candidates = [c['chart_dir'] for c in charts if c['classification'] == 'RELEASE_ARTIFACT_OCI_CANDIDATE']
           print('matrix=' + json.dumps(candidates))
           " >> $GITHUB_OUTPUT
 
