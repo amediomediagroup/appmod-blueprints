@@ -21,7 +21,14 @@ def get_script_dir():
     fixed = Path("/app/scripts/supply-chain").resolve()
     if (fixed / "policy.py").exists():
         return fixed
-    return Path(__file__).resolve().parent
+    # CWD-relative fallback — works for stdin scripts in CI (CWD = repo root)
+    cwd_rel = Path(os.getcwd()) / "scripts" / "supply-chain"
+    if (cwd_rel / "policy.py").exists():
+        return cwd_rel
+    raise RuntimeError(
+        "Cannot locate policy.py. Set SUPPLY_CHAIN_DIR env var to the "
+        "scripts/supply-chain directory or run from the repository root."
+    )
 
 script_dir = get_script_dir()
 if str(script_dir) not in sys.path:

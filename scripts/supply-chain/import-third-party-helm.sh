@@ -33,9 +33,16 @@ upstream_repo = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else ""
 policy_path = sys.argv[5] if len(sys.argv) > 5 and sys.argv[5] else None
 output_file = sys.argv[6] if len(sys.argv) > 6 and sys.argv[6] else None
 
-script_dir = Path(os.environ.get("SUPPLY_CHAIN_DIR", "scripts/supply-chain")).resolve()
-if not (script_dir / "policy.py").exists():
-    script_dir = Path(__file__).resolve().parent
+# Locate policy.py — robust for both regular files and stdin (heredoc) scripts
+_sd_candidates = [
+    Path(os.environ["SUPPLY_CHAIN_DIR"]) if "SUPPLY_CHAIN_DIR" in os.environ else None,
+    Path(os.getcwd()) / "scripts" / "supply-chain",  # CI: CWD = repo root
+    Path("/app/scripts/supply-chain"),
+]
+script_dir = next(
+    (p.resolve() for p in _sd_candidates if p and (p / "policy.py").exists()),
+    Path(os.getcwd()) / "scripts" / "supply-chain",  # last-resort default
+)
 sys.path.insert(0, str(script_dir))
 
 import policy as policy_module
