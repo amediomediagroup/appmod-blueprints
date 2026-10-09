@@ -8,8 +8,13 @@ cluster is created.
 
 | Provider | Description | When to use |
 |----------|-------------|-------------|
-| `kind-crossplane/` | Kind + Crossplane (zero Terraform) | Greenfield, full GitOps |
+| `kind-crossplane/` | Kind bootstrap + Crossplane provisions the hub EKS cluster (default) | Greenfield, full GitOps, no Terraform |
+| `kind-kro-ack/` | Kind bootstrap + KRO/ACK provisions the hub EKS cluster | Greenfield, full GitOps, KRO/ACK-based provisioning |
+| `terraform/` | Direct Terraform provisioning of the hub EKS cluster (no Kind, no Crossplane) | Teams standardized on Terraform |
 | `byoc/` | Bring Your Own Cluster | Existing cluster, any cloud provider |
+
+The provider is selected via `clusterProvider` in `config.yaml` / `config.local.yaml` and driven
+through the root `Taskfile.yaml` (`task install` / `task status` / `task destroy`).
 
 ## The Contract
 
@@ -127,6 +132,62 @@ must expose these tasks in its `Taskfile.yaml`:
 
 The root Taskfile calls these as `<provider-name>:install`, etc.
 
+### Domain handling (required behaviour)
+
+A provider reads `domain` from config and must **fail rather than install with an empty
+one** — an empty domain silently misconfigures Keycloak realm URLs, the OIDC issuer and
+every ingress host. The domain is a static config value; providers do not resolve, discover,
+or wait for it.
+
+Consumers without a registered domain reserve a free CloudFront hostname before installing
+(`scripts/cloudfront-reserve-domain.sh`, then `scripts/cloudfront-attach-origin.sh`
+afterwards). That is entirely outside the provider: it produces an ordinary `domain` value,
+so no provider needs CloudFront-specific code. See
+[docs/platform/cloudfront-exposure.md](../docs/platform/cloudfront-exposure.md).
+
+### Capability parity (binding)
+
+Providers are interchangeable behind one `config.yaml`, so **a capability added to one
+provider must be added to all of them**. Where that is not yet true, the lacking provider
+must **fail fast** with a clear message rather than silently ignore the input — a silently
+ignored field means `config.local.yaml` means different things depending on
+`clusterProvider`.
+
+Current known gap: `kind-crossplane` cannot provision the hub into a pre-existing VPC, so it
+rejects `hub.network.vpcId` in pre-flight
+([#833](https://github.com/aws-samples/appmod-blueprints/issues/833)). `kind-kro-ack`
+supports it. This does not affect CloudFront exposure, which needs no pre-existing VPC.
+
+### Cluster naming (arbitrary, with two real limits)
+
+Cluster names are **customer-supplied and arbitrary**. Nothing derives them from, or
+validates them against, `resourcePrefix`: `oap-dev`, `team-a` and `sandbox` are all valid
+spoke names. The prefix exists only to scope account/region-global AWS resource names (IAM
+roles, AMP/AMG workspaces, security groups, ECR) so parallel installs do not collide.
+
+Authorization and teardown therefore key on something other than the name:
+
+- **IAM** grants are scoped by the service a role is passed to (`iam:PassedToService`) and,
+  for the cluster-mgmt trust policy, by the platform-specific role suffix. They are **not**
+  scoped by a `<resourcePrefix>-spoke-*` name pattern. That pattern previously denied any
+  non-conforming spoke at `CreateCluster`, after its VPC and NAT gateway already existed.
+- **Teardown** is the remaining gap. Both providers now stamp
+  `platform.gitops.io/prefix` and `platform.gitops.io/cluster` on the cluster and VPC, but
+  the sweep invoked by `task destroy` (`scripts/sweep-spoke-vpcs.py`, step 6h) still selects
+  two literal VPC names, so a spoke named anything else is left behind. Selecting on those
+  tags instead is tracked separately.
+
+Two limits are real and are enforced at declaration time by a Helm `fail` in the chart that
+renders the cluster, so an invalid name creates nothing at all:
+
+| Limit | Why |
+| ----- | --- |
+| DNS-1123 label (lowercase alphanumeric and `-`, starting and ending alphanumeric) | The name is used verbatim as a Kubernetes namespace by the resource graphs. EKS itself would accept uppercase and `_`; the namespace will not. |
+| Length ≤ 34 (`kind-kro-ack`) or ≤ 44 (`kind-crossplane`) | Every IAM role is `<name><suffix>` and IAM caps role names at 64 characters. The longest suffix is `-cloudwatch-observability-role` (30) on the kro path and `-kro-capability-role` (20) on the crossplane path. |
+
+When adding a resource to a provider or resource graph, scope its authorization and its
+cleanup by tag or by service, never by a name pattern.
+
 ### Configuration
 
 Providers read shared configuration from `gitops/config.yaml`:
@@ -139,9 +200,11 @@ Providers read shared configuration from `gitops/config.yaml`:
 | `repo.basepath` | Path prefix in the repo |
 | `hub.clusterName` | Hub cluster name |
 | `hub.kubernetesVersion` | Kubernetes version |
+| `hub.network.vpcId`, `hub.network.subnetIds` | Optional: install into an existing VPC instead of creating one. Only `subnetIds[0]` and `[1]` are read. `kind-kro-ack` only; `kind-crossplane` fails fast (see Capability parity above) |
 | `aws.region` | AWS region |
 | `aws.accountId` | AWS account ID |
-| `domain` | Base domain for ingress |
+| `domain` | Ingress hostname. Must be known before install (see Domain handling above) |
+| `insecure` | ALB serves plain HTTP because TLS is terminated upstream (e.g. CloudFront). Also makes the platform ALB `internal` and names it `<clusterName>-platform` |
 | `identityCenter.*` | AWS Identity Center config (for EKS ArgoCD Capability) |
 | `argocdCapability.*` | ArgoCD capability config |
 

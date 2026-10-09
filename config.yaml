@@ -47,24 +47,43 @@ aws:
 # Domain and networking
 # `domain` is the ingress hostname, provisioned by YOU (Route53, CloudFront, etc.).
 # The platform never creates it — it only uses it for ingress host rules and URLs.
+# It must be known before `task install`, because Keycloak realm URLs, the OIDC issuer
+# and every ingress host are derived from it.
 domain: "<your-domain>"                      # e.g. idp.example.com
 
-# Optional: if your domain is resolved asynchronously (e.g. a CloudFront distribution
-# still deploying) rather than known upfront, leave `domain` empty and have your
-# provisioning job write the resolved hostname to private/async-domain (relative to
-# the repo root) — cluster bootstrap will poll it (see hub:wait-for-domain) instead of
-# blocking synchronously. Ignored entirely once `domain` above is set.
+# No registered domain? Reserve a free CloudFront hostname before installing:
+#
+#   domain=$(scripts/cloudfront-reserve-domain.sh)   # ~1s, no VPC or ALB needed
+#   # put that value in `domain` below, and set insecure: true
+#   task install
+#   scripts/cloudfront-attach-origin.sh              # after install, points CF at the ALB
+#
+# See docs/platform/cloudfront-exposure.md.
 
 # TLS / exposure:
 #   insecure: false (default) — ALB serves HTTPS; uses an ACM cert (auto-discovered
 #             by host, or set certificateArn). You bring the domain + cert.
 #   insecure: true            — ALB serves plain HTTP; YOU terminate TLS upstream
 #             (e.g. CloudFront in front of the ALB). No cert managed by the platform.
+#             Also makes the platform ALB `internal`, named <clusterName>-platform.
 insecure: false
 certificateArn: ""                           # optional ACM ARN for the HTTPS listener (insecure=false)
 resourcePrefix: "<prefix>"                   # Used for KRO tenant-facing resources only
 ingressName: ""                              # Defaults to {clusterName}-ingress if empty
 ingressSecurityGroups: ""
+
+# Platform-wide AWS tags applied to every AWS resource the platform creates:
+#   - hub resources (EKS cluster, VPC, NAT, EIP) via CDK Tags.of(stack).add() in
+#     platform-engineering-on-eks (Layer 1);
+#   - spoke resources (EKS cluster, VPC, NAT, EIP) via the kro EksclusterWithVpc
+#     `awsTags` schema field (Layer 2/3), stamped through the hub cluster-secret
+#     `platform_tags` annotation.
+# Primary use: SpringClean retention (auto-delete=no) so cost/janitor sweepers do
+# not reap long-lived workshop infrastructure; also cost-allocation / compliance.
+# Values must be strings. Empty/omitted -> no extra tags are applied.
+platformTags: {}
+  # auto-delete: "no"
+  # cost-center: "peeks"
 
 # AWS Identity Center (required for EKS ArgoCD Capability)
 identityCenter:

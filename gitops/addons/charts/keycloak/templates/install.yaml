@@ -73,10 +73,29 @@ spec:
       - key: "CriticalAddonsOnly"
         operator: "Exists"
         effect: "NoSchedule"
+      # HA scheduling: force the two replicas onto SEPARATE nodes so a single node
+      # rollout / EKS Auto Mode consolidation / upgrade can never take both down at once.
+      # (Root cause of the intermittent Backstage OIDC 502: both replicas were co-located
+      # on one node in one AZ, so a node disruption caused a full Keycloak outage during
+      # which OIDC discovery failed.)
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: keycloak
+            topologyKey: kubernetes.io/hostname
+      # Force the two replicas across >=2 AZs (not just separate nodes). minDomains: 2
+      # makes the 2nd replica unschedulable until a node exists in a second AZ, so the
+      # provisioner (Karpenter / EKS Auto Mode) opens one — guaranteeing a full-AZ
+      # disruption always leaves a Keycloak pod running (issue #892). minDomains is GA
+      # since k8s 1.30 (cluster is on 1.35). Kept DoNotSchedule to match the other
+      # critical add-ons; the hostname anti-affinity above still guarantees separate nodes.
       topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: topology.kubernetes.io/zone
         whenUnsatisfiable: DoNotSchedule
+        minDomains: 2
         labelSelector:
           matchLabels:
             app: keycloak
@@ -255,6 +274,10 @@ metadata:
   name: keycloak-pdb
   namespace: keycloak
 spec:
+  # At replicas=2 this allows only one pod down at a time during voluntary disruptions
+  # (equivalent to minAvailable: 1). Combined with the hostname anti-affinity on the
+  # StatefulSet, a node rollout evicts one pod at a time across two nodes, so Keycloak
+  # is never fully unavailable.
   maxUnavailable: 1
   selector:
     matchLabels:

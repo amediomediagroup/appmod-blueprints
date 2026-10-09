@@ -73,6 +73,12 @@ spec:
                 # ACK IAM rejects it (MalformedPolicyDocument: Invalid principal).
                 argoCdHubRoleArn: 'arn:aws:iam::{{ .metadata.annotations.aws_account_id }}:role/{{ .metadata.annotations.aws_cluster_name }}{{ if eq (index .metadata.labels "provider") "kro-ack" }}-argocd-capability-role{{ else }}-ArgoCDCapabilityRole{{ end }}'
                 argoCdCapabilityRoleArn: 'arn:aws:iam::{{ .metadata.annotations.aws_account_id }}:role/{{ .metadata.annotations.aws_cluster_name }}{{ if eq (index .metadata.labels "provider") "kro-ack" }}-argocd-capability-role{{ else }}-ArgoCDCapabilityRole{{ end }}'
+                # Propagate the hub's real AWS account ID so a spoke declaration never has
+                # to hardcode a real account number into a values file that may live in a
+                # public repo. Mirrors the Crossplane path (claim.yaml in
+                # resource-groups-kro/platform-cluster-kro), which already resolves
+                # accountId/managementAccountId via `default $.Values.global.accountId`.
+                accountId: '{{ .metadata.annotations.aws_account_id }}'
                 defaultRegion: '{{ .metadata.annotations.aws_region }}'
                 targetCluster: '{{ .clusterName }}'
                 # Propagate the deploy branch from the control-plane so kro spokes
@@ -80,6 +86,48 @@ spec:
                 # of falling back to the EksclusterWithVpc RGD's "main" default.
                 addonsRepoRevision: '{{ .metadata.annotations.addonsRepoRevision }}'
                 fleetRepoRevision: '{{ .metadata.annotations.fleetRepoRevision }}'
+                # Also propagate the repo URL (not just the revision), so spokes track the
+                # same fork/repo as the control-plane. Without this, the EksclusterWithVpc
+                # RGD falls back to its aws-samples default and the spoke tries to resolve
+                # the control-plane's revision against the wrong repo (fails when deploying
+                # from a fork / PR branch).
+                addonsRepoUrl: '{{ .metadata.annotations.addonsRepoURL }}'
+                fleetRepoUrl: '{{ .metadata.annotations.fleetRepoURL }}'
+                # Inherit the resource prefix from the control-plane so spoke
+                # EksclusterWithVpc instances (and the EksCluster they nest) build
+                # their cluster-secret annotations (resource_prefix, hub_cluster_name
+                # = <prefix>-hub) with the deployment's real prefix. Without this the
+                # spoke falls back to the RGD default "peeks" -> hub_cluster_name
+                # "peeks-hub", which is not a registered cluster under a custom
+                # prefix (e.g. peeks-031) -> destinationHub addon apps (ack_pod_identities)
+                # fail ApplicationValidationError -> cluster-addons Degraded.
+                # It is also stamped as platform.gitops.io/prefix on the cluster and
+                # VPC, which is how teardown discovers spoke resources (names are
+                # arbitrary, so the tag is the only reliable handle).
+                resourcePrefix: '{{ .metadata.annotations.resource_prefix }}'
+                # Inherit the hub's insecure flag so a KRO spoke of an insecure
+                # (no-cert, plain-HTTP-behind-CloudFront) hub install is insecure
+                # too. Spokes get no domain of their own, so there is nothing to
+                # get an ACM cert for; without this, addon charts that special-case
+                # "insecure" default to secure/HTTPS on the spoke and request an
+                # HTTPS listener with no certificate, crashing the AWS Load
+                # Balancer Controller. Per-cluster kro-clusters/values.yaml can
+                # still override via `insecure:` on the cluster entry. Threaded to
+                # the EksclusterWithVpc instance (rg-eks-vpc.yaml's insecure schema
+                # field) via kro-clusters/templates/clusters.yaml.
+                insecure: '{{ .metadata.annotations.insecure }}'
+                # Platform-wide AWS tags (SpringClean auto-delete=no, cost allocation,
+                # compliance) threaded from config.local.yaml -> hub cluster-secret
+                # `platform_tags` annotation (a compact JSON object string) so every
+                # kro-provisioned spoke's EKS cluster, VPC, NAT gateway and EIP inherit
+                # them via the EksclusterWithVpc `awsTags` schema field (rg-eks-vpc.yaml),
+                # merged per-form (Maps.merge for the cluster map; map->sorted-list for
+                # the VPC/NAT/EIP tag lists). Uses `index` (not direct .platform_tags
+                # field access) so a hub secret WITHOUT the annotation yields "" instead
+                # of a missingkey=error; kro-clusters/templates/clusters.yaml treats an
+                # empty value as "no platform tags" (awsTags: {}). Same pattern as the
+                # overlay_repo_* annotations read via `index` above.
+                platformTags: '{{ index .metadata.annotations "platform_tags" }}'
             valueFiles:
               - '$values/{{ .metadata.annotations.fleetRepoBasepath }}fleet/spoke-values/tenants/{{ index (splitList "/" .path.path) 4 }}/kro-clusters/values.yaml'
               - '$overlay/{{ or (index .metadata.annotations "overlay_repo_basepath") .metadata.annotations.fleetRepoBasepath }}fleet/spoke-values/tenants/{{ index (splitList "/" .path.path) 4 }}/kro-clusters/values.yaml'

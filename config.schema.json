@@ -44,6 +44,26 @@
         }
       }
     },
+    "fleetRepo": {
+      "type": "object",
+      "description": "Optional. Repository hosting FLEET content (fleet/members, fleet/spoke-values, overlays) when it lives apart from the platform charts — e.g. a consumer repo that owns its own fleet while consuming platform addons from repo.url. Each field falls back independently to the matching repo.* value when omitted. Honoured by the kind-crossplane and kind-kro-ack providers.",
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https://",
+          "description": "Git repository URL hosting the fleet content. Defaults to repo.url"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Git branch or tag for the fleet content. Defaults to repo.revision"
+        },
+        "basepath": {
+          "type": "string",
+          "description": "Path within the fleet repo to the gitops directory (must end with /). Defaults to repo.basepath"
+        }
+      }
+    },
     "hub": {
       "type": "object",
       "required": [
@@ -187,6 +207,14 @@
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*$",
       "description": "Prefix for KRO tenant-facing resources (ECR repos, S3 buckets). Infrastructure resources use clusterName instead."
+    },
+    "platformTags": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "description": "Platform-wide AWS tags applied to every AWS resource the platform creates: hub resources (EKS cluster, VPC, NAT, EIP) via CDK Tags.of(stack).add() in platform-engineering-on-eks, and spoke resources via the kro EksclusterWithVpc `awsTags` schema field (threaded through the hub cluster-secret `platform_tags` annotation). Primary use: SpringClean retention (auto-delete=no) so cost/janitor sweepers do not reap long-lived workshop infrastructure; also cost allocation and compliance. Values must be strings."
     },
     "ingressName": {
       "type": "string",

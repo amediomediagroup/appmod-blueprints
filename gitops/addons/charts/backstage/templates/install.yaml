@@ -317,7 +317,7 @@ data:
         - type: 'config'
           instances:
             - name: in-cluster
-              url: https://${DOMAIN_NAME}/argocd
+              url: https://{{ .Values.argocd_hostname }}
               username: admin
               password: ${ARGOCD_ADMIN_PASSWORD}
     argoWorkflows:
@@ -545,6 +545,10 @@ spec:
                 name: backstage-postgres-vars
             - secretRef:
                 name: git-credentials
+                # optional: this secret exists only when a remote git host is configured
+                # (see argocd-secrets.yaml). Without it Backstage must still boot and serve
+                # the GitHub static-template path; a required ref would CreateContainerConfigError.
+                optional: true
             - secretRef:
                 name: argocd-credentials
           image: {{ .Values.backstage_image }}

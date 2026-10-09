@@ -13,8 +13,17 @@ spec:
       name: string
       tenant: string | default="auto1"
       environment: string | default="staging"
+      deletionPolicy: string | default="delete"
       provider: string | default=""
       region: string | default="us-west-2"
+      # Region where the hub's ACK controllers manage this cluster's cross-region
+      # resources (e.g. the Secrets Manager config secrets). Passed through to the
+      # nested EksCluster (which wires it to services.k8s.aws/region, see rg-eks.yaml).
+      # MUST be declared here: the spoke/platform instances set spec.managementRegion
+      # (gitops/abstractions/.../clusters.yaml, claim.yaml) and kro rejects any field
+      # not declared in the RGD schema ("field not declared in schema"), which
+      # otherwise blocks EksclusterWithVpc (spoke) creation entirely.
+      managementRegion: string | default="us-west-2"
       k8sVersion: string | default="1.34"
       accountId: string
       managementAccountId: string
@@ -30,8 +39,22 @@ spec:
       # "true" => the RGD creates the Secret directly (legacy fallback).
       createArgocdClusterSecret: string | default="false"
       domainName: string | default="cluster.example.com"
+      # Whether this cluster's platform ALB serves plain HTTP (TLS terminated
+      # upstream, e.g. by the hub's CloudFront) instead of HTTPS with an ACM
+      # cert. Passed through to the nested EksCluster (which stamps it onto
+      # the spoke's fleet-secret metadata blob, see rg-eks.yaml). Spokes get
+      # no domain of their own, so there is no cert to request; the
+      # clusters-kro appset/chart normally inherits this from the hub's own
+      # insecure setting rather than requiring every spoke declaration to
+      # repeat it. See kro-clusters/templates/clusters.yaml.
+      insecure: string | default="false"
       resourcePrefix: string | default="peeks"
       git_username: string | default="user1"
+      # Optional extra AWS tags, merged on top of the built-in tags of every AWS
+      # resource this RGD (and its nested Vpc/EksCluster) manages. Drives SpringClean
+      # retention (auto-delete=no), cost allocation and compliance tagging from a
+      # single source. Optional: existing instances that omit it are unaffected.
+      awsTags: "map[string]string"
       argocdCapability:
         enabled: string | default="false"
         idcInstanceArn: string | default=""
@@ -142,6 +165,8 @@ spec:
       spec:
         name: ${schema.spec.name}
         region: ${schema.spec.region}
+        resourcePrefix: ${schema.spec.resourcePrefix}
+        awsTags: ${schema.spec.?awsTags.orValue({})}
         cidr:
           vpcCidr: ${schema.spec.cidr.vpcCidr}
           publicSubnet1Cidr: ${schema.spec.cidr.publicSubnet1Cidr}
@@ -173,8 +198,10 @@ spec:
           name: ${schema.spec.name}
           tenant: ${schema.spec.tenant}
           environment: ${schema.spec.environment}
+          deletionPolicy: ${schema.spec.deletionPolicy}
           provider: ${schema.spec.provider}
           region: ${schema.spec.region}
+          managementRegion: ${schema.spec.managementRegion}
           accountId: ${schema.spec.accountId}
           managementAccountId: ${schema.spec.managementAccountId}
           argoCdHubRoleArn: ${schema.spec.argoCdHubRoleArn}
@@ -185,8 +212,10 @@ spec:
           fleetSecretManagerSecretNameSuffix: ${schema.spec.fleetSecretManagerSecretNameSuffix}
           createArgocdClusterSecret: ${schema.spec.createArgocdClusterSecret}
           domainName: ${schema.spec.domainName}
+          insecure: ${schema.spec.insecure}
           resourcePrefix: ${schema.spec.resourcePrefix}
           git_username: ${schema.spec.git_username}
+          awsTags: ${schema.spec.?awsTags.orValue({})}
           argocdCapability:
             enabled: ${schema.spec.argocdCapability.enabled}
             idcInstanceArn: ${schema.spec.argocdCapability.idcInstanceArn}
