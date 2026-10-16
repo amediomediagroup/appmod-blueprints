@@ -1,47 +1,60 @@
 name: Bootstrap Azure Platform
 
-# Enterprise Terraform workflow — Azure bootstrap
+# ─────────────────────────────────────────────────────────────────────────────
+# Trigger → Job matrix
+# ─────────────────────────────────────────────────────────────────────────────
 #
-# Stages:
-#   validate  — fmt, validate, tflint, OPA, checkov, trivy (fast feedback)
-#   plan      — terraform plan + cost estimate → PR comment (read-only UAMI)
-#   apply     — download exact plan artifact → apply (gated: reviewer + 5min wait)
-#   destroy   — download exact plan artifact → destroy (gated)
-#   drift     — daily plan, open Issue on drift
+#  Event                          validate  plan  apply  destroy
+#  ─────────────────────────────  ────────  ────  ─────  ───────
+#  pull_request (bootstrap/**)       ✓       ✓     –       –      PR preview
+#  push main (bootstrap/**)          ✓       –     –       –      Post-merge confirm
+#  workflow_dispatch action=plan     ✓       ✓     –       –      Manual preview
+#  workflow_dispatch action=apply    ✓       ✓     ✓       –      Manual deploy [gated]
+#  workflow_dispatch action=destroy  ✓       ✓     –       ✓      Manual teardown [gated]
+#  schedule (02:00 UTC daily)        –       ✓     –       –      Drift detection
+#
+# Gates (environment:bootstrap): apply, destroy
+#   → required reviewer approval + 5min wait + prevent self-review
+# ─────────────────────────────────────────────────────────────────────────────
 #
 # Two UAMIs:
-#   AZURE_READONLY_CLIENT_ID   — Reader + Storage Blob Data Reader, federated: pull_request + branch:main
-#   AZURE_BOOTSTRAP_CLIENT_ID  — Contributor + User Access Administrator, federated: environment:bootstrap
+#   AZURE_READONLY_CLIENT_ID   — Reader, federated: pull_request + ref:main
+#   AZURE_BOOTSTRAP_CLIENT_ID  — Contributor + UAA, federated: environment:bootstrap
 #
 # Required secrets:
-#   AZURE_BOOTSTRAP_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
-#   AZURE_READONLY_CLIENT_ID (optional, falls back to AZURE_BOOTSTRAP_CLIENT_ID)
-#   GH_PAT (read:org + repo — for AVM github provider)
-#   PLATFORM_DOMAIN
-#   INFRACOST_API_KEY (from https://www.infracost.io/docs/#2-get-api-key)
-#
-# Required variables:
+#   AZURE_BOOTSTRAP_CLIENT_ID, AZURE_READONLY_CLIENT_ID (optional, fallback to bootstrap)
+#   AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#   GH_PAT (read:org + repo for AVM github provider), PLATFORM_DOMAIN
+#   INFRACOST_API_KEY (optional — https://www.infracost.io/docs/#2-get-api-key)
+# Required vars:
 #   AZURE_LOCATION, HUB_RESOURCE_GROUP, HUB_CLUSTER_NAME, BOOTSTRAP_KV_NAME
 #   LOCATION_SHORT, TF_BACKEND_RESOURCE_GROUP, TF_BACKEND_STORAGE_ACCOUNT
 
 on:
   pull_request:
+    branches: [main]
     paths:
       - "cluster-providers/kind-crossplane-azure/bootstrap/**"
+
+  push:
     branches: [main]
+    paths:
+      - "cluster-providers/kind-crossplane-azure/bootstrap/**"
+
   workflow_dispatch:
     inputs:
       action:
-        description: "Action"
+        description: "Action (plan / apply / destroy)"
         type: choice
         options: [plan, apply, destroy]
         default: plan
+
   schedule:
     - cron: "0 2 * * *"   # Daily drift detection 02:00 UTC
 
-# Prevent concurrent apply/destroy on the same environment
+# One apply at a time; PRs can cancel each other to avoid queue buildup
 concurrency:
-  group: bootstrap-azure-${{ github.event.inputs.action || 'plan' }}
+  group: bootstrap-azure-${{ github.event.inputs.action || github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -73,6 +86,7 @@ jobs:
   validate:
     name: Validate
     runs-on: ubuntu-latest
+    # Runs on: PR, push main, workflow_dispatch — NOT schedule
     if: github.event_name != 'schedule'
     defaults:
       run:
@@ -145,7 +159,11 @@ jobs:
     name: Plan
     runs-on: ubuntu-latest
     needs: [validate]
-    if: always() && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
+    # Runs on: PR, workflow_dispatch, schedule — NOT push (validate-only post-merge)
+    if: |
+      always() &&
+      (needs.validate.result == 'success' || needs.validate.result == 'skipped') &&
+      github.event_name != 'push'
     defaults:
       run:
         working-directory: cluster-providers/kind-crossplane-azure/bootstrap
@@ -305,6 +323,7 @@ jobs:
     name: Apply
     runs-on: ubuntu-latest
     needs: plan
+    # Runs on: workflow_dispatch action=apply ONLY — gated by environment:bootstrap
     if: github.event.inputs.action == 'apply' && needs.plan.result == 'success'
     environment: bootstrap
     defaults:
@@ -376,6 +395,7 @@ jobs:
     name: Destroy
     runs-on: ubuntu-latest
     needs: plan
+    # Runs on: workflow_dispatch action=destroy ONLY — gated by environment:bootstrap
     if: github.event.inputs.action == 'destroy' && needs.plan.result == 'success'
     environment: bootstrap
     defaults:
