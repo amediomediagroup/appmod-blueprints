@@ -31,7 +31,7 @@ variable "hub_resource_group" {
 
 variable "hub_cluster_name" {
   type        = string
-  description = "Hub AKS cluster name."
+  description = "Hub AKS cluster name — used in the platform-config Key Vault secret."
 }
 
 variable "bootstrap_keyvault_name" {

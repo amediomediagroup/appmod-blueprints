@@ -116,7 +116,7 @@ resource "azurerm_key_vault" "bootstrap" {
 
   network_acls {
     default_action = "Allow"
-    bypass         = ["AzureServices"]
+    bypass         = "AzureServices"
   }
 
   depends_on = [module.cicd_bootstrap]
@@ -155,6 +155,7 @@ resource "azurerm_key_vault_secret" "platform_config" {
     resourceGroup  = var.hub_resource_group
     repoUrl        = "https://github.com/${var.github_org}/${var.github_repo}.git"
     repoRevision   = var.repo_revision
+    clusterName    = var.hub_cluster_name
     uamiClientId   = module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"]
     resourcePrefix = var.resource_prefix
   })
