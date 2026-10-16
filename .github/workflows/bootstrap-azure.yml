@@ -1,19 +1,22 @@
 name: Bootstrap Azure Platform
 
-# Runs the Terraform bootstrap that creates:
-#   - GitHub environment "azure-hub" with UAMI + federated credentials (via AVM module)
-#   - Bootstrap Key Vault with platform-config secret
-#   - Hub resource group
-#   - GitHub secrets: AZURE_CLIENT_ID, AZURE_TENANT_ID, BOOTSTRAP_KV_NAME
+# Deploy flow:
+#   PR opened/updated  → scan + plan (preview, posts comment to PR)
+#   workflow_dispatch  → scan + plan | apply | destroy
+#                        apply/destroy gated by environment:bootstrap
+#                        (required reviewer + 5min wait timer)
 #
 # Prerequisites (one-time, run scripts/init.sh):
 #   - Storage account for Terraform state
 #   - Initial UAMI + federated credential for this workflow
-#   - GitHub secrets: AZURE_BOOTSTRAP_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
-#
-# After bootstrap completes, use deploy-azure-hub.yml for actual platform deployment.
+#   - GitHub secrets: AZURE_BOOTSTRAP_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, GH_PAT
+#   - GitHub vars: AZURE_LOCATION, HUB_RESOURCE_GROUP, HUB_CLUSTER_NAME, BOOTSTRAP_KV_NAME,
+#                  LOCATION_SHORT, TF_BACKEND_RESOURCE_GROUP, TF_BACKEND_STORAGE_ACCOUNT
 
 on:
+  pull_request:
+    paths:
+      - "cluster-providers/kind-crossplane-azure/bootstrap/**"
   workflow_dispatch:
     inputs:
       action:
@@ -23,13 +26,15 @@ on:
         default: plan
 
 permissions:
-  id-token: write       # OIDC federation
+  id-token: write        # OIDC federation
   contents: read
-  security-events: write  # Trivy SARIF upload
+  pull-requests: write   # Post plan output as PR comment
+  security-events: write # Trivy SARIF upload
 
 jobs:
-  # ── Security scanning ────────────────────────────────────────────────────
+  # ── Security scanning ─────────────────────────────────────────────────────
   scan:
+    name: Security Scan
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -46,18 +51,17 @@ jobs:
       - name: TFLint init + run
         run: |
           tflint --init
-          tflint --format compact || true   # warn only, don't block
+          tflint --format compact || true
 
       - name: OPA — validate policy syntax
         uses: open-policy-agent/setup-opa@v2.4.0
         with:
           version: latest
 
-      - name: OPA check (syntax validate Rego policies)
+      - name: OPA check
         run: |
           opa check policies/
           echo "✓ OPA policy syntax valid"
-          # Full eval against tfplan JSON runs in the terraform job post-plan
 
       - name: Checkov — IaC security scan
         uses: bridgecrewio/checkov-action@v12
@@ -65,11 +69,10 @@ jobs:
           directory: cluster-providers/kind-crossplane-azure/bootstrap
           framework: terraform
           output_format: cli
-          soft_fail: true   # warn only during bootstrap phase
+          soft_fail: true
 
-      # NOTE: trivy-action v0.36.0+ is safe (supply chain attack was 2026-03-19,
-      # patched 2026-04-22). Do NOT use versions 0.28.0–0.35.x without SHA pinning.
-      - name: Trivy — filesystem vulnerability scan
+      # trivy-action v0.36.0+ is safe — supply chain attack was 2026-03-19, patched 2026-04-22
+      - name: Trivy — filesystem scan
         uses: aquasecurity/trivy-action@v0.36.0
         if: always()
         with:
@@ -78,9 +81,9 @@ jobs:
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
-          exit-code: 0   # warn only
+          exit-code: 0
 
-      - name: Upload Trivy SARIF to GitHub Security
+      - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
@@ -88,9 +91,11 @@ jobs:
 
   # ── Terraform ─────────────────────────────────────────────────────────────
   terraform:
+    name: Terraform ${{ github.event.inputs.action || 'plan' }}
     runs-on: ubuntu-latest
     needs: scan
-    environment: bootstrap   # optional — create in GitHub for approval gates
+    # environment gate only for apply/destroy — plan runs freely on PR too
+    environment: ${{ (github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy') && 'bootstrap' || '' }}
     defaults:
       run:
         working-directory: cluster-providers/kind-crossplane-azure/bootstrap
@@ -100,13 +105,9 @@ jobs:
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       ARM_CLIENT_ID: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
       GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-      # GH_PAT needs scopes: read:org, repo (for AVM module to read org + create environments)
-      # Create at https://github.com/settings/tokens and add as repo secret GH_PAT
-      # Sensitive vars — never hardcoded
       TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
-      # Non-sensitive vars — from repository variables
       TF_VAR_location: ${{ vars.AZURE_LOCATION }}
       TF_VAR_hub_resource_group: ${{ vars.HUB_RESOURCE_GROUP }}
       TF_VAR_hub_cluster_name: ${{ vars.HUB_CLUSTER_NAME }}
@@ -118,7 +119,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Authenticate using the initial bootstrap UAMI (created by scripts/init.sh)
       - uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
@@ -139,7 +139,34 @@ jobs:
             -backend-config="use_oidc=true"
 
       - name: Terraform Plan
-        run: terraform plan -out=tfplan
+        id: plan
+        run: |
+          terraform plan -out=tfplan -no-color 2>&1 | tee plan.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Post plan to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync(
+              'cluster-providers/kind-crossplane-azure/bootstrap/plan.txt', 'utf8'
+            ).slice(0, 60000);  // GitHub comment limit
+            const body = [
+              '### 🔍 Terraform Plan',
+              '```terraform',
+              plan,
+              '```',
+              '',
+              `> To apply: \`gh workflow run bootstrap-azure.yml --field action=apply\``
+            ].join('\n');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
 
       - name: Terraform Apply
         if: github.event.inputs.action == 'apply'
