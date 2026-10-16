@@ -60,12 +60,10 @@ on:
   schedule:
     - cron: "0 2 * * *"   # Daily drift detection 02:00 UTC
 
-# Terraform concurrency best practice:
-#   - PR runs: cancel older (safe — plan only)
-#   - push main (auto-apply) and manual apply/destroy: never cancel (state writes)
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ !(github.event_name == 'push' || github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy') }}
+# Concurrency: per-job (see each job's concurrency block)
+# Plan: cancel-in-progress — new push cancels old plan runs safely
+# Apply/Destroy: cancel-in-progress=false, independent group from plan
+# → apply is NEVER blocked by a running plan; gate = environment only
 
 permissions:
   id-token: write
@@ -243,11 +241,20 @@ jobs:
 # Runs on: PR (read-only UAMI), workflow_dispatch, schedule (drift)
 # No gate — plan is always safe to run
   plan:
-    name: Plan
+    name: Plan / ${{ matrix.env }}
     runs-on: ubuntu-latest
-    needs: [validate]
-    # Runs on: PR, push main, workflow_dispatch, schedule
-    if: always() && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
+    needs: [setup, validate]
+    if: |
+      always() &&
+      needs.setup.outputs.has_envs == 'true' &&
+      (needs.validate.result == 'success' || needs.validate.result == 'skipped')
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      fail-fast: false   # all envs plan in parallel
+    # Plan: cancel older runs (read-only, safe) — independent group from apply
+    concurrency:
+      group: plan-${{ matrix.env }}-${{ github.ref }}
+      cancel-in-progress: true
     defaults:
       run:
         working-directory: cluster-providers/kind-crossplane-azure/bootstrap
@@ -419,16 +426,16 @@ jobs:
     name: Apply / ${{ matrix.env }}
     runs-on: ubuntu-latest
     needs: [setup, plan]
-    # push main (auto, per-env gate) OR manual dispatch action=apply
     if: (github.event_name == 'push' || github.event.inputs.action == 'apply') && needs.plan.result == 'success'
     strategy:
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
       fail-fast: false
-    # Per-env gate: dev=no approval, test=2min, stg=approval+5min, prod=approval+10min
     environment: bootstrap-${{ matrix.env }}
+    # Apply: independent group from plan — NEVER blocked by a running plan
+    # Gate = environment:bootstrap-{env} only (reviewer + wait timer)
     concurrency:
-      group: ${{ github.workflow }}-${{ matrix.env }}-apply-${{ github.ref }}
-      cancel-in-progress: false   # NEVER cancel apply
+      group: apply-${{ matrix.env }}
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: cluster-providers/kind-crossplane-azure/bootstrap
@@ -503,14 +510,13 @@ jobs:
     name: Destroy / ${{ matrix.env }}
     runs-on: ubuntu-latest
     needs: [setup, plan]
-    # MANUAL ONLY
     if: github.event.inputs.action == 'destroy' && needs.plan.result == 'success'
     strategy:
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
       fail-fast: false
     environment: bootstrap-${{ matrix.env }}
     concurrency:
-      group: ${{ github.workflow }}-${{ matrix.env }}-destroy-${{ github.ref }}
+      group: apply-${{ matrix.env }}   # same group as apply — prevent apply+destroy overlap
       cancel-in-progress: false
     defaults:
       run:
