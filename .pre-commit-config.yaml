@@ -67,7 +67,7 @@ repos:
           - revert
 
 # ── CI-only configuration ────────────────────────────────────────────────────
-# In CI (pr-lint.yml), pre-commit runs with:
-#   SKIP=gitleaks pre-commit run --all-files
+# In CI (pr-lint.yml), pre-commit runs on PR diff only:
+#   SKIP=gitleaks pre-commit run --from-ref origin/main --to-ref HEAD
 # Gitleaks is handled separately in CI with --log-opts="origin/main..HEAD"
 # to scan only PR commits, not full 4000+ commit history.
