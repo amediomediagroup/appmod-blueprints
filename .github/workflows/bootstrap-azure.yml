@@ -1,0 +1,127 @@
+name: Bootstrap Azure Platform
+
+# Runs the Terraform bootstrap that creates:
+#   - GitHub environment "azure-hub" with UAMI + federated credentials (via AVM module)
+#   - Bootstrap Key Vault with platform-config secret
+#   - Hub resource group
+#   - GitHub secrets: AZURE_CLIENT_ID, AZURE_TENANT_ID, BOOTSTRAP_KV_NAME
+#
+# Prerequisites (one-time, run scripts/init.sh):
+#   - Storage account for Terraform state
+#   - Initial UAMI + federated credential for this workflow
+#   - GitHub secrets: AZURE_BOOTSTRAP_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#
+# After bootstrap completes, use deploy-azure-hub.yml for actual platform deployment.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action"
+        type: choice
+        options: [plan, apply, destroy]
+        default: plan
+  push:
+    branches: [main]
+    paths:
+      - "cluster-providers/kind-crossplane-azure/bootstrap/**"
+
+permissions:
+  id-token: write   # OIDC federation
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    environment: bootstrap   # optional — create in GitHub for approval gates
+    defaults:
+      run:
+        working-directory: cluster-providers/kind-crossplane-azure/bootstrap
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Authenticate using the initial bootstrap UAMI (created by scripts/init.sh)
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~1.9"
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="${{ github.workspace }}/cluster-providers/kind-crossplane-azure/bootstrap/backend.conf" \
+            -backend-config="client_id=${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Sensitive vars — never hardcoded
+          TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
+          # Non-sensitive vars — from repository variables
+          TF_VAR_location: ${{ vars.AZURE_LOCATION }}
+          TF_VAR_hub_resource_group: ${{ vars.HUB_RESOURCE_GROUP }}
+          TF_VAR_hub_cluster_name: ${{ vars.HUB_CLUSTER_NAME }}
+          TF_VAR_bootstrap_keyvault_name: ${{ vars.BOOTSTRAP_KV_NAME }}
+          TF_VAR_github_org: ${{ vars.GITHUB_ORG }}
+          TF_VAR_github_repo: ${{ vars.GITHUB_REPO }}
+          TF_VAR_resource_name_location_short: ${{ vars.LOCATION_SHORT }}
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'apply'
+        run: terraform apply -auto-approve tfplan
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
+          TF_VAR_location: ${{ vars.AZURE_LOCATION }}
+          TF_VAR_hub_resource_group: ${{ vars.HUB_RESOURCE_GROUP }}
+          TF_VAR_hub_cluster_name: ${{ vars.HUB_CLUSTER_NAME }}
+          TF_VAR_bootstrap_keyvault_name: ${{ vars.BOOTSTRAP_KV_NAME }}
+          TF_VAR_github_org: ${{ vars.GITHUB_ORG }}
+          TF_VAR_github_repo: ${{ vars.GITHUB_REPO }}
+          TF_VAR_resource_name_location_short: ${{ vars.LOCATION_SHORT }}
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        run: terraform apply -destroy -auto-approve tfplan
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
+          TF_VAR_location: ${{ vars.AZURE_LOCATION }}
+          TF_VAR_hub_resource_group: ${{ vars.HUB_RESOURCE_GROUP }}
+          TF_VAR_hub_cluster_name: ${{ vars.HUB_CLUSTER_NAME }}
+          TF_VAR_bootstrap_keyvault_name: ${{ vars.BOOTSTRAP_KV_NAME }}
+          TF_VAR_github_org: ${{ vars.GITHUB_ORG }}
+          TF_VAR_github_repo: ${{ vars.GITHUB_REPO }}
+          TF_VAR_resource_name_location_short: ${{ vars.LOCATION_SHORT }}

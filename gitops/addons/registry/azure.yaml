@@ -22,7 +22,8 @@ agic:
   namespace: azure-alb-system
   chartName: alb-controller
   releaseName: alb-controller
-  # ALB Controller v1.12.2 — latest stable, min K8s v1.32, compatible with AKS 1.36+
+  # ALB Controller v1.12.2 — latest stable, min K8s v1.32, compatible with AKS 1.37+
+  # OCI chart: oci://mcr.microsoft.com/application-lb/charts/alb-controller
   # Manages Application Gateway for Containers (AGC) — successor to AGIC (GA 2024)
   chartRepository: https://azure.github.io/azure-alb-controller/helm
   defaultVersion: '1.12.2'

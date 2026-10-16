@@ -1,0 +1,27 @@
+# Copy to terraform.tfvars and fill in values.
+# terraform.tfvars is gitignored — NEVER commit it.
+# Sensitive values (subscription_id, tenant_id, platform_domain) MUST be
+# passed as TF_VAR_* env vars in CI — never hardcoded here.
+
+# ── Azure ──────────────────────────────────────────────────────────────────────
+# subscription_id  = set via TF_VAR_subscription_id in CI
+# tenant_id        = set via TF_VAR_tenant_id in CI
+location                     = "<azure-region>"
+hub_resource_group           = "<hub-cluster-rg>"
+hub_cluster_name             = "<hub-cluster-name>"
+bootstrap_keyvault_name      = "<kv-name>"   # max 24 chars, globally unique
+resource_prefix              = ""
+
+# ── Platform ───────────────────────────────────────────────────────────────────
+# platform_domain  = set via TF_VAR_platform_domain in CI
+repo_revision = "main"
+
+# ── AVM naming ─────────────────────────────────────────────────────────────────
+resource_name_workload       = "platform"
+resource_name_environment    = "prod"
+resource_name_location_short = "<location-short>"  # e.g. sea, eus, weu
+
+# ── GitHub ─────────────────────────────────────────────────────────────────────
+github_org         = "<your-github-org>"
+github_repo        = "<your-repo>"
+github_environment = "azure-hub"
