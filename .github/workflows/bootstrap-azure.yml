@@ -7,7 +7,6 @@ name: Bootstrap Azure Platform
 #  Event                          validate  plan  apply  destroy
 #  ─────────────────────────────  ────────  ────  ─────  ───────
 #  pull_request (bootstrap/**)       ✓       ✓     –       –      PR preview
-#  push main (bootstrap/**)          ✓       –     –       –      Post-merge confirm
 #  workflow_dispatch action=plan     ✓       ✓     –       –      Manual preview
 #  workflow_dispatch action=apply    ✓       ✓     ✓       –      Manual deploy [gated]
 #  workflow_dispatch action=destroy  ✓       ✓     –       ✓      Manual teardown [gated]
@@ -32,11 +31,6 @@ name: Bootstrap Azure Platform
 
 on:
   pull_request:
-    branches: [main]
-    paths:
-      - "cluster-providers/kind-crossplane-azure/bootstrap/**"
-
-  push:
     branches: [main]
     paths:
       - "cluster-providers/kind-crossplane-azure/bootstrap/**"
