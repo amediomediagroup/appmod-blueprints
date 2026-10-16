@@ -28,6 +28,19 @@ vars:
     sh: yq '.azure.uamiClientId' {{.CONFIG_FILE}}
   AZURE_RG:
     sh: yq '.azure.resourceGroup' {{.CONFIG_FILE}}
+  BOOTSTRAP_KV_NAME:
+    sh: yq '.azure.bootstrapKeyVaultName' {{.CONFIG_FILE}}
+  # Optional: explicit UAMI name — defaults to <clusterName>-bootstrap-mi
+  BOOTSTRAP_UAMI_NAME:
+    sh: |
+      N=$(yq '.azure.bootstrapUamiName // ""' {{.CONFIG_FILE}})
+      [ -z "$N" ] || [ "$N" = "null" ] && echo "$(yq '.hub.clusterName' {{.CONFIG_FILE}})-bootstrap-mi" || echo "$N"
+  GITHUB_ORG:
+    sh: yq '.github.org' {{.CONFIG_FILE}}
+  GITHUB_REPO:
+    sh: yq '.github.repo' {{.CONFIG_FILE}}
+  GITHUB_ENV:
+    sh: yq '.github.environment // "azure-hub"' {{.CONFIG_FILE}}
   AZURE_KV_NAME:
     sh: |
       KV=$(yq '.azure.keyVaultName // ""' {{.CONFIG_FILE}})
@@ -82,7 +95,7 @@ tasks:
     desc: Pre-flight checks for kind-crossplane-azure provider
     cmds:
       - printf '{{.C_STEP}}▸ Checking required CLIs...{{.C_RESET}}\n'
-      - cmd: command -v {{.ITEM}} >/dev/null 2>&1 || { echo "Missing required CLI: {{.ITEM}}"; exit 1; }
+      - cmd: "command -v {{.ITEM}} >/dev/null 2>&1 || { echo 'Missing required CLI: {{.ITEM}}'; exit 1; }"
         for:
           var: REQUIRED_CLIS
       - printf '{{.C_STEP}}▸ Checking config.local.yaml...{{.C_RESET}}\n'

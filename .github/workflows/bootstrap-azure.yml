@@ -73,10 +73,11 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="${{ github.workspace }}/cluster-providers/kind-crossplane-azure/bootstrap/backend.conf" \
-            -backend-config="client_id=${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}" \
-            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
-            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=bootstrap/terraform.tfstate" \
+            -backend-config="use_oidc=true"
 
       - name: Terraform Plan
         run: terraform plan -out=tfplan

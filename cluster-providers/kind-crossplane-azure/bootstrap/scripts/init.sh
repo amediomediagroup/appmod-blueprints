@@ -13,7 +13,8 @@
 # Prerequisites:
 #   az login  (with Contributor + User Access Administrator on target subscription)
 #   gh auth login
-#   Required CLIs: az, gh
+#   Required CLIs: az, gh, openssl
+#   Install (macOS): brew install azure-cli gh
 #
 # Usage:
 #   export SUBSCRIPTION_ID="<id>"
@@ -154,6 +155,18 @@ gh secret set AZURE_SUBSCRIPTION_ID \
   --body "$SUBSCRIPTION_ID"
 
 echo "  GitHub secrets set (3 secrets)"
+
+echo ""
+echo "▸ Setting GitHub repo variables for Terraform backend..."
+gh variable set TF_BACKEND_RESOURCE_GROUP \
+  --repo "${GITHUB_ORG}/${GITHUB_REPO}" \
+  --body "$BOOTSTRAP_RG"
+
+gh variable set TF_BACKEND_STORAGE_ACCOUNT \
+  --repo "${GITHUB_ORG}/${GITHUB_REPO}" \
+  --body "$TF_STATE_SA"
+
+echo "  GitHub variables set (TF_BACKEND_RESOURCE_GROUP, TF_BACKEND_STORAGE_ACCOUNT)"
 
 echo ""
 echo "▸ Writing backend config for CI..."
