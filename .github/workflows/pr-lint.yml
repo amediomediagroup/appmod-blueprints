@@ -11,6 +11,12 @@ name: PR Lint
 #   feat(azure): add kind-crossplane-azure bootstrap provider
 #   fix(azure-bootstrap): AADSTS700213 federated credential mismatch
 #   chore(deps): bump actions/checkout from v6 to v7
+#
+# NOTE: gitleaks/gitleaks-action and amannn/action-semantic-pull-request
+# must be added to the org's allowed actions list:
+#   Org Settings → Actions → General → Allow select actions → add patterns:
+#     gitleaks/gitleaks-action@*
+#     amannn/action-semantic-pull-request@*
 
 on:
   pull_request:
@@ -25,12 +31,12 @@ jobs:
     name: Secret Scan (Gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0   # full history so gitleaks can scan all commits in PR
 
       - name: Gitleaks — detect secrets
-        uses: gitleaks/gitleaks-action@v3.0.0
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}   # optional — free for public repos
@@ -39,11 +45,10 @@ jobs:
     name: PR Title (Conventional Commits)
     runs-on: ubuntu-latest
     steps:
-      - uses: amannn/action-semantic-pull-request@v6.1.1
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # Allowed types (Conventional Commits spec)
           types: |
             feat
             fix
@@ -55,11 +60,8 @@ jobs:
             ci
             build
             revert
-          # Scope is optional but validated if provided
           requireScope: false
-          # Disallow uppercase first letter in description
           validateSingleCommit: false
-          # Ignore dependabot PRs
           ignoreLabels: |
             bot
             dependencies
