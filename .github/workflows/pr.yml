@@ -54,13 +54,16 @@ jobs:
 
       - name: Scan PR commits for secrets
         run: |
-          gitleaks detect \
+          if gitleaks detect \
             --source=. \
             --config=.gitleaks.toml \
             --log-opts="origin/${{ github.base_ref }}..HEAD" \
             --exit-code=1 \
             --redact \
             --log-level=warn \
-            --no-banner \
-            && echo "✓ No new secrets in PR commits" \
-            || { echo "❌ Secrets detected in PR commits"; exit 1; }
+            --no-banner; then
+            echo "✓ No new secrets in PR commits"
+          else
+            echo "❌ Secrets detected in PR commits"
+            exit 1
+          fi

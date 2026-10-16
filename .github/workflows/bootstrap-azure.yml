@@ -27,7 +27,8 @@ name: Bootstrap Azure Platform
 # Required secrets:
 #   AZURE_BOOTSTRAP_CLIENT_ID, AZURE_READONLY_CLIENT_ID (optional, fallback to bootstrap)
 #   AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
-#   GH_PAT (read:org + repo for AVM github provider), PLATFORM_DOMAIN
+#   GH_APP_ID, GH_APP_PRIVATE_KEY (GitHub App for AVM github provider — no PAT needed)
+#   PLATFORM_DOMAIN
 #   INFRACOST_API_KEY (optional — https://www.infracost.io/docs/#2-get-api-key)
 # Required vars:
 #   AZURE_LOCATION, HUB_RESOURCE_GROUP, HUB_CLUSTER_NAME, BOOTSTRAP_KV_NAME
@@ -284,12 +285,24 @@ jobs:
       TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
-      GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
       # Job-level so env.INFRACOST_API_KEY is available in step if: conditions
       INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Export GitHub token for Terraform
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GITHUB_TOKEN=${APP_TOKEN}" >> "$GITHUB_ENV"
 
       - name: Create Terraform plugin cache dir
         run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
@@ -475,10 +488,22 @@ jobs:
       TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
-      GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Export GitHub token for Terraform
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GITHUB_TOKEN=${APP_TOKEN}" >> "$GITHUB_ENV"
 
       - name: Create Terraform plugin cache dir
         run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
@@ -569,10 +594,22 @@ jobs:
       TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
-      GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Export GitHub token for Terraform
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GITHUB_TOKEN=${APP_TOKEN}" >> "$GITHUB_ENV"
 
       - name: Create Terraform plugin cache dir
         run: mkdir -p "$TF_PLUGIN_CACHE_DIR"

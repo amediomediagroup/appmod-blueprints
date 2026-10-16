@@ -176,6 +176,19 @@ gh secret set AZURE_SUBSCRIPTION_ID \
 echo "  GitHub secrets set (3 secrets)"
 
 echo ""
+echo "─────────────────────────────────────────────────────────────────────"
+echo "▸ GitHub App setup required (replaces GH_PAT)"
+echo ""
+echo "  Create a GitHub App in your org with these permissions:"
+echo "    Repository: environments=write, secrets=write, contents=read, metadata=read"
+echo "    Organization: members=read"
+echo ""
+echo "  Then install the App on this repo and run:"
+echo "    gh secret set GH_APP_ID --repo ${GITHUB_ORG}/${GITHUB_REPO} --body '<app-id>'"
+echo "    gh secret set GH_APP_PRIVATE_KEY --repo ${GITHUB_ORG}/${GITHUB_REPO} --body \"\$(cat private-key.pem)\""
+echo "─────────────────────────────────────────────────────────────────────"
+
+echo ""
 echo "▸ Setting GitHub repo variables for Terraform backend..."
 gh variable set TF_BACKEND_RESOURCE_GROUP \
   --repo "${GITHUB_ORG}/${GITHUB_REPO}" \
