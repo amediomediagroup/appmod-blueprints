@@ -301,7 +301,10 @@ jobs:
         id: plan
         run: |
           set +e   # don't fail immediately — capture exit code ourselves
-          terraform plan -out=tfplan -no-color 2>&1 | tee plan.txt
+          terraform plan \
+            -var-file="envs/${{ matrix.env }}.tfvars" \
+            -out=tfplan \
+            -no-color 2>&1 | tee plan.txt
           TF_EXIT=${PIPESTATUS[0]}
           echo "exitcode=$TF_EXIT" >> "$GITHUB_OUTPUT"
           # 0 = no changes, 1 = error, 2 = changes (with -detailed-exitcode)
@@ -480,6 +483,7 @@ jobs:
 
       - name: terraform apply
         run: terraform apply -auto-approve tfplan
+        # tfplan was produced with the correct -var-file; no need to re-pass it
 
       - name: Apply summary
         if: always()
@@ -562,3 +566,4 @@ jobs:
 
       - name: terraform destroy
         run: terraform apply -destroy -auto-approve tfplan
+        # tfplan was produced with the correct -var-file; no need to re-pass it
