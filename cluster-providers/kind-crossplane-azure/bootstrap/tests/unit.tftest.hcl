@@ -48,7 +48,7 @@ variables {
 run "acr_name_too_short_fails" {
   command = plan
   variables {
-    acr_name = "ab"   # min 5 chars
+    acr_name = "ab" # min 5 chars
   }
   expect_failures = [var.acr_name]
 }
@@ -56,7 +56,7 @@ run "acr_name_too_short_fails" {
 run "acr_name_too_long_fails" {
   command = plan
   variables {
-    acr_name = "thisacrnameiswaytoolongandexceedsfiftychars123456"   # > 50 chars
+    acr_name = "thisacrnameiswaytoolongandexceedsfiftychars123456" # > 50 chars
   }
   expect_failures = [var.acr_name]
 }
@@ -64,7 +64,7 @@ run "acr_name_too_long_fails" {
 run "acr_name_with_hyphen_fails" {
   command = plan
   variables {
-    acr_name = "test-acr-name"   # hyphens not allowed
+    acr_name = "test-acr-name" # hyphens not allowed
   }
   expect_failures = [var.acr_name]
 }
@@ -79,7 +79,7 @@ run "acr_name_valid_passes" {
 run "keyvault_name_too_long_fails" {
   command = plan
   variables {
-    bootstrap_keyvault_name = "kv-this-name-is-way-too-long-25ch"   # > 24 chars
+    bootstrap_keyvault_name = "kv-this-name-is-way-too-long-25ch" # > 24 chars
   }
   expect_failures = [var.bootstrap_keyvault_name]
 }
@@ -87,14 +87,14 @@ run "keyvault_name_too_long_fails" {
 run "keyvault_name_max_valid_passes" {
   command = plan
   variables {
-    bootstrap_keyvault_name = "kv-exactly-24-chars12345"   # exactly 24 chars
+    bootstrap_keyvault_name = "kv-exactly-24-chars12345" # exactly 24 chars
   }
 }
 
 run "workload_name_too_long_fails" {
   command = plan
   variables {
-    resource_name_workload = "toolng"   # > 4 chars
+    resource_name_workload = "toolng" # > 4 chars
   }
   expect_failures = [var.resource_name_workload]
 }
@@ -102,7 +102,7 @@ run "workload_name_too_long_fails" {
 run "workload_name_max_valid_passes" {
   command = plan
   variables {
-    resource_name_workload = "plat"   # exactly 4 chars
+    resource_name_workload = "plat" # exactly 4 chars
   }
 }
 
