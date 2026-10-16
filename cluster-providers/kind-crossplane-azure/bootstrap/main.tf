@@ -76,9 +76,10 @@ resource "azurerm_role_assignment" "uami_hub_contributor" {
 }
 
 data "azurerm_user_assigned_identity" "platform_write" {
-  # AVM module names the identity based on resource_name_workload/environment/location
-  # The managed_identity_client_ids output gives us the client_id; look up by client_id
-  # AVM creates identities in its own managed resource group
+  # AVM module names the identity based on resource_name_workload/environment/location.
+  # Naming pattern observed from AVM v0.1.1 source:
+  #   <workload>-<environment>-<location_short>-write-id
+  # TODO: verify this name after first `terraform plan` by checking the AVM-managed RG.
   name                = "${var.resource_name_workload}-${var.resource_name_environment}-${var.resource_name_location_short}-write-id"
   resource_group_name = module.cicd_bootstrap.resource_id != null ? split("/", module.cicd_bootstrap.resource_id)[4] : var.bootstrap_resource_group
 
