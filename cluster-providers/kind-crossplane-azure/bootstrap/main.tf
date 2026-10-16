@@ -156,7 +156,7 @@ resource "azurerm_key_vault_secret" "platform_config" {
     repoUrl        = "https://github.com/${var.github_org}/${var.github_repo}.git"
     repoRevision   = var.repo_revision
     clusterName    = var.hub_cluster_name
-    uamiClientId   = module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"]
+    uamiClientId   = try(module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"], "")
     resourcePrefix = var.resource_prefix
     acrLoginServer = module.acr.login_server
   })
@@ -222,7 +222,7 @@ resource "github_actions_environment_secret" "client_id" {
   repository      = var.github_repo
   environment     = var.github_environment
   secret_name     = "AZURE_CLIENT_ID"
-  plaintext_value = module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"]
+  plaintext_value = try(module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"], "")
 
   depends_on = [module.cicd_bootstrap]
 }
