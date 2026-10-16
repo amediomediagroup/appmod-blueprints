@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Date and version check reminder",
+      "trigger": "SessionStart",
+      "description": "At session start, print current date and remind to always websearch for latest stable versions before hardcoding any version numbers.",
+      "action": {
+        "type": "command",
+        "command": "DATE=$(date '+%Y-%m-%d %H:%M %Z')\necho \"📅 Current date: ${DATE}\"\necho \"\"\necho \"🔍 REMINDER: Always websearch for latest stable versions before hardcoding:\"\necho \"   - Terraform, AVM modules, azurerm provider\"\necho \"   - GitHub Actions (checkout, setup-terraform, azure/login, etc.)\"\necho \"   - Platform images (ArgoCD, ESO, cert-manager, Kyverno, Velero)\"\necho \"   - Helm chart versions\"\necho \"   - AKS supported Kubernetes versions (southeastasia)\"\necho \"\"\necho \"   Use: remote_web_search or GitHub API to verify before using any version number.\""
+      }
+    }
+  ]
+}
