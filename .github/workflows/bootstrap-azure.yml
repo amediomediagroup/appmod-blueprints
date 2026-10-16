@@ -47,9 +47,10 @@ on:
     - cron: "0 2 * * *"   # Daily drift detection 02:00 UTC
 
 # One apply at a time; PRs can cancel each other to avoid queue buildup
+# Terraform best practice: cancel-in-progress=false for apply/destroy (never interrupt state writes)
 concurrency:
-  group: bootstrap-azure-${{ github.event.inputs.action || github.event_name }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event.inputs.action != 'apply' && github.event.inputs.action != 'destroy' }}
 
 permissions:
   id-token: write

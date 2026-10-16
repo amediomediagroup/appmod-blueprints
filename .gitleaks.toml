@@ -1,0 +1,47 @@
+[extend]
+# Use gitleaks default ruleset as base
+useDefault = true
+
+# ── Paths to ignore ────────────────────────────────────────────────────────────
+[allowlist]
+description = "Global allowlist"
+
+paths = [
+  # Kiro IDE session cache — contains AI conversation context, not real secrets
+  '''.local/''',
+  # AI review artifacts
+  '''semantic-review/''',
+  # Test scaffolding scripts with placeholder tokens
+  '''test-scaffolding\.sh''',
+  # Debug pods used during development — not production
+  '''debug-pod\.yaml''',
+]
+
+# ── Known false-positive patterns ─────────────────────────────────────────────
+regexes = [
+  # password_expiry date strings (YYYY-MM-DD) misidentified as passwords
+  '''password_expiry\s*=\s*"\d{4}-\d{2}-\d{2}"''',
+  # Kubernetes secret kind declaration — not a secret value
+  '''kind:\s*Secret''',
+  # Backstage template placeholder replacement markers
+  '''REPLACE_WITH_REAL_TOKEN''',
+  # GitLab initial root password placeholder in workshop examples
+  '''initial_root_password:\s*"[^"]{8,}"''',
+]
+
+# ── Per-rule allowlists ────────────────────────────────────────────────────────
+[[rules]]
+id = "kubernetes-secret-yaml"
+[rules.allowlist]
+regexes = [
+  # Empty base64 values in K8s Secret templates
+  '''^\s+[a-z_]+:\s*$''',
+]
+
+[[rules]]
+id = "hashicorp-tf-password"
+[rules.allowlist]
+regexes = [
+  # Date strings used as password_expiry values
+  '''\d{4}-\d{2}-\d{2}''',
+]
