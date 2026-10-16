@@ -19,3 +19,8 @@ output "tenant_id" {
   value       = module.cicd_bootstrap.tenant_id
   sensitive   = true
 }
+
+output "acr_login_server" {
+  description = "ACR login server URL (e.g. myacr.azurecr.io)."
+  value       = module.acr.resource.login_server
+}

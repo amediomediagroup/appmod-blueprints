@@ -105,3 +105,13 @@ variable "github_environment" {
   default     = "azure-hub"
   description = "GitHub Actions environment name for the Azure hub deployment."
 }
+
+variable "acr_name" {
+  type        = string
+  description = "Azure Container Registry name (5-50 alphanumeric, globally unique)."
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9]{5,50}$", var.acr_name))
+    error_message = "ACR name must be 5-50 alphanumeric characters (no hyphens or underscores)."
+  }
+}

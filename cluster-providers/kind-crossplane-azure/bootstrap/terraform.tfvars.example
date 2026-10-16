@@ -25,3 +25,6 @@ resource_name_location_short = "<location-short>"  # e.g. sea, eus, weu
 github_org         = "<your-github-org>"
 github_repo        = "<your-repo>"
 github_environment = "azure-hub"
+
+# ── ACR ────────────────────────────────────────────────────────────────────────
+acr_name = "<acr-name>"   # 5-50 alphanumeric, globally unique (e.g. peeksplatformsea)

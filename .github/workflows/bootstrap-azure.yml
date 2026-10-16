@@ -44,6 +44,9 @@ on:
 
   workflow_dispatch:
     inputs:
+      environments:
+        description: "Environments to run (dev,test,stg,prod or 'all')"
+        default: "all"
       action:
         description: "Action (plan / apply / destroy)"
         type: choice
@@ -79,10 +82,88 @@ env:
   TF_VAR_github_repo: ${{ github.event.repository.name }}
   TF_VAR_resource_name_location_short: ${{ vars.LOCATION_SHORT }}
 
-# ── 1. Validate ───────────────────────────────────────────────────────────────
+# ── 1. Setup — detect which environments changed ──────────────────────────────
+# Uses dorny/paths-filter@v4 to detect which env files changed.
+# Rules:
+#   envs/dev.tfvars changed   → matrix: [dev]
+#   main.tf / *.tf changed    → matrix: [dev, test, stg, prod]  (shared code)
+#   workflow_dispatch          → uses inputs.environments
+#   schedule                  → all envs (drift detection)
+jobs:
+  setup:
+    name: Detect changed environments
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.compute.outputs.matrix }}
+      has_envs: ${{ steps.compute.outputs.has_envs }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            shared:
+              - 'cluster-providers/kind-crossplane-azure/bootstrap/*.tf'
+              - 'cluster-providers/kind-crossplane-azure/bootstrap/policies/**'
+            dev:
+              - 'cluster-providers/kind-crossplane-azure/bootstrap/envs/dev.tfvars'
+            test:
+              - 'cluster-providers/kind-crossplane-azure/bootstrap/envs/test.tfvars'
+            stg:
+              - 'cluster-providers/kind-crossplane-azure/bootstrap/envs/stg.tfvars'
+            prod:
+              - 'cluster-providers/kind-crossplane-azure/bootstrap/envs/prod.tfvars'
+
+      - name: Compute environment matrix
+        id: compute
+        env:
+          MANUAL_ENVS: ${{ github.event.inputs.environments || '' }}
+          SHARED: ${{ steps.filter.outputs.shared || 'false' }}
+          DEV:    ${{ steps.filter.outputs.dev    || 'false' }}
+          TEST:   ${{ steps.filter.outputs.test   || 'false' }}
+          STG:    ${{ steps.filter.outputs.stg    || 'false' }}
+          PROD:   ${{ steps.filter.outputs.prod   || 'false' }}
+        run: |
+          ALL='["dev","test","stg","prod"]'
+
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # Drift detection — always all envs
+            ENVS="$ALL"
+
+          elif [ -n "$MANUAL_ENVS" ]; then
+            # Manual dispatch — explicit env list or "all"
+            if [ "$MANUAL_ENVS" = "all" ]; then
+              ENVS="$ALL"
+            else
+              ENVS=$(echo "$MANUAL_ENVS" | tr ',' '\n' | jq -R . | jq -sc .)
+            fi
+
+          elif [ "$SHARED" = "true" ]; then
+            # Shared .tf files changed → all envs
+            echo "Shared Terraform code changed → running all environments"
+            ENVS="$ALL"
+
+          else
+            # Only specific env tfvars changed → targeted envs only
+            ENVS=$(
+              { [ "$DEV"  = "true" ] && printf '"dev"\n';  true; }
+              { [ "$TEST" = "true" ] && printf '"test"\n'; true; }
+              { [ "$STG"  = "true" ] && printf '"stg"\n';  true; }
+              { [ "$PROD" = "true" ] && printf '"prod"\n'; true; }
+            | jq -sc '.')
+          fi
+
+          echo "matrix={\"env\":$ENVS}" >> "$GITHUB_OUTPUT"
+          [ "$ENVS" = "[]" ] && echo "has_envs=false" >> "$GITHUB_OUTPUT" \
+                              || echo "has_envs=true"  >> "$GITHUB_OUTPUT"
+          echo "Environments: $ENVS"
+
+# ── 2. Validate ───────────────────────────────────────────────────────────────
 # Fast feedback: format, validate, lint, security scan
 # Runs on PR and workflow_dispatch (not schedule)
-jobs:
   validate:
     name: Validate
     runs-on: ubuntu-latest
