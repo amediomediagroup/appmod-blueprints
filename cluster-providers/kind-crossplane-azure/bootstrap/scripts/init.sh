@@ -120,25 +120,34 @@ az role assignment create \
 echo "  Storage role assigned"
 
 echo ""
-echo "▸ Registering federated credential for bootstrap-azure.yml (environment: bootstrap)..."
-# Security: environment-scoped subject restricts token to runs in 'bootstrap' environment
+echo "▸ Registering federated credentials for bootstrap-azure.yml..."
+# Security: environment-scoped subject restricts apply/destroy to 'bootstrap' environment
 # Use immutable subject format (GitHub migrated to numeric node IDs in July 2026):
-#   repo:<org>@<orgId>/<repo>@<repoId>:environment:<env>
-# See: https://learn.microsoft.com/entra/workload-id/workload-identities-github-immutable-subjects
+#   repo:<org>@<orgId>/<repo>@<repoId>:environment:<env>  or  :ref:refs/heads/<branch>
 GITHUB_ORG_ID=$(gh api "/orgs/${GITHUB_ORG}" --jq '.id')
 GITHUB_REPO_ID=$(gh api "/repos/${GITHUB_ORG}/${GITHUB_REPO}" --jq '.id')
-FEDERATED_SUBJECT="repo:${GITHUB_ORG}@${GITHUB_ORG_ID}/${GITHUB_REPO}@${GITHUB_REPO_ID}:environment:bootstrap"
 
+# 1. environment:bootstrap — for apply/destroy jobs
 az identity federated-credential create \
   --identity-name "$INIT_UAMI_NAME" \
   --resource-group "$BOOTSTRAP_RG" \
   --name "github-bootstrap-env" \
   --issuer "https://token.actions.githubusercontent.com" \
-  --subject "$FEDERATED_SUBJECT" \
+  --subject "repo:${GITHUB_ORG}@${GITHUB_ORG_ID}/${GITHUB_REPO}@${GITHUB_REPO_ID}:environment:bootstrap" \
   --audiences "api://AzureADTokenExchange" \
   --output none
 
-echo "  Federated credential registered"
+# 2. ref:refs/heads/main — for push-to-main triggers (validate/plan on branch)
+az identity federated-credential create \
+  --identity-name "$INIT_UAMI_NAME" \
+  --resource-group "$BOOTSTRAP_RG" \
+  --name "github-main-branch" \
+  --issuer "https://token.actions.githubusercontent.com" \
+  --subject "repo:${GITHUB_ORG}@${GITHUB_ORG_ID}/${GITHUB_REPO}@${GITHUB_REPO_ID}:ref:refs/heads/main" \
+  --audiences "api://AzureADTokenExchange" \
+  --output none
+
+echo "  Federated credentials registered (environment:bootstrap + ref:refs/heads/main)"
 
 echo ""
 echo "▸ Setting GitHub repo secrets for bootstrap workflow..."
