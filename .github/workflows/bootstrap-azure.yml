@@ -204,8 +204,13 @@ jobs:
       - name: terraform plan
         id: plan
         run: |
+          set +e   # don't fail immediately — capture exit code ourselves
           terraform plan -out=tfplan -no-color 2>&1 | tee plan.txt
-          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          TF_EXIT=${PIPESTATUS[0]}
+          echo "exitcode=$TF_EXIT" >> "$GITHUB_OUTPUT"
+          # 0 = no changes, 1 = error, 2 = changes (with -detailed-exitcode)
+          # setup-terraform wrapper may pass through as-is; treat >=2 as warnings
+          if [ "$TF_EXIT" -eq 1 ]; then exit 1; fi
 
       - name: Extract plan summary
         id: summary

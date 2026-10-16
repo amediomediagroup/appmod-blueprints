@@ -105,9 +105,9 @@ resource "azurerm_key_vault" "bootstrap" {
     "managed-by" = "terraform"
   }
 
-  rbac_authorization_enabled = true  # renamed from enable_rbac_authorization in azurerm v4
+  rbac_authorization_enabled = true # renamed from enable_rbac_authorization in azurerm v4
   soft_delete_retention_days = 7
-  purge_protection_enabled   = true  # CKV_AZURE_42 + CKV_AZURE_110
+  purge_protection_enabled   = true # CKV_AZURE_42 + CKV_AZURE_110
 
   # checkov:skip=CKV_AZURE_189:Bootstrap KV requires public access — GitHub-hosted runners are not in Azure VNet
   # checkov:skip=CKV2_AZURE_32:Private endpoint not applicable — VNet doesn't exist at bootstrap phase
@@ -144,8 +144,8 @@ resource "azurerm_role_assignment" "uami_kv_reader" {
 resource "azurerm_key_vault_secret" "platform_config" {
   name            = "platform-config"
   key_vault_id    = azurerm_key_vault.bootstrap.id
-  content_type    = "application/json"                            # CKV_AZURE_114
-  expiration_date = timeadd(timestamp(), "8760h")                 # CKV_AZURE_41 — 1 year
+  content_type    = "application/json"            # CKV_AZURE_114
+  expiration_date = timeadd(timestamp(), "8760h") # CKV_AZURE_41 — 1 year
 
   value = jsonencode({
     subscriptionId = var.subscription_id
@@ -163,8 +163,10 @@ resource "azurerm_key_vault_secret" "platform_config" {
   depends_on = [azurerm_role_assignment.runner_kv_officer]
 
   lifecycle {
-    # Don't overwrite on replan — preserves overlay_repo_url set post-install
-    ignore_changes = [value]
+    # Don't overwrite on replan — preserves overlay_repo_url set post-install.
+    # expiration_date uses timestamp() which is non-deterministic — ignore to prevent
+    # perpetual drift (every plan would show "1 to update" otherwise).
+    ignore_changes = [value, expiration_date]
   }
 }
 
