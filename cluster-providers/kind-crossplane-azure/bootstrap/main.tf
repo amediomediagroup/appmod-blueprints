@@ -184,7 +184,7 @@ module "acr" {
   name                = var.acr_name
   resource_group_name = split("/", module.cicd_bootstrap.resource_id)[4]
   location            = var.location
-  sku                 = "Premium"  # Premium: geo-replication, private endpoint, retention
+  sku                 = "Premium" # Premium: geo-replication, private endpoint, retention
   enable_telemetry    = false
 
   # RBAC only — no admin account (CKV_AZURE_137)
