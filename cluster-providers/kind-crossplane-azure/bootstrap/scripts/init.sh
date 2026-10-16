@@ -147,7 +147,17 @@ az identity federated-credential create \
   --audiences "api://AzureADTokenExchange" \
   --output none
 
-echo "  Federated credentials registered (environment:bootstrap + ref:refs/heads/main)"
+# 3. pull_request — for plan jobs triggered by PRs (read-only OIDC)
+az identity federated-credential create \
+  --identity-name "$INIT_UAMI_NAME" \
+  --resource-group "$BOOTSTRAP_RG" \
+  --name "github-pull-request" \
+  --issuer "https://token.actions.githubusercontent.com" \
+  --subject "repo:${GITHUB_ORG}@${GITHUB_ORG_ID}/${GITHUB_REPO}@${GITHUB_REPO_ID}:pull_request" \
+  --audiences "api://AzureADTokenExchange" \
+  --output none
+
+echo "  Federated credentials registered (environment:bootstrap + ref:refs/heads/main + pull_request)"
 
 echo ""
 echo "▸ Setting GitHub repo secrets for bootstrap workflow..."
