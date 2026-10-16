@@ -21,10 +21,6 @@ on:
         type: choice
         options: [plan, apply, destroy]
         default: plan
-  push:
-    branches: [main]
-    paths:
-      - "cluster-providers/kind-crossplane-azure/bootstrap/**"
 
 permissions:
   id-token: write       # OIDC federation
