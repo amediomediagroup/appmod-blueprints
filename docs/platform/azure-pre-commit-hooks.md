@@ -139,16 +139,38 @@ image: myacr.azurecr.io/nginx@sha256:1a2b3c...
 
 ## CI integration
 
-`pr-lint.yml` chạy pre-commit trên PR diff:
+`pr.yml` chạy pre-commit trên PR diff với 3 jobs song song:
 
-```yaml
-pre-commit run \
-  --from-ref "origin/${{ github.base_ref }}" \
-  --to-ref HEAD \
-  --show-diff-on-failure
+```
+PR
+├── title      — Conventional Commits format check (no checkout)
+├── pre-commit — pre-commit hooks (cần terraform + tflint)
+└── gitleaks   — secrets scan (PR commits only)
 ```
 
-Gitleaks riêng, scan PR commits only:
+Job `pre-commit` install terraform và tflint trước khi chạy:
+
+```yaml
+- uses: hashicorp/setup-terraform@v4.0.1   # SHA-pinned
+  with:
+    terraform_version: "~1.11"
+
+- uses: terraform-linters/setup-tflint@v6.3.2   # SHA-pinned
+  with:
+    tflint_version: latest
+
+- name: Run on changed files
+  env:
+    SKIP: gitleaks   # handled separately with PR-scoped scan
+  run: |
+    pre-commit run \
+      --from-ref "origin/${{ github.base_ref }}" \
+      --to-ref HEAD \
+      --show-diff-on-failure
+```
+
+Gitleaks chạy riêng trong job `gitleaks`, scan PR commits only:
+
 ```bash
 gitleaks detect \
   --config=.gitleaks.toml \

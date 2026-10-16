@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# .git-hooks/pre-commit — install with: git config core.hooksPath .git-hooks
+# Runs fast local checks before every commit.
+set -euo pipefail
+
+ROOT=$(git rev-parse --show-toplevel)
+STAGED=$(git diff --cached --name-only)
+FAILED=0
+
+# ── terraform fmt ─────────────────────────────────────────────────────────────
+TF_FILES=$(echo "$STAGED" | grep -E '\.(tf|tfvars|tftest\.hcl)$' || true)
+if [ -n "$TF_FILES" ] && command -v terraform &>/dev/null; then
+  echo "[pre-commit] terraform fmt"
+  for f in $TF_FILES; do
+    # Fix triple-space comments (terraform fmt misses these in .tftest.hcl)
+    sed -i '' 's/\([^ ]\)   *#/\1 #/g' "$ROOT/$f" 2>/dev/null || true
+    terraform fmt "$ROOT/$f" &>/dev/null
+    git add "$ROOT/$f"   # re-stage auto-fixed file
+  done
+  echo "  ✓ fmt done (auto-fixed and re-staged)"
+fi
+
+# ── actionlint ────────────────────────────────────────────────────────────────
+WF=$(echo "$STAGED" | grep -E '\.github/workflows/.*\.ya?ml$' || true)
+if [ -n "$WF" ] && command -v actionlint &>/dev/null; then
+  echo "[pre-commit] actionlint"
+  for f in $WF; do
+    OUT=$(actionlint "$ROOT/$f" 2>&1)
+    [ -z "$OUT" ] && echo "  ✓ $f" || { echo "  ❌ $f:"; echo "$OUT"; FAILED=1; }
+  done
+fi
+
+# ── gitleaks ──────────────────────────────────────────────────────────────────
+if command -v gitleaks &>/dev/null; then
+  echo "[pre-commit] gitleaks"
+  CFG=""; [ -f "$ROOT/.gitleaks.toml" ] && CFG="--config=$ROOT/.gitleaks.toml"
+  gitleaks protect --staged $CFG --exit-code=1 --redact --no-banner 2>/dev/null \
+    && echo "  ✓ no secrets" || { echo "  ❌ secrets detected"; FAILED=1; }
+fi
+
+# ── Conventional commit ───────────────────────────────────────────────────────
+MSG_FILE="$ROOT/.git/COMMIT_EDITMSG"
+if [ -f "$MSG_FILE" ]; then
+  MSG=$(head -1 "$MSG_FILE")
+  PATTERN='^(feat|fix|docs|chore|refactor|perf|test|ci|build|revert)(\([a-z0-9._/-]+\))?(!)?: .{1,100}$'
+  echo "[pre-commit] commit message: \"$MSG\""
+  echo "$MSG" | grep -qE "$PATTERN" \
+    && echo "  ✓ OK" \
+    || { echo "  ❌ must be: <type>(<scope>): <desc>"; FAILED=1; }
+fi
+
+[ "$FAILED" -eq 0 ] && exit 0 || exit 1

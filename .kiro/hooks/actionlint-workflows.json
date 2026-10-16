@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "actionlint on workflow save",
+      "trigger": "PostFileSave",
+      "description": "Run actionlint on any saved GitHub Actions workflow file and report errors.",
+      "matcher": "\\.github/workflows/.*\\.ya?ml$",
+      "action": {
+        "type": "command",
+        "command": "FILE=$(echo \"$KIRO_TOOL_INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('path',''))\" 2>/dev/null)\nif [ -n \"$FILE\" ] && command -v actionlint &>/dev/null; then\n  actionlint \"$FILE\" 2>&1 && echo \"✓ actionlint OK: $FILE\" || echo \"❌ actionlint errors above — fix before committing\"\nfi"
+      }
+    }
+  ]
+}

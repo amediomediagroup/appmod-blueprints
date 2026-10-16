@@ -147,7 +147,17 @@ az identity federated-credential create \
   --audiences "api://AzureADTokenExchange" \
   --output none
 
-echo "  Federated credentials registered (environment:bootstrap + ref:refs/heads/main)"
+# 3. pull_request — for plan jobs triggered by PRs (read-only OIDC)
+az identity federated-credential create \
+  --identity-name "$INIT_UAMI_NAME" \
+  --resource-group "$BOOTSTRAP_RG" \
+  --name "github-pull-request" \
+  --issuer "https://token.actions.githubusercontent.com" \
+  --subject "repo:${GITHUB_ORG}@${GITHUB_ORG_ID}/${GITHUB_REPO}@${GITHUB_REPO_ID}:pull_request" \
+  --audiences "api://AzureADTokenExchange" \
+  --output none
+
+echo "  Federated credentials registered (environment:bootstrap + ref:refs/heads/main + pull_request)"
 
 echo ""
 echo "▸ Setting GitHub repo secrets for bootstrap workflow..."
@@ -164,6 +174,19 @@ gh secret set AZURE_SUBSCRIPTION_ID \
   --body "$SUBSCRIPTION_ID"
 
 echo "  GitHub secrets set (3 secrets)"
+
+echo ""
+echo "─────────────────────────────────────────────────────────────────────"
+echo "▸ GitHub App setup required (replaces GH_PAT)"
+echo ""
+echo "  Create a GitHub App in your org with these permissions:"
+echo "    Repository: environments=write, secrets=write, contents=read, metadata=read"
+echo "    Organization: members=read"
+echo ""
+echo "  Then install the App on this repo and run:"
+echo "    gh secret set GH_APP_ID --repo ${GITHUB_ORG}/${GITHUB_REPO} --body '<app-id>'"
+echo "    gh secret set GH_APP_PRIVATE_KEY --repo ${GITHUB_ORG}/${GITHUB_REPO} --body \"\$(cat private-key.pem)\""
+echo "─────────────────────────────────────────────────────────────────────"
 
 echo ""
 echo "▸ Setting GitHub repo variables for Terraform backend..."

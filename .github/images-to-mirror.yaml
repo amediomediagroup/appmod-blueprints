@@ -1,0 +1,102 @@
+# images-to-mirror.yaml — Platform images and Helm charts to pull, scan, push to ACR.
+# Verified stable versions compatible with AKS 1.36 (southeastasia, 2026-10).
+#
+# Container images: mirrored via image-mirror.yml (scan + sign)
+# Helm charts:      mirrored as OCI via helm-mirror.yml
+#
+# Update: bump versions here → workflows pick them up automatically.
+
+# ── Container images ──────────────────────────────────────────────────────────
+images:
+  # ArgoCD v3.5.5 — K8s 1.24-1.36 compatible
+  - source: quay.io/argoproj/argocd:v3.5.5
+    target: argoproj/argocd:v3.5.5
+  # ArgoCD dependency: Redis cache
+  - source: redis:7.4.11-alpine
+    target: redis:7.4.11-alpine
+  # ArgoCD dependency: Dex OIDC provider (SSO)
+  - source: ghcr.io/dexidp/dex:v2.46.0
+    target: dexidp/dex:v2.46.0
+
+  # External Secrets Operator v2.13.0
+  - source: ghcr.io/external-secrets/external-secrets:v2.13.0
+    target: external-secrets/external-secrets:v2.13.0
+
+  # cert-manager v1.21.2 — K8s 1.28-1.36 compatible
+  - source: quay.io/jetstack/cert-manager-controller:v1.21.2
+    target: jetstack/cert-manager-controller:v1.21.2
+  - source: quay.io/jetstack/cert-manager-webhook:v1.21.2
+    target: jetstack/cert-manager-webhook:v1.21.2
+  - source: quay.io/jetstack/cert-manager-cainjector:v1.21.2
+    target: jetstack/cert-manager-cainjector:v1.21.2
+
+  # Kyverno v1.19.1 — K8s 1.29-1.36 compatible
+  - source: ghcr.io/kyverno/kyverno:v1.19.1
+    target: kyverno/kyverno:v1.19.1
+  - source: ghcr.io/kyverno/background-controller:v1.19.1
+    target: kyverno/background-controller:v1.19.1
+  - source: ghcr.io/kyverno/reports-controller:v1.19.1
+    target: kyverno/reports-controller:v1.19.1
+  - source: ghcr.io/kyverno/cleanup-controller:v1.19.1
+    target: kyverno/cleanup-controller:v1.19.1
+  # Kyverno init container
+  - source: ghcr.io/kyverno/kyvernopre:v1.19.1
+    target: kyverno/kyvernopre:v1.19.1
+
+  # Metrics Server v0.9.0 — K8s 1.21-1.36 compatible
+  - source: registry.k8s.io/metrics-server/metrics-server:v0.9.0
+    target: metrics-server/metrics-server:v0.9.0
+
+  # Velero v1.18.4 — K8s 1.28-1.36 compatible
+  - source: velero/velero:v1.18.4
+    target: velero/velero:v1.18.4
+  # Velero Azure plugin
+  - source: velero/velero-plugin-for-microsoft-azure:v1.14.4
+    target: velero/velero-plugin-for-microsoft-azure:v1.14.4
+
+# ── Helm charts (OCI push to ACR) ─────────────────────────────────────────────
+# Usage after mirroring:
+#   helm install <name> oci://<acr>.azurecr.io/helm/<chart> --version <version>
+#
+# Format:
+#   name:     Helm chart name
+#   repo:     Public Helm repo URL
+#   version:  Chart version (not app version)
+#   acr_path: ACR path prefix (always helm/)
+
+helm_charts:
+  # ArgoCD — chart 10.10.5 → app v3.5.5
+  - name: argo-cd
+    repo: https://argoproj.github.io/argo-helm
+    version: "10.10.5"
+    acr_path: helm
+
+  # External Secrets Operator — chart 0.13.0 → app v2.13.0
+  - name: external-secrets
+    repo: https://charts.external-secrets.io
+    version: "0.13.0"
+    acr_path: helm
+
+  # cert-manager — chart v1.21.2 → app v1.21.2
+  - name: cert-manager
+    repo: https://charts.jetstack.io
+    version: "v1.21.2"
+    acr_path: helm
+
+  # Kyverno — chart 3.4.4 → app v1.19.1
+  - name: kyverno
+    repo: https://kyverno.github.io/kyverno
+    version: "3.4.4"
+    acr_path: helm
+
+  # Metrics Server — chart 3.14.0 → app v0.9.0
+  - name: metrics-server
+    repo: https://kubernetes-sigs.github.io/metrics-server
+    version: "3.14.0"
+    acr_path: helm
+
+  # Velero — chart 12.2.1 → app v1.18.4
+  - name: velero
+    repo: https://vmware-tanzu.github.io/helm-charts
+    version: "12.2.1"
+    acr_path: helm
