@@ -1,7 +1,7 @@
 # Azure Bootstrap — Setup & Deploy Guide
 
 > Provider: `kind-crossplane-azure`
-> Last updated: 2026-10-16
+> Last updated: 2026-10-16 (updated: PR plan flow, cache, envs/)
 
 Hướng dẫn deploy platform lên Azure từ đầu đến cuối.
 
@@ -13,7 +13,10 @@ Hướng dẫn deploy platform lên Azure từ đầu đến cuối.
 Giai đoạn 1 — Init (local, 1 lần)
   scripts/init.sh
     → TF state storage (Azure Blob)
-    → Init UAMI + federated credentials (environment:bootstrap + ref:main)
+    → Init UAMI + federated credentials (3):
+        environment:bootstrap  — apply/destroy jobs
+        ref:refs/heads/main    — push-to-main plan
+        pull_request           — PR plan (read-only OIDC)
     → GitHub secrets: AZURE_BOOTSTRAP_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
     → GitHub vars: TF_BACKEND_RESOURCE_GROUP, TF_BACKEND_STORAGE_ACCOUNT
 
@@ -73,7 +76,7 @@ Script tạo ra:
 | RG `rg-platform-bootstrap-init` | Chứa init resources |
 | Storage account `stplatformtfstate<6-hex>` | Terraform state backend |
 | Init UAMI `platform-bootstrap-init-mi` | Identity cho bootstrap workflow |
-| Federated credential (2) | `environment:bootstrap` + `ref:refs/heads/main` (immutable subject format) |
+| Federated credential (3) | `environment:bootstrap` + `ref:refs/heads/main` + `pull_request` (immutable subject format) |
 | GitHub secrets (3) | `AZURE_BOOTSTRAP_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` |
 | GitHub vars (2) | `TF_BACKEND_RESOURCE_GROUP`, `TF_BACKEND_STORAGE_ACCOUNT` |
 | `backend.conf` (local) | Backend config cho Terraform, gitignored |
@@ -128,7 +131,29 @@ Workflow: **Bootstrap Azure Platform** (`.github/workflows/bootstrap-azure.yml`)
 
 Xem pipeline chi tiết tại: `docs/platform/azure-cicd-pipeline.md`
 
-### Chạy plan trước
+### Plan qua Pull Request (khuyến nghị)
+
+Cách an toàn nhất để review thay đổi Terraform trước khi apply:
+
+```bash
+# 1. Tạo branch và thêm/sửa envs/*.tfvars
+git checkout -b feat/bootstrap-dev-env
+# sửa cluster-providers/kind-crossplane-azure/bootstrap/envs/dev.tfvars
+
+# 2. Push và mở PR
+git push -u origin feat/bootstrap-dev-env
+gh pr create --base main --head feat/bootstrap-dev-env
+
+# 3. Workflow tự động chạy plan và post comment lên PR
+# 4. Review plan output trong PR comment
+# 5. Merge PR → push trigger → apply (gated by environment)
+```
+
+Paths-filter tự detect env từ files thay đổi:
+- `envs/dev.tfvars` changed → plan dev only
+- `*.tf` changed → plan all envs
+
+### Chạy plan thủ công
 
 ```
 GitHub Actions → Bootstrap Azure Platform → Run workflow
@@ -144,7 +169,7 @@ GitHub Actions → Bootstrap Azure Platform → Run workflow
   action: apply
 ```
 
-> Apply được gated bởi `environment:bootstrap` — cần reviewer approve + đợi 5 phút.
+> Apply được gated bởi `environment:bootstrap-{env}` — dev không cần approve, stg/prod cần reviewer + wait.
 
 Sau bootstrap, revoke elevated roles của init UAMI:
 

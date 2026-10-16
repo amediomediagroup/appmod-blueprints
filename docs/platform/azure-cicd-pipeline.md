@@ -1,6 +1,6 @@
 # Azure Bootstrap — CI/CD Pipeline
 
-> Last updated: 2026-10-16
+> Last updated: 2026-10-16 (updated: Terraform provider cache, pull_request OIDC)
 
 ---
 
@@ -133,6 +133,54 @@ Set bởi Bootstrap Terraform (Giai đoạn 2):
 
 - `tfplan-{env}-{sha}` — Terraform plan artifact per env, retention 7 days
 - Apply downloads EXACT plan từ plan job → zero drift giữa plan và apply
+
+---
+
+## Terraform provider cache
+
+Workflow dùng `TF_PLUGIN_CACHE_DIR` để cache providers giữa các steps trong cùng job:
+
+```yaml
+env:
+  TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+
+steps:
+  - name: Cache Terraform providers
+    uses: actions/cache@v6.1.0  # SHA-pinned: 55cc8345...
+    with:
+      path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+      key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+      restore-keys: |
+        ${{ runner.os }}-terraform-
+```
+
+Cache key dựa trên `.terraform.lock.hcl` — thay đổi provider version tự động invalidate cache.
+
+---
+
+## OIDC federated credentials
+
+Workflow dùng Azure OIDC (không có static secrets). Init UAMI cần 3 federated credentials:
+
+| Name | Subject | Dùng ở |
+|---|---|---|
+| `github-bootstrap-env` | `repo:<org>@<orgId>/<repo>@<repoId>:environment:bootstrap` | apply / destroy jobs |
+| `github-main-branch` | `repo:<org>@<orgId>/<repo>@<repoId>:ref:refs/heads/main` | push-to-main plan |
+| `github-pull-request` | `repo:<org>@<orgId>/<repo>@<repoId>:pull_request` | PR plan (read-only) |
+
+> **Immutable format**: GitHub dùng numeric node IDs (`@<orgId>`, `@<repoId>`) từ July 2026.
+> Subject phải khớp chính xác với claim trong JWT — lấy exact subject từ error message nếu cần.
+
+Thêm federated credential thủ công (nếu thiếu):
+```bash
+az identity federated-credential create \
+  --identity-name "platform-bootstrap-init-mi" \
+  --resource-group "rg-platform-bootstrap-init" \
+  --name "github-pull-request" \
+  --issuer "https://token.actions.githubusercontent.com" \
+  --subject "repo:<org>@<orgId>/<repo>@<repoId>:pull_request" \
+  --audiences "api://AzureADTokenExchange"
+```
 
 ---
 

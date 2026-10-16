@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Terraform fmt check",
+      "trigger": "PostFileSave",
+      "description": "Run terraform fmt -check when a .tf or .tfvars file is saved; prints a warning if formatting is needed.",
+      "matcher": "\\.tf$|\\.tfvars$",
+      "action": {
+        "type": "command",
+        "command": "FILE=$(echo \"$KIRO_TOOL_INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('path',''))\" 2>/dev/null)\nDIR=$(dirname \"$FILE\")\nif [ -n \"$FILE\" ] && [ -f \"$FILE\" ]; then\n  cd \"$DIR\" 2>/dev/null || exit 0\n  terraform fmt -check -diff \"$FILE\" 2>/dev/null \\\n    && echo \"✓ terraform fmt OK: $FILE\" \\\n    || echo \"⚠ terraform fmt needed: run 'terraform fmt $FILE'\"\nfi"
+      }
+    }
+  ]
+}

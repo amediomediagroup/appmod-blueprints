@@ -2,7 +2,7 @@
 
 > Provider: `kind-crossplane-azure`
 > Last updated: 2026-10-16
-> Status: Design (implementation in progress)
+> Status: Implemented
 
 ---
 
@@ -51,21 +51,17 @@ cluster-providers/kind-crossplane-azure/bootstrap/
 
 ```hcl
 # cluster-providers/kind-crossplane-azure/bootstrap/envs/dev.tfvars
-# Non-sensitive values only — committed to git
+# Non-sensitive env-specific overrides — committed to git
 # Sensitive values (subscription_id, tenant_id, platform_domain) come from
-# GitHub environment secrets: bootstrap-dev
+# TF_VAR_* GitHub secrets — never put them here.
+# Shared non-sensitive values come from TF_VAR_* GitHub vars (location, acr_name, etc.)
 
-location                     = "southeastasia"
-hub_resource_group           = "rg-peeks-hub-dev"
-hub_cluster_name             = "peeks-hub-dev"
-bootstrap_keyvault_name      = "kv-peeks-bootstrap-dev"
-resource_prefix              = "dev"
-resource_name_environment    = "dev"
-resource_name_location_short = "sea"
-resource_name_workload       = "plat"
-github_environment           = "azure-hub-dev"
-repo_revision                = "main"
+resource_name_environment = "dev"
+github_environment        = "azure-hub"
+repo_revision             = "main"
 ```
+
+> Chỉ cần override những gì khác nhau giữa các envs. Giá trị shared đến từ `TF_VAR_*` GitHub vars.
 
 ### Ví dụ `envs/prod.tfvars`
 
