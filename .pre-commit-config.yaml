@@ -66,6 +66,24 @@ repos:
           - build
           - revert
 
+  # ── Local custom checks ──────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: check-action-sha-pins
+        name: GitHub Actions — verify SHA-pinned (no floating tags)
+        language: script
+        entry: .pre-commit-hooks/check-action-sha-pins.sh
+        files: ^\.github/workflows/.*\.ya?ml$
+        pass_filenames: true
+
+      - id: check-helm-stable
+        name: Helm — no pre-release versions or 'latest' image tags
+        language: script
+        entry: .pre-commit-hooks/check-helm-stable.sh
+        files: (Chart\.ya?ml|values\.ya?ml|registry/.*\.ya?ml|addons\.ya?ml)$
+        exclude: ^\.github/
+        pass_filenames: true
+
 # ── CI-only configuration ────────────────────────────────────────────────────
 # In CI (pr-lint.yml), pre-commit runs on PR diff only:
 #   SKIP=gitleaks pre-commit run --from-ref origin/main --to-ref HEAD
