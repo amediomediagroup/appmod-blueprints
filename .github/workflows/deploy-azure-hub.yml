@@ -3,9 +3,19 @@ name: Deploy Azure Hub
 # SECURITY MODEL:
 # - Only 3 GitHub secrets required: AZURE_CLIENT_ID, AZURE_TENANT_ID, BOOTSTRAP_KV_NAME
 # - All platform config (subscription ID, location, domain, cluster name, etc.)
-#   is fetched from the Bootstrap Key Vault at runtime and NEVER stored in GitHub.
+#   is fetched from the Bootstrap Key Vault at runtime — NEVER stored in GitHub.
 # - All sensitive values are masked via ::add-mask:: before use.
 # - No customer PII appears in workflow logs or code.
+#
+# Trigger: manual only (workflow_dispatch)
+# Gate:    environment:azure-hub (required reviewer + wait timer)
+#          environment:azure-hub-destroy for destructive actions (extra protection)
+#
+# Actions:
+#   install      — provision AKS + bootstrap platform (idempotent)
+#   status       — show current cluster and ArgoCD sync status
+#   destroy-kind — delete local Kind bootstrap cluster only (AKS persists)
+#   destroy      — ⚠️ FULL TEARDOWN — deletes AKS cluster and all resources
 
 on:
   workflow_dispatch:
@@ -13,24 +23,37 @@ on:
       hub_cluster_name:
         description: "Hub AKS cluster name"
         required: true
+      kubernetes_version:
+        description: "AKS Kubernetes version (e.g. 1.37)"
+        required: false
+        default: "1.37"
       action:
         description: "Action to run"
         type: choice
-        options: [install, status, destroy, destroy-kind]
+        options: [install, status, destroy-kind, destroy]
         default: install
 
+# Prevent concurrent deploys to the same cluster
+concurrency:
+  group: deploy-azure-hub-${{ inputs.hub_cluster_name }}
+  cancel-in-progress: false   # never cancel a running deploy
+
 permissions:
-  id-token: write   # required for OIDC federation
+  id-token: write   # OIDC federation
   contents: read
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
-    environment: azure-hub
+    name: ${{ inputs.action }} — ${{ inputs.hub_cluster_name }}
+    runs-on: ubuntu-24.04   # pinned — ubuntu-latest migrates to Ubuntu 26 on Oct 19 2026
+    timeout-minutes: 90     # task install can take 45-60min; give headroom
+    # Destructive actions use a separate environment with extra protection
+    environment: ${{ (inputs.action == 'destroy') && 'azure-hub-destroy' || 'azure-hub' }}
+
     steps:
       - uses: actions/checkout@v7
 
-      # Authenticate with Azure using OIDC — no subscription-id needed at this step
+      # Authenticate with Azure using OIDC — subscription fetched from KV, not hardcoded
       - uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -81,33 +104,36 @@ jobs:
           [ -z "$UAMI_CLIENT_ID" ] && UAMI_CLIENT_ID="${{ secrets.AZURE_CLIENT_ID }}"
           echo "::add-mask::$UAMI_CLIENT_ID"
 
-          # Derive KV name from cluster name (naming convention: first 12 chars + -kv)
+          # Derive cluster KV name from cluster name (convention: first 12 chars + -kv)
           CLUSTER="${{ inputs.hub_cluster_name }}"
           KV_NAME="${CLUSTER:0:12}-kv"
 
           # Set subscription context
           az account set --subscription "$SUB_ID"
 
-          # Write to GITHUB_ENV (values are already masked above)
-          echo "AZURE_SUB_ID=$SUB_ID"           >> "$GITHUB_ENV"
-          echo "AZURE_LOCATION=$LOCATION"        >> "$GITHUB_ENV"
-          echo "AZURE_RG=$RG"                    >> "$GITHUB_ENV"
-          echo "PLATFORM_DOMAIN=$DOMAIN"         >> "$GITHUB_ENV"
-          echo "REPO_URL=$REPO_URL"              >> "$GITHUB_ENV"
-          echo "REPO_REVISION=$REPO_REV"         >> "$GITHUB_ENV"
-          echo "RESOURCE_PREFIX=$PREFIX"         >> "$GITHUB_ENV"
-          echo "AZURE_UAMI_CLIENT_ID=$UAMI_CLIENT_ID" >> "$GITHUB_ENV"
-          echo "AZURE_KV_NAME=$KV_NAME"          >> "$GITHUB_ENV"
+          # Write to GITHUB_ENV (values already masked above)
+          {
+            echo "AZURE_SUB_ID=$SUB_ID"
+            echo "AZURE_LOCATION=$LOCATION"
+            echo "AZURE_RG=$RG"
+            echo "PLATFORM_DOMAIN=$DOMAIN"
+            echo "REPO_URL=$REPO_URL"
+            echo "REPO_REVISION=$REPO_REV"
+            echo "RESOURCE_PREFIX=$PREFIX"
+            echo "AZURE_UAMI_CLIENT_ID=$UAMI_CLIENT_ID"
+            echo "AZURE_KV_NAME=$KV_NAME"
+          } >> "$GITHUB_ENV"
 
       # Build config.local.yaml entirely from masked env vars — no PII in file
       - name: Prepare config.local.yaml
         run: |
           CLUSTER="${{ inputs.hub_cluster_name }}"
+          K8S_VERSION="${{ inputs.kubernetes_version }}"
           cp config.yaml config.local.yaml
 
           yq -i '.clusterProvider = "kind-crossplane-azure"'              config.local.yaml
           yq -i ".hub.clusterName = \"${CLUSTER}\""                       config.local.yaml
-          yq -i '.hub.kubernetesVersion = "1.37"'                         config.local.yaml
+          yq -i ".hub.kubernetesVersion = \"${K8S_VERSION}\""             config.local.yaml
           yq -i ".azure.subscriptionId = \"${AZURE_SUB_ID}\""             config.local.yaml
           yq -i ".azure.tenantId = \"${{ secrets.AZURE_TENANT_ID }}\""    config.local.yaml
           yq -i ".azure.location = \"${AZURE_LOCATION}\""                 config.local.yaml
@@ -127,3 +153,27 @@ jobs:
         run: task kind-crossplane-azure:${{ inputs.action }}
         env:
           KUBECONFIG: ${{ github.workspace }}/private/kubeconfig
+
+      - name: Deploy summary
+        if: always()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const status = '${{ job.status }}';
+            const icon = status === 'success' ? '✅' : status === 'cancelled' ? '⏹️' : '❌';
+            const action = '${{ inputs.action }}';
+            const cluster = '${{ inputs.hub_cluster_name }}';
+            const k8sVer = '${{ inputs.kubernetes_version }}';
+
+            await core.summary
+              .addHeading(`${icon} Deploy Azure Hub — ${action.toUpperCase()}`)
+              .addTable([
+                [{data: 'Field', header: true}, {data: 'Value', header: true}],
+                ['Cluster', cluster],
+                ['Action', action],
+                ['K8s version', k8sVer],
+                ['Status', `${icon} ${status}`],
+                ['Actor', context.actor],
+                ['SHA', context.sha.substring(0, 7)],
+              ])
+              .write();
