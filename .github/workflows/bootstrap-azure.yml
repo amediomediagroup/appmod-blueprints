@@ -1,43 +1,57 @@
 name: Bootstrap Azure Platform
 
-# Deploy pattern (Azure Samples reference):
-#   PR opened/updated  → scan + plan → post plan as PR comment (read-only UAMI)
-#   workflow_dispatch action=apply   → scan + plan → apply  (read-write UAMI, gated)
-#   workflow_dispatch action=destroy → scan + plan → destroy (read-write UAMI, gated)
-#   schedule (daily)   → plan → open Issue if drift detected
+# Enterprise Terraform workflow — Azure bootstrap
 #
-# Two UAMIs (created by init.sh):
-#   AZURE_READONLY_CLIENT_ID   — Contributor Reader, federated: pull_request + branch:main
-#   AZURE_BOOTSTRAP_CLIENT_ID  — Contributor + UAA, federated: environment:bootstrap
+# Stages:
+#   validate  — fmt, validate, tflint, OPA, checkov, trivy (fast feedback)
+#   plan      — terraform plan + cost estimate → PR comment (read-only UAMI)
+#   apply     — download exact plan artifact → apply (gated: reviewer + 5min wait)
+#   destroy   — download exact plan artifact → destroy (gated)
+#   drift     — daily plan, open Issue on drift
 #
-# GitHub secrets required:
-#   AZURE_BOOTSTRAP_CLIENT_ID, AZURE_READONLY_CLIENT_ID, AZURE_TENANT_ID,
-#   AZURE_SUBSCRIPTION_ID, GH_PAT (read:org + repo), PLATFORM_DOMAIN
-# GitHub vars required:
-#   AZURE_LOCATION, HUB_RESOURCE_GROUP, HUB_CLUSTER_NAME, BOOTSTRAP_KV_NAME,
+# Two UAMIs:
+#   AZURE_READONLY_CLIENT_ID   — Reader + Storage Blob Data Reader, federated: pull_request + branch:main
+#   AZURE_BOOTSTRAP_CLIENT_ID  — Contributor + User Access Administrator, federated: environment:bootstrap
+#
+# Required secrets:
+#   AZURE_BOOTSTRAP_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#   AZURE_READONLY_CLIENT_ID (optional, falls back to AZURE_BOOTSTRAP_CLIENT_ID)
+#   GH_PAT (read:org + repo — for AVM github provider)
+#   PLATFORM_DOMAIN
+#   INFRACOST_API_KEY (from https://www.infracost.io/docs/#2-get-api-key)
+#
+# Required variables:
+#   AZURE_LOCATION, HUB_RESOURCE_GROUP, HUB_CLUSTER_NAME, BOOTSTRAP_KV_NAME
 #   LOCATION_SHORT, TF_BACKEND_RESOURCE_GROUP, TF_BACKEND_STORAGE_ACCOUNT
 
 on:
   pull_request:
     paths:
       - "cluster-providers/kind-crossplane-azure/bootstrap/**"
+    branches: [main]
   workflow_dispatch:
     inputs:
       action:
-        description: "Terraform action"
+        description: "Action"
         type: choice
         options: [plan, apply, destroy]
         default: plan
   schedule:
-    - cron: "0 2 * * *"   # Daily drift detection at 02:00 UTC
+    - cron: "0 2 * * *"   # Daily drift detection 02:00 UTC
+
+# Prevent concurrent apply/destroy on the same environment
+concurrency:
+  group: bootstrap-azure-${{ github.event.inputs.action || 'plan' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   id-token: write
   contents: read
-  pull-requests: write   # Post plan comment on PR
-  issues: write          # Open drift detection issue
-  security-events: write # Trivy SARIF
+  pull-requests: write
+  issues: write
+  security-events: write
 
+# Shared Terraform vars — available to all jobs
 env:
   TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
@@ -50,19 +64,35 @@ env:
   TF_VAR_github_repo: ${{ github.event.repository.name }}
   TF_VAR_resource_name_location_short: ${{ vars.LOCATION_SHORT }}
   GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+  TF_WORKING_DIR: cluster-providers/kind-crossplane-azure/bootstrap
 
+# ── 1. Validate ───────────────────────────────────────────────────────────────
+# Fast feedback: format, validate, lint, security scan
+# Runs on PR and workflow_dispatch (not schedule)
 jobs:
-  # ── Security scanning ─────────────────────────────────────────────────────
-  scan:
-    name: Security Scan
+  validate:
+    name: Validate
     runs-on: ubuntu-latest
-    if: github.event_name != 'schedule'   # skip scan on drift detection runs
+    if: github.event_name != 'schedule'
     defaults:
       run:
         working-directory: cluster-providers/kind-crossplane-azure/bootstrap
 
     steps:
       - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~1.11"
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff
+        continue-on-error: true   # warn, don't block on fmt
+
+      - name: terraform validate
+        run: |
+          terraform init -backend=false   # init without backend for validation only
+          terraform validate -no-color
 
       - name: TFLint
         uses: terraform-linters/setup-tflint@v6.3.2
@@ -73,14 +103,14 @@ jobs:
           tflint --init
           tflint --format compact || true
 
-      - name: OPA — validate Rego syntax
+      - name: OPA — validate policy syntax
         uses: open-policy-agent/setup-opa@v2.4.0
         with:
           version: latest
 
       - run: |
           opa check policies/
-          echo "✓ OPA syntax valid"
+          echo "✓ Rego syntax valid"
 
       - name: Checkov — IaC scan
         uses: bridgecrewio/checkov-action@v12
@@ -90,7 +120,7 @@ jobs:
           output_format: cli
           soft_fail: true
 
-      # trivy-action v0.36.0+ is safe — supply chain attack 2026-03-19, patched 2026-04-22
+      # trivy-action v0.36.0+ — safe post supply chain attack (2026-03-19/2026-04-22)
       - name: Trivy — filesystem scan
         uses: aquasecurity/trivy-action@v0.36.0
         if: always()
@@ -108,23 +138,25 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
 
-  # ── Terraform Plan ─────────────────────────────────────────────────────────
-  # Runs on: PR (read-only UAMI), workflow_dispatch (read-only UAMI), schedule
-  # No environment gate — plan is read-only and safe to run automatically
+# ── 2. Plan ───────────────────────────────────────────────────────────────────
+# Runs on: PR (read-only UAMI), workflow_dispatch, schedule (drift)
+# No gate — plan is always safe to run
   plan:
-    name: Terraform Plan
+    name: Plan
     runs-on: ubuntu-latest
-    needs: [scan]
-    if: always() && (needs.scan.result == 'success' || needs.scan.result == 'skipped')
+    needs: [validate]
+    if: always() && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
     defaults:
       run:
         working-directory: cluster-providers/kind-crossplane-azure/bootstrap
+    outputs:
+      exitcode: ${{ steps.plan.outputs.exitcode }}
+      summary: ${{ steps.summary.outputs.text }}
     env:
       ARM_USE_OIDC: "true"
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      # Read-only UAMI for plan — less privileged, safe for PR checks
-      # Falls back to bootstrap UAMI if readonly not configured
+      # Read-only UAMI for plan — Reader only, safe on untrusted PRs
       ARM_CLIENT_ID: ${{ secrets.AZURE_READONLY_CLIENT_ID || secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
 
     steps:
@@ -140,7 +172,7 @@ jobs:
         with:
           terraform_version: "~1.11"
 
-      - name: Terraform Init
+      - name: terraform init
         run: |
           terraform init \
             -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
@@ -149,22 +181,33 @@ jobs:
             -backend-config="key=bootstrap/terraform.tfstate" \
             -backend-config="use_oidc=true"
 
-      - name: Terraform Plan
+      - name: terraform plan
         id: plan
         run: |
           terraform plan -out=tfplan -no-color 2>&1 | tee plan.txt
           echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload plan artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: tfplan-${{ github.sha }}
-          path: |
-            cluster-providers/kind-crossplane-azure/bootstrap/tfplan
-          retention-days: 7
-          # Note: tfplan may contain sensitive values — do not expose in logs
+      - name: Extract plan summary
+        id: summary
+        run: |
+          summary=$(grep -E "^Plan:|No changes" plan.txt | head -1 || echo "Plan output unavailable")
+          echo "text=$summary" >> "$GITHUB_OUTPUT"
 
-      - name: Post plan comment on PR
+      - name: Cost estimate (Infracost)
+        if: github.event_name == 'pull_request' && secrets.INFRACOST_API_KEY != ''
+        uses: infracost/actions/setup@v5.0.1
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Infracost diff
+        if: github.event_name == 'pull_request' && secrets.INFRACOST_API_KEY != ''
+        run: |
+          infracost diff \
+            --path=. \
+            --format=json \
+            --out-file=/tmp/infracost.json || true
+
+      - name: Post PR comment
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v9
         with:
@@ -172,120 +215,97 @@ jobs:
             const fs = require('fs');
             const plan = fs.readFileSync(
               'cluster-providers/kind-crossplane-azure/bootstrap/plan.txt', 'utf8'
-            ).slice(0, 60000);
+            ).slice(0, 55000);
+            const summary = `${{ steps.summary.outputs.text }}`;
+
+            // Build cost section if infracost ran
+            let costSection = '';
+            try {
+              const cost = JSON.parse(fs.readFileSync('/tmp/infracost.json', 'utf8'));
+              const diff = cost.diffTotalMonthlyCost || '0';
+              costSection = `\n\n💰 **Estimated monthly cost change:** \`${diff} USD\``;
+            } catch {}
+
             const body = [
-              '### 🔍 Terraform Plan — Bootstrap Azure',
-              '<details><summary>Show plan output</summary>',
+              '## 🔍 Terraform Plan — Bootstrap Azure',
               '',
-              '```terraform',
+              `| | |`,
+              `|---|---|`,
+              `| **Status** | ${{ steps.plan.outputs.exitcode == '0' && '✅ No changes' || steps.plan.outputs.exitcode == '2' && '⚠️ Changes pending' || '❌ Error' }} |`,
+              `| **Summary** | \`${summary}\` |`,
+              `| **SHA** | \`${{ github.sha }}\` |`,
+              costSection,
+              '',
+              '<details><summary>📋 Full plan output</summary>',
+              '',
+              '```hcl',
               plan,
               '```',
               '</details>',
               '',
-              `> **To apply:** \`gh workflow run bootstrap-azure.yml --field action=apply\``,
-              `> Requires reviewer approval + 5min wait (environment: bootstrap)`
+              '> **Apply:** `gh workflow run bootstrap-azure.yml --field action=apply`',
+              '> Requires approval + 5 min wait (environment: `bootstrap`)'
             ].join('\n');
-            // Delete previous plan comments to keep PR clean
-            const comments = await github.rest.issues.listComments({
+
+            // Delete previous plan comments
+            const { data: comments } = await github.rest.issues.listComments({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo
             });
-            for (const c of comments.data) {
+            for (const c of comments) {
               if (c.body.includes('Terraform Plan — Bootstrap Azure')) {
                 await github.rest.issues.deleteComment({
-                  comment_id: c.id,
-                  owner: context.repo.owner,
-                  repo: context.repo.repo
+                  comment_id: c.id, owner: context.repo.owner, repo: context.repo.repo
                 });
               }
             }
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body
             });
 
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: tfplan-${{ github.sha }}
+          path: cluster-providers/kind-crossplane-azure/bootstrap/tfplan
+          retention-days: 7
+          if-no-files-found: error
+
       - name: Open drift issue
         if: github.event_name == 'schedule' && steps.plan.outputs.exitcode == '2'
         uses: actions/github-script@v9
         with:
           script: |
-            github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: '⚠️ Infrastructure drift detected — bootstrap Azure',
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: '⚠️ [Drift] Bootstrap Azure infrastructure out of sync',
               body: [
-                '### Drift detected',
+                '### Infrastructure drift detected',
+                '`terraform plan` found uncommitted changes.',
                 '',
-                'A scheduled Terraform plan found changes not reflected in state.',
-                'Run the bootstrap workflow manually to review and apply.',
+                `**Summary:** ${{ steps.summary.outputs.text }}`,
+                `**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
                 '',
-                `**Workflow run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-                '',
-                '```',
+                '**To review:**',
+                '```sh',
                 'gh workflow run bootstrap-azure.yml --field action=plan',
                 '```'
               ].join('\n'),
-              labels: ['infrastructure', 'drift']
+              labels: ['infrastructure', 'drift', 'azure']
             });
 
-  # ── Terraform Apply ────────────────────────────────────────────────────────
-  # Gated by environment:bootstrap (required reviewer + 5min wait timer)
-  # Uses exact tfplan artifact from plan job — no drift between plan and apply
+# ── 3. Apply ──────────────────────────────────────────────────────────────────
+# Gated by environment:bootstrap — required reviewer + 5min wait + prevent self-review
+# Downloads exact same tfplan artifact from plan job — no drift possible
   apply:
-    name: Terraform Apply
+    name: Apply
     runs-on: ubuntu-latest
     needs: plan
-    if: github.event.inputs.action == 'apply'
-    environment: bootstrap   # required reviewer + 5min wait + prevent self-review
-    defaults:
-      run:
-        working-directory: cluster-providers/kind-crossplane-azure/bootstrap
-    env:
-      ARM_USE_OIDC: "true"
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_CLIENT_ID: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: azure/login@v3
-        with:
-          client-id: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_version: "~1.11"
-
-      - name: Terraform Init
-        run: |
-          terraform init \
-            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
-            -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
-            -backend-config="container_name=tfstate" \
-            -backend-config="key=bootstrap/terraform.tfstate" \
-            -backend-config="use_oidc=true"
-
-      - name: Download plan artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: tfplan-${{ github.sha }}
-          path: cluster-providers/kind-crossplane-azure/bootstrap
-
-      - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
-
-  # ── Terraform Destroy ──────────────────────────────────────────────────────
-  destroy:
-    name: Terraform Destroy
-    runs-on: ubuntu-latest
-    needs: plan
-    if: github.event.inputs.action == 'destroy'
+    if: github.event.inputs.action == 'apply' && needs.plan.result == 'success'
     environment: bootstrap
     defaults:
       run:
@@ -309,7 +329,7 @@ jobs:
         with:
           terraform_version: "~1.11"
 
-      - name: Terraform Init
+      - name: terraform init
         run: |
           terraform init \
             -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
@@ -324,5 +344,76 @@ jobs:
           name: tfplan-${{ github.sha }}
           path: cluster-providers/kind-crossplane-azure/bootstrap
 
-      - name: Terraform Destroy
+      - name: terraform apply
+        run: terraform apply -auto-approve tfplan
+
+      - name: Apply summary
+        if: always()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const status = '${{ job.status }}';
+            const icon = status === 'success' ? '✅' : '❌';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner, repo: context.repo.repo,
+              sha: context.sha,
+              state: status === 'success' ? 'success' : 'failure',
+              description: `Bootstrap apply: ${status}`,
+              context: 'bootstrap/apply'
+            });
+            core.summary
+              .addHeading(`${icon} Bootstrap Apply — ${status.toUpperCase()}`)
+              .addTable([
+                [{data: 'Field', header: true}, {data: 'Value', header: true}],
+                ['Plan summary', `${{ needs.plan.outputs.summary }}`],
+                ['SHA', context.sha.substring(0, 7)],
+                ['Actor', context.actor],
+              ])
+              .write();
+
+# ── 4. Destroy ────────────────────────────────────────────────────────────────
+  destroy:
+    name: Destroy
+    runs-on: ubuntu-latest
+    needs: plan
+    if: github.event.inputs.action == 'destroy' && needs.plan.result == 'success'
+    environment: bootstrap
+    defaults:
+      run:
+        working-directory: cluster-providers/kind-crossplane-azure/bootstrap
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_CLIENT_ID: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~1.11"
+
+      - name: terraform init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=bootstrap/terraform.tfstate" \
+            -backend-config="use_oidc=true"
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: tfplan-${{ github.sha }}
+          path: cluster-providers/kind-crossplane-azure/bootstrap
+
+      - name: terraform destroy
         run: terraform apply -destroy -auto-approve tfplan
