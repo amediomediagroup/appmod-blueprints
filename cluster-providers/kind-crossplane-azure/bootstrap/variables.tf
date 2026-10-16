@@ -69,8 +69,12 @@ variable "repo_revision" {
 
 variable "resource_name_workload" {
   type        = string
-  description = "Workload name segment for AVM resource naming (e.g. platform)."
-  default     = "platform"
+  description = "Workload name segment for AVM resource naming — max 4 chars (AVM constraint)."
+  default     = "plat"
+  validation {
+    condition     = length(var.resource_name_workload) <= 4
+    error_message = "resource_name_workload must be 4 characters or less (AVM module constraint)."
+  }
 }
 
 variable "resource_name_environment" {

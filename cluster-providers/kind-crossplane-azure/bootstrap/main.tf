@@ -22,6 +22,7 @@ data "azurerm_client_config" "current" {}
 # ── 1. AVM: GitHub CI/CD Bootstrap ────────────────────────────────────────────
 # Creates GitHub environment + UAMIs + federated credentials
 
+# checkov:skip=CKV_TF_1:AVM module from Terraform Registry — commit hash not supported, version pinned instead
 module "cicd_bootstrap" {
   source  = "Azure/avm-ptn-alz-application-landing-zone-cicd-bootstrap-github/azure"
   version = "0.1.1"
@@ -66,6 +67,10 @@ module "cicd_bootstrap" {
 resource "azurerm_resource_group" "hub" {
   name     = var.hub_resource_group
   location = var.location
+  tags = {
+    environment  = var.resource_name_environment
+    "managed-by" = "terraform"
+  }
 }
 
 # Grant the "write" UAMI contributor on hub RG so Crossplane can create resources
@@ -95,10 +100,24 @@ resource "azurerm_key_vault" "bootstrap" {
   resource_group_name = split("/", module.cicd_bootstrap.resource_id)[4] # AVM's RG
   tenant_id           = module.cicd_bootstrap.tenant_id
   sku_name            = "standard"
+  tags = {
+    environment  = var.resource_name_environment
+    "managed-by" = "terraform"
+  }
 
-  enable_rbac_authorization  = true
+  rbac_authorization_enabled = true  # renamed from enable_rbac_authorization in azurerm v4
   soft_delete_retention_days = 7
-  purge_protection_enabled   = false
+  purge_protection_enabled   = true  # CKV_AZURE_42 + CKV_AZURE_110
+
+  # checkov:skip=CKV_AZURE_189:Bootstrap KV requires public access — GitHub-hosted runners are not in Azure VNet
+  # checkov:skip=CKV2_AZURE_32:Private endpoint not applicable — VNet doesn't exist at bootstrap phase
+  # checkov:skip=CKV_AZURE_109:Allow required for GitHub-hosted runners — AzureServices bypass doesn't cover GitHub Actions
+  public_network_access_enabled = true
+
+  network_acls {
+    default_action = "Allow"
+    bypass         = ["AzureServices"]
+  }
 
   depends_on = [module.cicd_bootstrap]
 }
@@ -123,8 +142,10 @@ resource "azurerm_role_assignment" "uami_kv_reader" {
 # All platform config lives here. No PII ever committed to git.
 
 resource "azurerm_key_vault_secret" "platform_config" {
-  name         = "platform-config"
-  key_vault_id = azurerm_key_vault.bootstrap.id
+  name            = "platform-config"
+  key_vault_id    = azurerm_key_vault.bootstrap.id
+  content_type    = "application/json"                            # CKV_AZURE_114
+  expiration_date = timeadd(timestamp(), "8760h")                 # CKV_AZURE_41 — 1 year
 
   value = jsonencode({
     subscriptionId = var.subscription_id

@@ -17,7 +17,7 @@ resource_prefix              = ""
 repo_revision = "main"
 
 # ── AVM naming ─────────────────────────────────────────────────────────────────
-resource_name_workload       = "platform"
+resource_name_workload       = "plat"    # max 4 chars — AVM module constraint
 resource_name_environment    = "prod"
 resource_name_location_short = "<location-short>"  # e.g. sea, eus, weu
 

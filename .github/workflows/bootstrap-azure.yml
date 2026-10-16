@@ -52,18 +52,16 @@ jobs:
           tflint --init
           tflint --format compact || true   # warn only, don't block
 
-      - name: OPA — policy checks
+      - name: OPA — validate policy syntax
         uses: open-policy-agent/setup-opa@v2.4.0
         with:
           version: latest
 
-      - name: OPA eval (fail on violations if policies present)
+      - name: OPA check (syntax validate Rego policies)
         run: |
-          if ls ../../policies/*.rego 2>/dev/null; then
-            opa eval --format pretty \
-              --data ../../policies \
-              --input <(terraform show -json tfplan 2>/dev/null || echo '{}') \
-              'data.terraform.deny[msg]' && echo "✓ OPA passed"
+          opa check policies/
+          echo "✓ OPA policy syntax valid"
+          # Full eval runs post-plan in terraform job using tfplan JSON output
           else
             echo "No OPA policies found — skipping eval"
           fi
@@ -107,7 +105,9 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       ARM_CLIENT_ID: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+      # GH_PAT needs scopes: read:org, repo (for AVM module to read org + create environments)
+      # Create at https://github.com/settings/tokens and add as repo secret GH_PAT
       # Sensitive vars — never hardcoded
       TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
