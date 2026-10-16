@@ -1,22 +1,13 @@
 name: PR Lint
 
-# Runs on every pull request:
-#   1. Gitleaks   — detect secrets/credentials accidentally committed
-#   2. PR title   — enforce Conventional Commits spec on PR title
-#                   (used as squash commit message when merging)
+# Enterprise-level PR quality gates:
+#   1. pre-commit  — file hygiene, terraform fmt/validate/tflint, conventional commit title
+#   2. Gitleaks    — scan PR commits only (not full history) for new secrets
 #
-# Conventional Commits format: <type>(<scope>): <description>
-# Types: feat, fix, docs, chore, refactor, perf, test, ci, build, revert
-# Examples:
-#   feat(azure): add kind-crossplane-azure bootstrap provider
-#   fix(azure-bootstrap): AADSTS700213 federated credential mismatch
-#   chore(deps): bump actions/checkout from v6 to v7
-#
-# NOTE: gitleaks/gitleaks-action and amannn/action-semantic-pull-request
-# must be added to the org's allowed actions list:
-#   Org Settings → Actions → General → Allow select actions → add patterns:
-#     gitleaks/gitleaks-action@*
-#     amannn/action-semantic-pull-request@*
+# Local setup:
+#   brew install pre-commit
+#   pre-commit install            # installs commit hooks
+#   pre-commit install --hook-type commit-msg   # installs conventional commit check
 
 on:
   pull_request:
@@ -24,44 +15,67 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write   # Post comment on violation
+  pull-requests: read
 
 jobs:
-  gitleaks:
-    name: Secret Scan (Gitleaks)
+  pre-commit:
+    name: pre-commit
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0   # full history so gitleaks can scan all commits in PR
+          fetch-depth: 0   # needed for gitleaks PR scan
 
-      - name: Gitleaks — detect secrets
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}   # optional — free for public repos
-
-  conventional-commits:
-    name: PR Title (Conventional Commits)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          types: |
-            feat
-            fix
-            docs
-            chore
-            refactor
-            perf
-            test
-            ci
-            build
-            revert
-          requireScope: false
-          validateSingleCommit: false
-          ignoreLabels: |
-            bot
-            dependencies
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install pre-commit
+        run: pip install pre-commit==4.2.0
+
+      - name: Install gitleaks v8.30.1
+        run: |
+          curl -sSL \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            | tar xz gitleaks
+          sudo mv gitleaks /usr/local/bin/
+
+      - name: pre-commit (file hygiene + terraform + PR title)
+        env:
+          # Skip gitleaks hook — handled separately with PR-scoped scan below
+          SKIP: gitleaks
+          # PR title used for conventional-pre-commit check on the PR title
+          PRE_COMMIT_HOME: /tmp/pre-commit-cache
+        run: |
+          # Run pre-commit on all changed files in this PR
+          pre-commit run --all-files --show-diff-on-failure
+
+      - name: Gitleaks — scan PR commits only
+        run: |
+          # Only scan new commits in this PR (not full 4000+ commit history)
+          gitleaks detect \
+            --source=. \
+            --config=.gitleaks.toml \
+            --log-opts="origin/${{ github.base_ref }}..HEAD" \
+            --exit-code=1 \
+            --redact \
+            --log-level=warn \
+            --no-banner \
+            && echo "✓ No new secrets in PR commits" \
+            || { echo "❌ New secrets detected in PR commits"; exit 1; }
+
+      - name: PR title — Conventional Commits
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          PATTERN='^(feat|fix|docs|chore|refactor|perf|test|ci|build|revert)(\([a-z0-9._/-]+\))?(!)?: .{1,100}$'
+          if echo "$PR_TITLE" | grep -qE "$PATTERN"; then
+            echo "✓ PR title: $PR_TITLE"
+          else
+            echo "❌ PR title must follow Conventional Commits: <type>(<scope>): <description>"
+            echo "   Types: feat|fix|docs|chore|refactor|perf|test|ci|build|revert"
+            echo "   Got: $PR_TITLE"
+            exit 1
+          fi
