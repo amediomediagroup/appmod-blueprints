@@ -31,7 +31,7 @@ name: Bootstrap Azure Platform
 #   INFRACOST_API_KEY (optional — https://www.infracost.io/docs/#2-get-api-key)
 # Required vars:
 #   AZURE_LOCATION, HUB_RESOURCE_GROUP, HUB_CLUSTER_NAME, BOOTSTRAP_KV_NAME
-#   LOCATION_SHORT, TF_BACKEND_RESOURCE_GROUP, TF_BACKEND_STORAGE_ACCOUNT
+#   ACR_NAME, LOCATION_SHORT, TF_BACKEND_RESOURCE_GROUP, TF_BACKEND_STORAGE_ACCOUNT
 
 on:
   pull_request:
@@ -82,6 +82,7 @@ env:
   TF_VAR_hub_resource_group: ${{ vars.HUB_RESOURCE_GROUP }}
   TF_VAR_hub_cluster_name: ${{ vars.HUB_CLUSTER_NAME }}
   TF_VAR_bootstrap_keyvault_name: ${{ vars.BOOTSTRAP_KV_NAME }}
+  TF_VAR_acr_name: ${{ vars.ACR_NAME }}
   TF_VAR_github_org: ${{ github.repository_owner }}
   TF_VAR_github_repo: ${{ github.event.repository.name }}
   TF_VAR_resource_name_location_short: ${{ vars.LOCATION_SHORT }}
