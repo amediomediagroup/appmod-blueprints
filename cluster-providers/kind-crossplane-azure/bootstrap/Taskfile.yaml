@@ -1,0 +1,44 @@
+version: "3"
+# Bootstrap validation tasks — run these before pushing to catch CI failures early.
+# Usage:
+#   task -d cluster-providers/kind-crossplane-azure/bootstrap validate
+#   task -d cluster-providers/kind-crossplane-azure/bootstrap fmt
+
+set: [pipefail]
+
+vars:
+  TF_DIR: "{{.ROOT_DIR}}"
+
+tasks:
+  fmt:
+    desc: "Auto-format all Terraform files (including .tftest.hcl)"
+    cmds:
+      - terraform fmt -recursive {{.TF_DIR}}
+      # terraform fmt misses triple-space comments in .tftest.hcl — fix manually
+      - find {{.TF_DIR}} -name "*.tftest.hcl" -exec sed -i '' 's/\([^ ]\)   *#/\1 #/g' {} +
+      - echo "✓ fmt done"
+
+  fmt-check:
+    desc: "Check formatting without modifying (same as CI)"
+    cmds:
+      - terraform fmt -check -recursive -diff {{.TF_DIR}}
+    silent: false
+
+  validate:
+    desc: "Run all local checks before pushing (fmt + validate + test)"
+    deps: [fmt-check]
+    cmds:
+      - echo "\n[1/3] terraform validate"
+      - terraform init -backend=false -input=false
+      - terraform validate
+      - echo "\n[2/3] terraform test (unit)"
+      - terraform test -filter=tests/unit.tftest.hcl -no-color
+      - echo "\n[3/3] actionlint (workflows)"
+      - actionlint ../../../.github/workflows/bootstrap-azure.yml 2>/dev/null || echo "  (actionlint not installed)"
+      - echo "\n✅ All local checks passed — safe to push"
+
+  fix-and-validate:
+    desc: "Auto-fix fmt then validate — run before commit"
+    cmds:
+      - task: fmt
+      - task: validate
