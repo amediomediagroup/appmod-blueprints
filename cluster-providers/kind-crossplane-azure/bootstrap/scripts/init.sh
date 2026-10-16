@@ -121,13 +121,19 @@ echo "  Storage role assigned"
 echo ""
 echo "▸ Registering federated credential for bootstrap-azure.yml (environment: bootstrap)..."
 # Security: environment-scoped subject restricts token to runs in 'bootstrap' environment
-# The GitHub environment should have protection rules (optional reviewers)
+# Use immutable subject format (GitHub migrated to numeric node IDs in July 2026):
+#   repo:<org>@<orgId>/<repo>@<repoId>:environment:<env>
+# See: https://learn.microsoft.com/entra/workload-id/workload-identities-github-immutable-subjects
+GITHUB_ORG_ID=$(gh api "/orgs/${GITHUB_ORG}" --jq '.id')
+GITHUB_REPO_ID=$(gh api "/repos/${GITHUB_ORG}/${GITHUB_REPO}" --jq '.id')
+FEDERATED_SUBJECT="repo:${GITHUB_ORG}@${GITHUB_ORG_ID}/${GITHUB_REPO}@${GITHUB_REPO_ID}:environment:bootstrap"
+
 az identity federated-credential create \
   --identity-name "$INIT_UAMI_NAME" \
   --resource-group "$BOOTSTRAP_RG" \
   --name "github-bootstrap-env" \
   --issuer "https://token.actions.githubusercontent.com" \
-  --subject "repo:${GITHUB_ORG}/${GITHUB_REPO}:environment:bootstrap" \
+  --subject "$FEDERATED_SUBJECT" \
   --audiences "api://AzureADTokenExchange" \
   --output none
 
