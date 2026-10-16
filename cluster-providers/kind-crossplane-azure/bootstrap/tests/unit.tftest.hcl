@@ -9,8 +9,20 @@
 # Tests catch validation errors and output shape regressions before CI plan.
 
 mock_provider "azurerm" {}
-mock_provider "azapi"   {}
 mock_provider "github"  {}
+
+# azapi mock must provide azapi_client_config data source
+# — AVM cicd_bootstrap module uses it internally to resolve subscription/tenant IDs
+mock_provider "azapi" {
+  mock_data "azapi_client_config" {
+    defaults = {
+      subscription_id          = "00000000-0000-0000-0000-000000000000"
+      subscription_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000"
+      tenant_id                = "00000000-0000-0000-0000-000000000000"
+      object_id                = "00000000-0000-0000-0000-000000000000"
+    }
+  }
+}
 
 # ── Shared valid defaults ─────────────────────────────────────────────────────
 # Override per test only what that test is validating.
