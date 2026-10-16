@@ -154,6 +154,35 @@ jobs:
         env:
           KUBECONFIG: ${{ github.workspace }}/private/kubeconfig
 
+      - name: Cosign — verify image signatures (ACR)
+        if: inputs.action == 'install' || inputs.action == 'status'
+        run: |
+          # Install cosign
+          curl -sSL https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64 \
+            -o /tmp/cosign && chmod +x /tmp/cosign && sudo mv /tmp/cosign /usr/local/bin/
+
+          # Get ACR login server from env
+          ACR_SERVER="${AZURE_KV_NAME%-kv}.azurecr.io"
+          echo "Checking image signatures in: $ACR_SERVER"
+
+          # Verify all images in the ACR for this cluster
+          # Images must be signed with Cosign before deployment
+          az acr manifest list-metadata \
+            --registry "${ACR_SERVER%%.*}" \
+            --name '*' \
+            --query "[?!tags[?starts_with(@,'sha256-')]].{name:name,digest:digest}" \
+            -o json 2>/dev/null | jq -r '.[] | .name + "@" + .digest' | \
+          while read -r ref; do
+            if ! cosign verify \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              --certificate-identity-regexp "^https://github.com/${{ github.repository }}" \
+              "${ACR_SERVER%%.*}.azurecr.io/$ref" 2>/dev/null; then
+              echo "⚠️  No Cosign signature: $ref (consider signing with: cosign sign $ref)"
+            else
+              echo "✓ Signed: $ref"
+            fi
+          done || true   # warn only — don't block deploy during rollout
+
       - name: Deploy summary
         if: always()
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
