@@ -158,6 +158,7 @@ resource "azurerm_key_vault_secret" "platform_config" {
     clusterName    = var.hub_cluster_name
     uamiClientId   = module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"]
     resourcePrefix = var.resource_prefix
+    acrLoginServer = module.acr.resource.login_server
   })
 
   depends_on = [azurerm_role_assignment.runner_kv_officer]
@@ -170,7 +171,51 @@ resource "azurerm_key_vault_secret" "platform_config" {
   }
 }
 
-# ── 5. GitHub Secrets ─────────────────────────────────────────────────────────
+# ── 5. Azure Container Registry ───────────────────────────────────────────────
+# All platform container images stored here.
+# Platform UAMI gets AcrPull; bootstrap runner gets AcrPush (for image import).
+# checkov:skip=CKV_TF_1:AVM Registry module from Terraform Registry — commit hash not applicable
+
+# checkov:skip=CKV_TF_1:AVM module from Terraform Registry
+module "acr" {
+  source  = "Azure/avm-res-containerregistry-registry/azurerm"
+  version = "0.8.0"
+
+  name                = var.acr_name
+  resource_group_name = split("/", module.cicd_bootstrap.resource_id)[4]
+  location            = var.location
+  sku                 = "Premium"  # Premium: geo-replication, private endpoint, retention
+  enable_telemetry    = false
+
+  # RBAC only — no admin account (CKV_AZURE_137)
+  admin_enabled = false
+
+  # Allow CI runners (GitHub-hosted) to push/pull during bootstrap
+  # checkov:skip=CKV_AZURE_139:Bootstrap ACR needs public access for GitHub-hosted runners
+  public_network_access_enabled = true
+
+  tags = {
+    environment  = var.resource_name_environment
+    "managed-by" = "terraform"
+  }
+
+  # Grant platform UAMI (write identity) AcrPull — used by AKS to pull images
+  role_assignments = {
+    acr_pull = {
+      role_definition_id_or_name = "AcrPull"
+      principal_id               = data.azurerm_user_assigned_identity.platform_write.principal_id
+    }
+    acr_push = {
+      # Bootstrap runner (CI) can push/import images
+      role_definition_id_or_name = "AcrPush"
+      principal_id               = data.azurerm_client_config.current.object_id
+    }
+  }
+
+  depends_on = [module.cicd_bootstrap]
+}
+
+# ── 6. GitHub Secrets ─────────────────────────────────────────────────────────
 # Only 3 secrets. Everything else comes from Bootstrap KV at runtime.
 
 resource "github_actions_environment_secret" "client_id" {

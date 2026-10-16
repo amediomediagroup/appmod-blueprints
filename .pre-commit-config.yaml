@@ -76,6 +76,13 @@ repos:
         files: ^\.github/workflows/.*\.ya?ml$
         pass_filenames: true
 
+      - id: check-avm-telemetry
+        name: AVM modules — enable_telemetry must be false
+        language: script
+        entry: .pre-commit-hooks/check-avm-telemetry.sh
+        files: \.tf$
+        pass_filenames: true
+
       - id: check-image-digest
         name: Images — must use ACR + SHA digest (no mutable tags)
         language: script
