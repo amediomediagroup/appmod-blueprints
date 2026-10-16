@@ -176,6 +176,8 @@ jobs:
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       # Read-only UAMI for plan — Reader only, safe on untrusted PRs
       ARM_CLIENT_ID: ${{ secrets.AZURE_READONLY_CLIENT_ID || secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+      # Job-level so env.INFRACOST_API_KEY is available in step if: conditions
+      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 
     steps:
       - uses: actions/checkout@v7
@@ -216,13 +218,9 @@ jobs:
         uses: infracost/actions/setup@v5.0.1
         with:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
-        env:
-          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 
       - name: Infracost diff
         if: github.event_name == 'pull_request' && env.INFRACOST_API_KEY != ''
-        env:
-          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
         run: |
           infracost diff \
             --path=. \
