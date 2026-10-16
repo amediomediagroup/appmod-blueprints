@@ -30,7 +30,7 @@ set -euo pipefail
 : "${LOCATION:?Set LOCATION}"
 
 BOOTSTRAP_RG="${BOOTSTRAP_RG:-rg-platform-bootstrap-init}"
-TF_STATE_SA="${TF_STATE_SA:-stplatformtfstate$(openssl rand -hex 4)}"
+TF_STATE_SA="${TF_STATE_SA:-stplatformtfstate$(openssl rand -hex 3)}"
 TF_STATE_CONTAINER="tfstate"
 INIT_UAMI_NAME="${INIT_UAMI_NAME:-platform-bootstrap-init-mi}"
 
