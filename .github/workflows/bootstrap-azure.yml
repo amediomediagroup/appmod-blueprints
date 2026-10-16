@@ -7,12 +7,13 @@ name: Bootstrap Azure Platform
 #  Event                          validate  plan  apply  destroy
 #  ─────────────────────────────  ────────  ────  ─────  ───────
 #  pull_request (bootstrap/**)       ✓       ✓     –       –      PR preview
+#  push main (bootstrap/**)          ✓       ✓     ✓       –      Auto-apply [gated]
 #  workflow_dispatch action=plan     ✓       ✓     –       –      Manual preview
 #  workflow_dispatch action=apply    ✓       ✓     ✓       –      Manual deploy [gated]
 #  workflow_dispatch action=destroy  ✓       ✓     –       ✓      Manual teardown [gated]
 #  schedule (02:00 UTC daily)        –       ✓     –       –      Drift detection
 #
-# Gates (environment:bootstrap): apply, destroy
+# Gates (environment:bootstrap): apply (push + dispatch), destroy
 #   → required reviewer approval + 5min wait + prevent self-review
 # ─────────────────────────────────────────────────────────────────────────────
 #
@@ -35,6 +36,12 @@ on:
     paths:
       - "cluster-providers/kind-crossplane-azure/bootstrap/**"
 
+  # Auto-apply on merge to main — gated by environment:bootstrap (reviewer + 5min wait)
+  push:
+    branches: [main]
+    paths:
+      - "cluster-providers/kind-crossplane-azure/bootstrap/**"
+
   workflow_dispatch:
     inputs:
       action:
@@ -46,11 +53,12 @@ on:
   schedule:
     - cron: "0 2 * * *"   # Daily drift detection 02:00 UTC
 
-# One apply at a time; PRs can cancel each other to avoid queue buildup
-# Terraform best practice: cancel-in-progress=false for apply/destroy (never interrupt state writes)
+# Terraform concurrency best practice:
+#   - PR runs: cancel older (safe — plan only)
+#   - push main (auto-apply) and manual apply/destroy: never cancel (state writes)
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event.inputs.action != 'apply' && github.event.inputs.action != 'destroy' }}
+  cancel-in-progress: ${{ !(github.event_name == 'push' || github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy') }}
 
 permissions:
   id-token: write
@@ -151,8 +159,8 @@ jobs:
     name: Plan
     runs-on: ubuntu-latest
     needs: [validate]
-    # Runs on: PR, workflow_dispatch, schedule — NOT push (validate-only post-merge)
-    if: always() && (needs.validate.result == 'success' || needs.validate.result == 'skipped') && github.event_name != 'push'
+    # Runs on: PR, push main, workflow_dispatch, schedule
+    if: always() && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
     defaults:
       run:
         working-directory: cluster-providers/kind-crossplane-azure/bootstrap
@@ -324,8 +332,8 @@ jobs:
     name: Apply
     runs-on: ubuntu-latest
     needs: plan
-    # Runs on: workflow_dispatch action=apply ONLY — gated by environment:bootstrap
-    if: github.event.inputs.action == 'apply' && needs.plan.result == 'success'
+    # Runs on: push main (auto-apply) OR workflow_dispatch action=apply — gated by environment:bootstrap
+    if: (github.event_name == 'push' || github.event.inputs.action == 'apply') && needs.plan.result == 'success'
     environment: bootstrap
     defaults:
       run:
