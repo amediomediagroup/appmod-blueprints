@@ -186,3 +186,9 @@ cluster-providers/kind-crossplane-azure/bootstrap/tfplan
 # Pinned platform artifact clone (OAP-style consumption)
 .platform/
 *.creds
+
+# Kiro agent config backups
+.kiro/agents/*.bak
+
+# Semantic review artifacts (AI-generated, not for commit)
+semantic-review/
