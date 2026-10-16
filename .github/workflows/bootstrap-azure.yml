@@ -233,6 +233,13 @@ jobs:
           opa check policies/
           echo "✓ Rego syntax valid"
 
+      - name: terraform test — unit (mock providers, no credentials needed)
+        run: |
+          terraform init -backend=false
+          terraform test -filter=tests/unit.tftest.hcl -no-color 2>&1 | tee test-results.txt
+          # exit 1 if any test failed
+          grep -qE "^(FAIL|Error)" test-results.txt && exit 1 || true
+
       - name: Checkov — IaC scan
         uses: bridgecrewio/checkov-action@6f26dc90000b74feb589a906cdfae540f5119895 # v12
         with:
