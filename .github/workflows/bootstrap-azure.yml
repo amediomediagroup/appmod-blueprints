@@ -164,7 +164,6 @@ jobs:
 # ── 2. Validate ───────────────────────────────────────────────────────────────
 # Fast feedback: format, validate, lint, security scan
 # Runs on PR and workflow_dispatch (not schedule)
-jobs:
   validate:
     name: Validate
     runs-on: ubuntu-latest
