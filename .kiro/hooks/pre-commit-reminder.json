@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Pre-commit conventional commit reminder",
+      "trigger": "PreToolUse",
+      "matcher": "execute_bash",
+      "action": {
+        "type": "agent",
+        "prompt": "Check if this bash command contains \"git commit\". If it does, verify:\n1. The commit message follows Conventional Commits: `<type>(<scope>): <description>` where type is one of feat|fix|docs|chore|refactor|perf|test|ci|build|revert\n2. The message is not empty or a generic placeholder like \"update\" or \"fix stuff\"\n3. No secrets or file paths with credentials are being committed (check staged files if possible)\n\nIf the commit message looks wrong, output a short warning with the correct format. If it looks fine, say nothing."
+      }
+    }
+  ]
+}
