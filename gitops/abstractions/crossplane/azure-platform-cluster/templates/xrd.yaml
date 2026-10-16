@@ -1,0 +1,88 @@
+{{- if .Values.xrd.enabled }}
+# XAzurePlatformCluster XRD
+# Creates: ResourceGroup, VNet, Subnets, App Gateway, UAMIs, AKS, Key Vault
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xazureplatformclusters.platform.gitops.io
+spec:
+  group: platform.gitops.io
+  names:
+    kind: XAzurePlatformCluster
+    plural: xazureplatformclusters
+  claimNames:
+    kind: AzurePlatformCluster
+    plural: azureplatformclusters
+  connectionSecretKeys:
+    - kubeconfig
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                location:
+                  type: string
+                  description: Azure region (e.g. southeastasia)
+                clusterName:
+                  type: string
+                  description: AKS cluster name and prefix for all Azure resources
+                subscriptionId:
+                  type: string
+                  description: Azure subscription ID
+                tenantId:
+                  type: string
+                  description: Azure Entra ID tenant ID (required for Key Vault)
+                resourceGroup:
+                  type: string
+                  description: Pre-existing resource group name
+                vnetCidr:
+                  type: string
+                  description: VNet address space CIDR
+                  default: "10.0.0.0/8"
+                kubernetesVersion:
+                  type: string
+                  description: Kubernetes version for AKS
+                  default: "1.37"
+                systemNodeSize:
+                  type: string
+                  description: VM size for system node pool
+                  default: "Standard_D4s_v3"
+                systemNodeMin:
+                  type: integer
+                  description: Minimum system node count
+                  default: 1
+                systemNodeMax:
+                  type: integer
+                  description: Maximum system node count
+                  default: 5
+              required:
+                - location
+                - clusterName
+                - subscriptionId
+                - resourceGroup
+            status:
+              type: object
+              properties:
+                vnetId:
+                  type: string
+                aksId:
+                  type: string
+                keyVaultUrl:
+                  type: string
+                keyVaultId:
+                  type: string
+                kubeletMiId:
+                  type: string
+                esoMiClientId:
+                  type: string
+                albMiClientId:
+                  type: string
+                nodepoolSubnetId:
+                  type: string
+{{- end }}

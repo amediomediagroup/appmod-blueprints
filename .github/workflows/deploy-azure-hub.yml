@@ -1,0 +1,129 @@
+name: Deploy Azure Hub
+
+# SECURITY MODEL:
+# - Only 3 GitHub secrets required: AZURE_CLIENT_ID, AZURE_TENANT_ID, BOOTSTRAP_KV_NAME
+# - All platform config (subscription ID, location, domain, cluster name, etc.)
+#   is fetched from the Bootstrap Key Vault at runtime and NEVER stored in GitHub.
+# - All sensitive values are masked via ::add-mask:: before use.
+# - No customer PII appears in workflow logs or code.
+
+on:
+  workflow_dispatch:
+    inputs:
+      hub_cluster_name:
+        description: "Hub AKS cluster name"
+        required: true
+      action:
+        description: "Action to run"
+        type: choice
+        options: [install, status, destroy, destroy-kind]
+        default: install
+
+permissions:
+  id-token: write   # required for OIDC federation
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: azure-hub
+    steps:
+      - uses: actions/checkout@v7
+
+      # Authenticate with Azure using OIDC — no subscription-id needed at this step
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - uses: azure/setup-kubectl@v5
+        with:
+          version: latest
+
+      - uses: arduino/setup-task@v3
+        with:
+          version: 3.x
+
+      - name: Install yq + kind
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/download/v4.54.1/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          curl -Lo /tmp/kind \
+            https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
+          chmod +x /tmp/kind && sudo mv /tmp/kind /usr/local/bin/kind
+
+      # Fetch ALL config from Bootstrap Key Vault — mask every sensitive value
+      - name: Fetch config from Bootstrap Key Vault
+        run: |
+          CONFIG=$(az keyvault secret show \
+            --vault-name "${{ secrets.BOOTSTRAP_KV_NAME }}" \
+            --name "platform-config" \
+            --query value -o tsv)
+
+          # Extract and mask each sensitive value before use
+          SUB_ID=$(echo "$CONFIG" | jq -r '.subscriptionId')
+          echo "::add-mask::$SUB_ID"
+
+          TENANT_ID=$(echo "$CONFIG" | jq -r '.tenantId // ""')
+          [ -n "$TENANT_ID" ] && echo "::add-mask::$TENANT_ID"
+
+          LOCATION=$(echo "$CONFIG" | jq -r '.location')
+          DOMAIN=$(echo "$CONFIG" | jq -r '.domain')
+          echo "::add-mask::$DOMAIN"
+
+          RG=$(echo "$CONFIG" | jq -r '.resourceGroup')
+          REPO_URL=$(echo "$CONFIG" | jq -r '.repoUrl')
+          REPO_REV=$(echo "$CONFIG" | jq -r '.repoRevision // "main"')
+          PREFIX=$(echo "$CONFIG" | jq -r '.resourcePrefix // ""')
+          UAMI_CLIENT_ID=$(echo "$CONFIG" | jq -r '.uamiClientId // ""')
+          [ -z "$UAMI_CLIENT_ID" ] && UAMI_CLIENT_ID="${{ secrets.AZURE_CLIENT_ID }}"
+          echo "::add-mask::$UAMI_CLIENT_ID"
+
+          # Derive KV name from cluster name (naming convention: first 12 chars + -kv)
+          CLUSTER="${{ inputs.hub_cluster_name }}"
+          KV_NAME="${CLUSTER:0:12}-kv"
+
+          # Set subscription context
+          az account set --subscription "$SUB_ID"
+
+          # Write to GITHUB_ENV (values are already masked above)
+          echo "AZURE_SUB_ID=$SUB_ID"           >> "$GITHUB_ENV"
+          echo "AZURE_LOCATION=$LOCATION"        >> "$GITHUB_ENV"
+          echo "AZURE_RG=$RG"                    >> "$GITHUB_ENV"
+          echo "PLATFORM_DOMAIN=$DOMAIN"         >> "$GITHUB_ENV"
+          echo "REPO_URL=$REPO_URL"              >> "$GITHUB_ENV"
+          echo "REPO_REVISION=$REPO_REV"         >> "$GITHUB_ENV"
+          echo "RESOURCE_PREFIX=$PREFIX"         >> "$GITHUB_ENV"
+          echo "AZURE_UAMI_CLIENT_ID=$UAMI_CLIENT_ID" >> "$GITHUB_ENV"
+          echo "AZURE_KV_NAME=$KV_NAME"          >> "$GITHUB_ENV"
+
+      # Build config.local.yaml entirely from masked env vars — no PII in file
+      - name: Prepare config.local.yaml
+        run: |
+          CLUSTER="${{ inputs.hub_cluster_name }}"
+          cp config.yaml config.local.yaml
+
+          yq -i '.clusterProvider = "kind-crossplane-azure"'              config.local.yaml
+          yq -i ".hub.clusterName = \"${CLUSTER}\""                       config.local.yaml
+          yq -i '.hub.kubernetesVersion = "1.37"'                         config.local.yaml
+          yq -i ".azure.subscriptionId = \"${AZURE_SUB_ID}\""             config.local.yaml
+          yq -i ".azure.tenantId = \"${{ secrets.AZURE_TENANT_ID }}\""    config.local.yaml
+          yq -i ".azure.location = \"${AZURE_LOCATION}\""                 config.local.yaml
+          yq -i ".azure.uamiClientId = \"${AZURE_UAMI_CLIENT_ID}\""       config.local.yaml
+          yq -i ".azure.resourceGroup = \"${AZURE_RG}\""                  config.local.yaml
+          yq -i ".azure.keyVaultName = \"${AZURE_KV_NAME}\""              config.local.yaml
+          yq -i ".domain = \"${PLATFORM_DOMAIN}\""                        config.local.yaml
+          yq -i ".repo.url = \"${REPO_URL}\""                             config.local.yaml
+          yq -i ".repo.revision = \"${REPO_REVISION}\""                   config.local.yaml
+          yq -i '.repo.basepath = "gitops/"'                              config.local.yaml
+          [ -n "$RESOURCE_PREFIX" ] && \
+            yq -i ".resourcePrefix = \"${RESOURCE_PREFIX}\""              config.local.yaml
+
+          echo "config.local.yaml prepared (values masked in logs)"
+
+      - name: Run task
+        run: task kind-crossplane-azure:${{ inputs.action }}
+        env:
+          KUBECONFIG: ${{ github.workspace }}/private/kubeconfig

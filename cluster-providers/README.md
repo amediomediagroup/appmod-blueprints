@@ -9,6 +9,7 @@ cluster is created.
 | Provider | Description | When to use |
 |----------|-------------|-------------|
 | `kind-crossplane/` | Kind bootstrap + Crossplane provisions the hub EKS cluster (default) | Greenfield, full GitOps, no Terraform |
+| `kind-crossplane-azure/` | Kind bootstrap + Crossplane provisions the hub AKS cluster | Azure greenfield, full GitOps, Workload Identity, no SP secrets |
 | `kind-kro-ack/` | Kind bootstrap + KRO/ACK provisions the hub EKS cluster | Greenfield, full GitOps, KRO/ACK-based provisioning |
 | `terraform/` | Direct Terraform provisioning of the hub EKS cluster (no Kind, no Crossplane) | Teams standardized on Terraform |
 | `byoc/` | Bring Your Own Cluster | Existing cluster, any cloud provider |

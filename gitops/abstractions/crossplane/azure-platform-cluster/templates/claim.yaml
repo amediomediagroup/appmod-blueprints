@@ -1,0 +1,24 @@
+{{- range $name, $cluster := .Values.clusters }}
+---
+apiVersion: platform.gitops.io/v1alpha1
+kind: AzurePlatformCluster
+metadata:
+  name: {{ $cluster.clusterName }}
+  namespace: crossplane-system
+  annotations:
+    crossplane.io/external-name: {{ $cluster.clusterName }}
+spec:
+  location: {{ $cluster.location | default $.Values.global.defaultLocation | required "azure location required" }}
+  clusterName: {{ $cluster.clusterName }}
+  subscriptionId: {{ $cluster.subscriptionId | default $.Values.global.subscriptionId | required "azure subscriptionId required" | quote }}
+  tenantId: {{ $cluster.tenantId | default $.Values.global.tenantId | required "azure tenantId required" | quote }}
+  resourceGroup: {{ $cluster.resourceGroup | required "azure resourceGroup required" }}
+  vnetCidr: {{ $cluster.vnetCidr | default "10.0.0.0/8" | quote }}
+  kubernetesVersion: {{ $cluster.kubernetesVersion | default "1.37" | quote }}
+  systemNodeSize: {{ $cluster.systemNodeSize | default "Standard_D4s_v3" }}
+  systemNodeMin: {{ $cluster.systemNodeMin | default 1 }}
+  systemNodeMax: {{ $cluster.systemNodeMax | default 5 }}
+  writeConnectionSecretToRef:
+    name: {{ $cluster.clusterName }}-kubeconfig
+    namespace: crossplane-system
+{{- end }}

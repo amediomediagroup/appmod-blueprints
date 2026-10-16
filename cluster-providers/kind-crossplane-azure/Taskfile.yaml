@@ -1,0 +1,903 @@
+version: "3"
+set: [errexit, nounset, pipefail]
+silent: true
+
+# SECURITY: config.local.yaml must never contain subscription IDs, tenant IDs,
+# domain names, or any customer PII. Use the Bootstrap Key Vault pattern — see README.
+
+env:
+  KUBECONFIG: "{{.ROOT_DIR}}/private/kubeconfig"
+  AZURE_PAGER: ""
+
+vars:
+  CONFIG_FILE: "{{.ROOT_DIR}}/config.local.yaml"
+  GITOPS_ROOT: "{{.ROOT_DIR}}/gitops"
+  REQUIRED_CLIS: [az, kubectl, helm, kind, yq, jq, python3]
+
+  HUB_CLUSTER_NAME:
+    sh: yq '.hub.clusterName' {{.CONFIG_FILE}}
+  HUB_K8S_VERSION:
+    sh: yq '.hub.kubernetesVersion // "1.37"' {{.CONFIG_FILE}}
+  AZURE_SUB_ID:
+    sh: yq '.azure.subscriptionId' {{.CONFIG_FILE}}
+  AZURE_TENANT_ID:
+    sh: yq '.azure.tenantId' {{.CONFIG_FILE}}
+  AZURE_LOCATION:
+    sh: yq '.azure.location' {{.CONFIG_FILE}}
+  AZURE_UAMI_CLIENT_ID:
+    sh: yq '.azure.uamiClientId' {{.CONFIG_FILE}}
+  AZURE_RG:
+    sh: yq '.azure.resourceGroup' {{.CONFIG_FILE}}
+  AZURE_KV_NAME:
+    sh: |
+      KV=$(yq '.azure.keyVaultName // ""' {{.CONFIG_FILE}})
+      if [ -z "$KV" ] || [ "$KV" = "null" ]; then
+        # Default: first 12 chars of clusterName + "-kv" (total max 15, well within 24-char limit)
+        CLUSTER=$(yq '.hub.clusterName' {{.CONFIG_FILE}})
+        echo "${CLUSTER:0:12}-kv"
+      else
+        echo "$KV"
+      fi
+  REPO_URL:
+    sh: yq '.repo.url' {{.CONFIG_FILE}}
+  REPO_REVISION:
+    sh: yq '.repo.revision' {{.CONFIG_FILE}}
+  REPO_BASEPATH:
+    sh: yq '.repo.basepath' {{.CONFIG_FILE}}
+  FLEET_REPO_URL:
+    sh: yq '.fleetRepo.url // .repo.url' {{.CONFIG_FILE}}
+  FLEET_REPO_REVISION:
+    sh: yq '.fleetRepo.revision // .repo.revision' {{.CONFIG_FILE}}
+  FLEET_REPO_BASEPATH:
+    sh: yq '.fleetRepo.basepath // .repo.basepath' {{.CONFIG_FILE}}
+  DOMAIN:
+    sh: yq '.domain' {{.CONFIG_FILE}}
+  RESOURCE_PREFIX:
+    sh: yq '.resourcePrefix // ""' {{.CONFIG_FILE}}
+  INSECURE:
+    sh: yq '.insecure // false' {{.CONFIG_FILE}}
+
+  KIND_CLUSTER_NAME: "{{.HUB_CLUSTER_NAME}}-bootstrap"
+  # OIDC storage account: clusterName (alphanumeric only, max 24 chars)
+  OIDC_STORAGE_ACCOUNT:
+    sh: echo "{{.HUB_CLUSTER_NAME}}" | tr -d '-' | cut -c1-20 | tr '[:upper:]' '[:lower:]'
+
+  C_INFO:
+    sh: printf '\033[1;36m'
+  C_OK:
+    sh: printf '\033[1;32m'
+  C_STEP:
+    sh: printf '\033[1;33m'
+  C_ERR:
+    sh: printf '\033[1;31m'
+  C_RESET:
+    sh: printf '\033[0m'
+
+  ARGOCD_VERSION:
+    sh: yq '.argocd.defaultVersion' "{{.ROOT_DIR}}/gitops/addons/registry/core.yaml"
+
+tasks:
+  # ── VALIDATE ──────────────────────────────────────────────────────────────
+  validate:
+    desc: Pre-flight checks for kind-crossplane-azure provider
+    cmds:
+      - printf '{{.C_STEP}}▸ Checking required CLIs...{{.C_RESET}}\n'
+      - cmd: command -v {{.ITEM}} >/dev/null 2>&1 || { echo "Missing required CLI: {{.ITEM}}"; exit 1; }
+        for:
+          var: REQUIRED_CLIS
+      - printf '{{.C_STEP}}▸ Checking config.local.yaml...{{.C_RESET}}\n'
+      - test -f {{.CONFIG_FILE}} || { echo "config.local.yaml not found"; exit 1; }
+      - yq '.hub.clusterName' {{.CONFIG_FILE}} | grep -qv null || { echo "hub.clusterName not set"; exit 1; }
+      - yq '.azure.subscriptionId' {{.CONFIG_FILE}} | grep -qv null || { echo "azure.subscriptionId not set"; exit 1; }
+      - yq '.azure.tenantId' {{.CONFIG_FILE}} | grep -qv null || { echo "azure.tenantId not set"; exit 1; }
+      - yq '.azure.location' {{.CONFIG_FILE}} | grep -qv null || { echo "azure.location not set"; exit 1; }
+      - yq '.azure.uamiClientId' {{.CONFIG_FILE}} | grep -qv null || { echo "azure.uamiClientId not set"; exit 1; }
+      - yq '.azure.resourceGroup' {{.CONFIG_FILE}} | grep -qv null || { echo "azure.resourceGroup not set"; exit 1; }
+      - yq '.repo.url' {{.CONFIG_FILE}} | grep -qv null || { echo "repo.url not set"; exit 1; }
+      - yq '.domain' {{.CONFIG_FILE}} | grep -qv null || { echo "domain not set"; exit 1; }
+      - printf '{{.C_STEP}}▸ Checking Azure credentials...{{.C_RESET}}\n'
+      - az account show --subscription "{{.AZURE_SUB_ID}}" --output none || { echo "Azure not authenticated or subscription not accessible"; exit 1; }
+      - printf '{{.C_OK}}✓ All pre-flight checks passed.{{.C_RESET}}\n'
+
+  init:
+    desc: Verify prerequisites and print resolved config (no sensitive values)
+    cmds:
+      - cmd: command -v {{.ITEM}} >/dev/null 2>&1 && printf '  ✓ %s\n' "{{.ITEM}}" || printf '  ✗ %s (missing)\n' "{{.ITEM}}"
+        for:
+          var: REQUIRED_CLIS
+      - printf '{{.C_STEP}}▸ Azure location - {{.AZURE_LOCATION}}{{.C_RESET}}\n'
+      - printf '{{.C_STEP}}▸ Hub cluster   - {{.HUB_CLUSTER_NAME}}{{.C_RESET}}\n'
+      - printf '{{.C_STEP}}▸ K8s version   - {{.HUB_K8S_VERSION}}{{.C_RESET}}\n'
+      - printf '{{.C_STEP}}▸ KV name       - {{.AZURE_KV_NAME}}{{.C_RESET}}\n'
+      - printf '{{.C_STEP}}▸ OIDC storage  - {{.OIDC_STORAGE_ACCOUNT}}{{.C_RESET}}\n'
+
+  # ── INSTALL ───────────────────────────────────────────────────────────────
+  install:
+    desc: Bootstrap the Azure platform (idempotent)
+    vars:
+      INSTALL_START:
+        sh: date +%s
+    cmds:
+      - task: init
+      - 'printf "{{.C_INFO}}  [%ds] init done{{.C_RESET}}\n" "$(($(date +%s) - {{.INSTALL_START}}))"'
+      # workload-identity:setup runs FIRST to resolve the real OIDC static website URL
+      # before Kind cluster is created (Kind API server needs the correct issuer URL)
+      - task: workload-identity:setup
+      - 'printf "{{.C_INFO}}  [%ds] workload-identity:setup done (OIDC URL resolved){{.C_RESET}}\n" "$(($(date +%s) - {{.INSTALL_START}}))"'
+      - task: kind:create
+      - 'printf "{{.C_INFO}}  [%ds] kind:create done{{.C_RESET}}\n" "$(($(date +%s) - {{.INSTALL_START}}))"'
+      - task: crossplane:setup
+      - 'printf "{{.C_INFO}}  [%ds] crossplane:setup done{{.C_RESET}}\n" "$(($(date +%s) - {{.INSTALL_START}}))"'
+      - task: crossplane:claims
+      - 'printf "{{.C_INFO}}  [%ds] crossplane:claims done (AKS provisioning started){{.C_RESET}}\n" "$(($(date +%s) - {{.INSTALL_START}}))"'
+      - task: hub:seed
+      - 'printf "{{.C_INFO}}  [%ds] hub:seed done{{.C_RESET}}\n" "$(($(date +%s) - {{.INSTALL_START}}))"'
+      - task: hub:install-eso
+      - task: hub:cluster-secret-store
+      - 'printf "{{.C_INFO}}  [%ds] ESO + ClusterSecretStore done{{.C_RESET}}\n" "$(($(date +%s) - {{.INSTALL_START}}))"'
+      - task: keyvault:seed
+      - task: keyvault:seed-keycloak
+      - 'printf "{{.C_INFO}}  [%ds] Key Vault seeded{{.C_RESET}}\n" "$(($(date +%s) - {{.INSTALL_START}}))"'
+      - task: hub:seed-secret
+      - task: hub:install-argocd
+      - task: hub:apply-root-appset
+      - |
+        ELAPSED=$(($(date +%s) - {{.INSTALL_START}}))
+        printf '\n'
+        printf '{{.C_OK}}============================================================{{.C_RESET}}\n'
+        printf '{{.C_OK}}✓✓✓  AZURE HUB BOOTSTRAP COMPLETE  ✓✓✓{{.C_RESET}}\n'
+        printf '{{.C_OK}}     Total time: %ds{{.C_RESET}}\n' "$ELAPSED"
+        printf '{{.C_OK}}     Next: run task kind-crossplane-azure:status{{.C_RESET}}\n'
+        printf '{{.C_OK}}============================================================{{.C_RESET}}\n'
+
+  # ── STATUS ────────────────────────────────────────────────────────────────
+  status:
+    desc: Show current bootstrap and cluster status
+    cmds:
+      - printf '{{.C_STEP}}▸ Kind clusters:{{.C_RESET}}\n'
+      - kind get clusters 2>/dev/null | grep "^{{.KIND_CLUSTER_NAME}}$" && printf '  ✓ %s running\n' "{{.KIND_CLUSTER_NAME}}" || printf '  (not running)\n'
+      - printf '{{.C_STEP}}▸ AzurePlatformCluster:{{.C_RESET}}\n'
+      - cmd: |
+          kubectl get azureplatformclusters -n crossplane-system \
+            --no-headers 2>/dev/null | awk '{printf "  %s  READY=%s\n", $1, $2}' || printf '  (Kind not running or claim not created)\n'
+        ignore_error: true
+      - printf '{{.C_STEP}}▸ AKS cluster:{{.C_RESET}}\n'
+      - cmd: |
+          STATE=$(az aks show --name "{{.HUB_CLUSTER_NAME}}" \
+            --resource-group "{{.AZURE_RG}}" \
+            --query provisioningState -o tsv 2>/dev/null || echo "not found")
+          printf '  %s\n' "$STATE"
+        ignore_error: true
+
+  # ── DESTROY ───────────────────────────────────────────────────────────────
+  destroy:
+    desc: Full teardown — delete AKS + all Azure resources + Kind cluster
+    cmds:
+      - printf '{{.C_STEP}}▸ Deleting AzurePlatformCluster claim (triggers Crossplane cascade)...{{.C_RESET}}\n'
+      - cmd: |
+          kubectl delete azureplatformclusters.platform.gitops.io \
+            "{{.HUB_CLUSTER_NAME}}" -n crossplane-system --wait=false 2>/dev/null || true
+        ignore_error: true
+      - printf '{{.C_STEP}}▸ Waiting for Azure resources to be deleted (may take 20+ min)...{{.C_RESET}}\n'
+      - cmd: |
+          for i in $(seq 1 120); do
+            COUNT=$(kubectl get managed 2>/dev/null | \
+              grep -c "{{.HUB_CLUSTER_NAME}}" || echo 0)
+            [ "$COUNT" = "0" ] && \
+              printf '{{.C_OK}}✓ All managed resources deleted.{{.C_RESET}}\n' && break
+            [ $((i % 6)) -eq 0 ] && \
+              printf '{{.C_INFO}}  [%ds] %s resources remaining...{{.C_RESET}}\n' "$((i*10))" "$COUNT"
+            sleep 10
+          done
+        ignore_error: true
+      - task: destroy-kind
+      - printf '{{.C_OK}}✓ Azure hub fully destroyed.{{.C_RESET}}\n'
+
+  destroy-kind:
+    desc: Delete Kind bootstrap cluster and OIDC storage (AKS hub persists)
+    cmds:
+      - printf '{{.C_STEP}}▸ Deleting Kind cluster...{{.C_RESET}}\n'
+      - kind delete cluster --name "{{.KIND_CLUSTER_NAME}}" 2>/dev/null || true
+      - printf '{{.C_STEP}}▸ Removing OIDC storage account...{{.C_RESET}}\n'
+      - cmd: |
+          az storage account delete \
+            --name "{{.OIDC_STORAGE_ACCOUNT}}" \
+            --resource-group "{{.AZURE_RG}}" \
+            --yes 2>/dev/null || true
+        ignore_error: true
+      - printf '{{.C_STEP}}▸ Removing Kind OIDC federated credential...{{.C_RESET}}\n'
+      - cmd: |
+          IDENTITY_NAME=$(az identity list \
+            --resource-group "{{.AZURE_RG}}" \
+            --query "[?clientId=='{{.AZURE_UAMI_CLIENT_ID}}'].name" \
+            -o tsv 2>/dev/null || echo "")
+          if [ -n "$IDENTITY_NAME" ]; then
+            az identity federated-credential delete \
+              --identity-name "$IDENTITY_NAME" \
+              --resource-group "{{.AZURE_RG}}" \
+              --name "kind-bootstrap-{{.HUB_CLUSTER_NAME}}" \
+              --yes 2>/dev/null || true
+          fi
+        ignore_error: true
+      - rm -f "{{.ROOT_DIR}}/private/kubeconfig" "{{.ROOT_DIR}}/private/hub-kubeconfig"
+      - rm -rf "{{.ROOT_DIR}}/private/oidc" "{{.ROOT_DIR}}/private/kind-config.yaml"
+      - printf '{{.C_OK}}✓ Kind cluster and OIDC resources cleaned up.{{.C_RESET}}\n'
+
+  # ── KIND ──────────────────────────────────────────────────────────────────
+  kind:create:
+    desc: Create Kind cluster with OIDC issuer configured
+    preconditions:
+      - sh: kind get clusters >/dev/null 2>&1
+        msg: |
+          No container runtime reachable for kind.
+          Start Docker, or export KIND_EXPERIMENTAL_PROVIDER for another runtime
+          (e.g. KIND_EXPERIMENTAL_PROVIDER=podman), then re-run.
+    status:
+      - kind get clusters 2>/dev/null | grep -q "^{{.KIND_CLUSTER_NAME}}$"
+    cmds:
+      - mkdir -p "{{.ROOT_DIR}}/private/oidc"
+      - printf '{{.C_STEP}}▸ Generating SA signing keypair...{{.C_RESET}}\n'
+      - cmd: |
+          if [ ! -f "{{.ROOT_DIR}}/private/oidc/sa.key" ]; then
+            openssl genrsa -out "{{.ROOT_DIR}}/private/oidc/sa.key" 2048 2>/dev/null
+            openssl rsa -in "{{.ROOT_DIR}}/private/oidc/sa.key" \
+              -pubout -out "{{.ROOT_DIR}}/private/oidc/sa.pub" 2>/dev/null
+          fi
+      - printf '{{.C_STEP}}▸ Computing OIDC issuer URL...{{.C_RESET}}\n'
+      - cmd: |
+          # The OIDC issuer URL must match the static website endpoint, not the blob endpoint.
+          # Static website URL format: https://<account>.z<N>.web.core.windows.net
+          # The suffix (z1, z23, etc.) varies by region and cannot be predicted before
+          # the account exists — we must query it after creation in workload-identity:setup.
+          # For kind:create we write a placeholder; workload-identity:setup overwrites it.
+          echo "" > "{{.ROOT_DIR}}/private/oidc/issuer-url"
+          printf '{{.C_INFO}}  OIDC issuer URL will be resolved after storage account creation.{{.C_RESET}}\n'
+      - printf '{{.C_STEP}}▸ Rendering Kind config with OIDC issuer...{{.C_RESET}}\n'
+      - cmd: |
+          OIDC_URL=$(cat "{{.ROOT_DIR}}/private/oidc/issuer-url")
+          SA_KEY_PATH="{{.ROOT_DIR}}/private/oidc/sa.key"
+          SA_PUB_PATH="{{.ROOT_DIR}}/private/oidc/sa.pub"
+          cat > "{{.ROOT_DIR}}/private/kind-config.yaml" << KINDEOF
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes:
+            - role: control-plane
+              kubeadmConfigPatches:
+                - |
+                  kind: ClusterConfiguration
+                  apiServer:
+                    extraArgs:
+                      service-account-key-file: /etc/kubernetes/pki/oidc-sa.pub
+                      service-account-signing-key-file: /etc/kubernetes/pki/oidc-sa.key
+                      service-account-issuer: ${OIDC_URL}
+                  controllerManager:
+                    extraArgs:
+                      service-account-private-key-file: /etc/kubernetes/pki/oidc-sa.key
+              extraMounts:
+                - hostPath: ${SA_KEY_PATH}
+                  containerPath: /etc/kubernetes/pki/oidc-sa.key
+                  readOnly: true
+                - hostPath: ${SA_PUB_PATH}
+                  containerPath: /etc/kubernetes/pki/oidc-sa.pub
+                  readOnly: true
+          KINDEOF
+      - printf '{{.C_STEP}}▸ Creating Kind cluster...{{.C_RESET}}\n'
+      - kind create cluster --name "{{.KIND_CLUSTER_NAME}}" --config "{{.ROOT_DIR}}/private/kind-config.yaml" --kubeconfig "{{.KUBECONFIG}}"
+      - printf '{{.C_OK}}✓ Kind cluster {{.KIND_CLUSTER_NAME}} created.{{.C_RESET}}\n'
+
+  # ── WORKLOAD IDENTITY ─────────────────────────────────────────────────────
+  workload-identity:setup:
+    desc: Setup Azure Workload Identity — publish JWKS, register federated credential, install webhook
+    cmds:
+      - printf '{{.C_STEP}}▸ Creating OIDC storage account...{{.C_RESET}}\n'
+      - cmd: |
+          az storage account create \
+            --name "{{.OIDC_STORAGE_ACCOUNT}}" \
+            --resource-group "{{.AZURE_RG}}" \
+            --location "{{.AZURE_LOCATION}}" \
+            --sku Standard_LRS \
+            --allow-blob-public-access true \
+            --min-tls-version TLS1_2 \
+            --output none 2>/dev/null || true
+          az storage blob service-properties update \
+            --account-name "{{.OIDC_STORAGE_ACCOUNT}}" \
+            --static-website true \
+            --index-document index.html \
+            --output none
+        status:
+          - az storage account show --name "{{.OIDC_STORAGE_ACCOUNT}}" --resource-group "{{.AZURE_RG}}" --output none 2>/dev/null
+      - printf '{{.C_STEP}}▸ Generating JWKS and OIDC discovery document...{{.C_RESET}}\n'
+      - cmd: |
+          # Fetch real static website endpoint (not blob endpoint — they differ)
+          # Format: https://<account>.z<N>.web.core.windows.net
+          # Strip trailing slash, then append /oidc as the issuer path
+          STATIC_URL=$(az storage account show \
+            --name "{{.OIDC_STORAGE_ACCOUNT}}" \
+            --resource-group "{{.AZURE_RG}}" \
+            --query "primaryEndpoints.web" -o tsv | sed 's|/$||')
+          OIDC_URL="${STATIC_URL}/oidc"
+          echo "$OIDC_URL" > "{{.ROOT_DIR}}/private/oidc/issuer-url"
+          printf '{{.C_INFO}}  OIDC issuer URL resolved and stored (not logged).{{.C_RESET}}\n'
+
+          # If Kind cluster already exists with a stale placeholder issuer, warn operator
+          if kind get clusters 2>/dev/null | grep -q "^{{.KIND_CLUSTER_NAME}}$"; then
+            CURRENT=$(cat "{{.ROOT_DIR}}/private/oidc/issuer-url")
+            printf '{{.C_STEP}}  NOTE: Kind cluster already running. Ensure its API server --service-account-issuer\n'
+            printf '{{.C_STEP}}  matches the OIDC URL written above. Re-run kind:create if it was created\n'
+            printf '{{.C_STEP}}  before workload-identity:setup (issuer URL was placeholder).{{.C_RESET}}\n'
+          fi
+
+          python3 "{{.ROOT_DIR}}/scripts/azure/generate-oidc-jwks.py" \
+            --public-key "{{.ROOT_DIR}}/private/oidc/sa.pub" \
+            --output "{{.ROOT_DIR}}/private/oidc/jwks.json"
+
+          OIDC_URL=$(cat "{{.ROOT_DIR}}/private/oidc/issuer-url")
+          cat > "{{.ROOT_DIR}}/private/oidc/openid-configuration.json" << OEOF
+          {
+            "issuer": "${OIDC_URL}",
+            "jwks_uri": "${OIDC_URL}/openid/v1/jwks",
+            "response_types_supported": ["id_token"],
+            "subject_types_supported": ["public"],
+            "id_token_signing_alg_values_supported": ["RS256"]
+          }
+          OEOF
+      - printf '{{.C_STEP}}▸ Uploading OIDC discovery documents...{{.C_RESET}}\n'
+      - cmd: |
+          az storage blob upload \
+            --account-name "{{.OIDC_STORAGE_ACCOUNT}}" \
+            --container-name '$web' \
+            --name ".well-known/openid-configuration" \
+            --file "{{.ROOT_DIR}}/private/oidc/openid-configuration.json" \
+            --content-type "application/json" \
+            --overwrite --output none
+          az storage blob upload \
+            --account-name "{{.OIDC_STORAGE_ACCOUNT}}" \
+            --container-name '$web' \
+            --name "openid/v1/jwks" \
+            --file "{{.ROOT_DIR}}/private/oidc/jwks.json" \
+            --content-type "application/json" \
+            --overwrite --output none
+      - printf '{{.C_STEP}}▸ Registering Kind OIDC federated credential on UAMI...{{.C_RESET}}\n'
+      - cmd: |
+          IDENTITY_NAME=$(az identity list \
+            --resource-group "{{.AZURE_RG}}" \
+            --query "[?clientId=='{{.AZURE_UAMI_CLIENT_ID}}'].name" \
+            -o tsv 2>/dev/null | head -1)
+          if [ -z "$IDENTITY_NAME" ]; then
+            printf '{{.C_ERR}}✗ UAMI with clientId {{.AZURE_UAMI_CLIENT_ID}} not found in RG {{.AZURE_RG}}{{.C_RESET}}\n'
+            exit 1
+          fi
+          # Check if federated credential already exists
+          EXISTING=$(az identity federated-credential show \
+            --identity-name "$IDENTITY_NAME" \
+            --resource-group "{{.AZURE_RG}}" \
+            --name "kind-bootstrap-{{.HUB_CLUSTER_NAME}}" \
+            --output none 2>/dev/null && echo "exists" || echo "")
+          if [ -z "$EXISTING" ]; then
+            OIDC_URL=$(cat "{{.ROOT_DIR}}/private/oidc/issuer-url")
+            az identity federated-credential create \
+              --identity-name "$IDENTITY_NAME" \
+              --resource-group "{{.AZURE_RG}}" \
+              --name "kind-bootstrap-{{.HUB_CLUSTER_NAME}}" \
+              --issuer "$OIDC_URL" \
+              --subject "system:serviceaccount:crossplane-system:crossplane" \
+              --audiences "api://AzureADTokenExchange" \
+              --output none
+          fi
+      - printf '{{.C_STEP}}▸ Installing Azure Workload Identity webhook on Kind...{{.C_RESET}}\n'
+      - cmd: |
+          helm repo add azure-workload-identity \
+            https://azure.github.io/azure-workload-identity/charts --force-update --quiet
+        status:
+          - helm status workload-identity-webhook -n azure-workload-identity-system 2>/dev/null | grep -q deployed
+      - helm upgrade --install workload-identity-webhook \
+          azure-workload-identity/workload-identity-webhook \
+          --namespace azure-workload-identity-system \
+          --create-namespace \
+          --version 1.6.3 \
+          --set azureTenantID="{{.AZURE_TENANT_ID}}" \
+          --wait --timeout 5m
+      - printf '{{.C_OK}}✓ Workload Identity setup complete.{{.C_RESET}}\n'
+
+  # ── CROSSPLANE ────────────────────────────────────────────────────────────
+  crossplane:setup:
+    desc: Install Crossplane and Azure providers (idempotent)
+    cmds:
+      - task: crossplane:helm
+      - task: crossplane:providers
+      - task: crossplane:provider-config
+
+  crossplane:helm:
+    status:
+      - helm status crossplane -n crossplane-system 2>/dev/null | grep -q deployed
+    cmds:
+      - kubectl create namespace crossplane-system --dry-run=client -o yaml | kubectl apply -f -
+      - helm repo add crossplane-stable https://charts.crossplane.io/stable --force-update --quiet
+      - helm upgrade --install crossplane crossplane-stable/crossplane \
+          --namespace crossplane-system \
+          --version $(yq '.crossplane.defaultVersion' {{.GITOPS_ROOT}}/addons/registry/platform.yaml) \
+          --wait --timeout 5m
+
+  crossplane:providers:
+    desc: Install Azure Crossplane providers with Workload Identity
+    cmds:
+      - kubectl apply -f manifests/crossplane/drc-stub.yaml
+      - cmd: |
+          # Apply all Azure providers with verified latest stable versions
+          cat <<EOF | kubectl apply -f -
+          apiVersion: pkg.crossplane.io/v1
+          kind: Provider
+          metadata:
+            name: provider-family-azure
+          spec:
+            package: xpkg.upbound.io/upbound/provider-family-azure:v2.8.0
+            runtimeConfigRef:
+              name: azure-workload-identity-drc
+          ---
+          apiVersion: pkg.crossplane.io/v1
+          kind: Provider
+          metadata:
+            name: provider-azure-network
+          spec:
+            package: xpkg.upbound.io/upbound/provider-azure-network:v2.8.0
+            runtimeConfigRef:
+              name: azure-workload-identity-drc
+          ---
+          apiVersion: pkg.crossplane.io/v1
+          kind: Provider
+          metadata:
+            name: provider-azure-containerservice
+          spec:
+            package: xpkg.upbound.io/upbound/provider-azure-containerservice:v2.8.0
+            runtimeConfigRef:
+              name: azure-workload-identity-drc
+          ---
+          apiVersion: pkg.crossplane.io/v1
+          kind: Provider
+          metadata:
+            name: provider-azure-managedidentity
+          spec:
+            package: xpkg.upbound.io/upbound/provider-azure-managedidentity:v2.8.0
+            runtimeConfigRef:
+              name: azure-workload-identity-drc
+          ---
+          apiVersion: pkg.crossplane.io/v1
+          kind: Provider
+          metadata:
+            name: provider-azure-keyvault
+          spec:
+            package: xpkg.upbound.io/upbound/provider-azure-keyvault:v2.8.0
+            runtimeConfigRef:
+              name: azure-workload-identity-drc
+          ---
+          apiVersion: pkg.crossplane.io/v1
+          kind: Provider
+          metadata:
+            name: provider-azure-authorization
+          spec:
+            package: xpkg.upbound.io/upbound/provider-azure-authorization:v2.8.0
+            runtimeConfigRef:
+              name: azure-workload-identity-drc
+          ---
+          apiVersion: pkg.crossplane.io/v1
+          kind: Provider
+          metadata:
+            name: provider-kubernetes
+          spec:
+            # v1.4.1 fixes AKS azure auth regression from v1.4.0
+            package: xpkg.upbound.io/crossplane-contrib/provider-kubernetes:v1.4.1
+          ---
+          apiVersion: pkg.crossplane.io/v1
+          kind: Function
+          metadata:
+            name: function-patch-and-transform
+          spec:
+            package: xpkg.upbound.io/crossplane-contrib/function-patch-and-transform:v0.11.0
+          EOF
+      - printf '{{.C_STEP}}▸ Annotating Crossplane SA for Workload Identity...{{.C_RESET}}\n'
+      - cmd: |
+          kubectl -n crossplane-system annotate sa crossplane \
+            azure.workload.identity/client-id="{{.AZURE_UAMI_CLIENT_ID}}" \
+            --overwrite
+          kubectl -n crossplane-system rollout restart deployment/crossplane 2>/dev/null || true
+      - printf '{{.C_STEP}}▸ Waiting for all providers to be Healthy (up to 10min)...{{.C_RESET}}\n'
+      - kubectl wait --for=condition=Healthy --timeout=600s providers.pkg.crossplane.io --all
+      - kubectl wait --for=condition=Healthy --timeout=300s functions.pkg.crossplane.io --all
+      - printf '{{.C_OK}}✓ All Azure Crossplane providers Healthy.{{.C_RESET}}\n'
+      - cmd: |
+          # Grant cluster-admin to provider-kubernetes
+          kubectl create clusterrolebinding provider-kubernetes-admin \
+            --clusterrole=cluster-admin \
+            --serviceaccount=crossplane-system:provider-kubernetes 2>/dev/null || true
+          # Apply kubernetes ProviderConfig after CRD is ready
+          kubectl wait --for=condition=Established \
+            crd/providerconfigs.kubernetes.crossplane.io --timeout=60s 2>/dev/null || true
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: kubernetes.crossplane.io/v1alpha1
+          kind: ProviderConfig
+          metadata:
+            name: default
+          spec:
+            credentials:
+              source: InjectedIdentity
+          EOF
+
+  crossplane:provider-config:
+    desc: Apply Azure ProviderConfig with Workload Identity
+    status:
+      - kubectl get providerconfig.azure.upbound.io default 2>/dev/null
+    cmds:
+      - cmd: |
+          cat <<EOF | kubectl apply -f -
+          apiVersion: azure.upbound.io/v1beta1
+          kind: ProviderConfig
+          metadata:
+            name: default
+          spec:
+            credentials:
+              source: OIDCTokenFile
+            clientID: "{{.AZURE_UAMI_CLIENT_ID}}"
+            tenantID: "{{.AZURE_TENANT_ID}}"
+            subscriptionID: "{{.AZURE_SUB_ID}}"
+          EOF
+      - printf '{{.C_OK}}✓ Azure ProviderConfig applied.{{.C_RESET}}\n'
+
+  # ── CROSSPLANE CLAIMS ─────────────────────────────────────────────────────
+  crossplane:claims:
+    desc: Apply XRD, Composition, and AzurePlatformCluster claim
+    cmds:
+      - printf '{{.C_STEP}}▸ Applying XRD...{{.C_RESET}}\n'
+      - cmd: |
+          helm template hub-azure \
+            "{{.GITOPS_ROOT}}/abstractions/crossplane/azure-platform-cluster" \
+            --set clusters.hub.clusterName="{{.HUB_CLUSTER_NAME}}" \
+            --set clusters.hub.location="{{.AZURE_LOCATION}}" \
+            --show-only templates/xrd.yaml | kubectl apply -f -
+          kubectl wait --for=condition=Established \
+            xrd/xazureplatformclusters.platform.gitops.io --timeout=60s
+      - printf '{{.C_STEP}}▸ Applying Composition...{{.C_RESET}}\n'
+      - cmd: |
+          helm template hub-azure \
+            "{{.GITOPS_ROOT}}/abstractions/crossplane/azure-platform-cluster" \
+            --set clusters.hub.clusterName="{{.HUB_CLUSTER_NAME}}" \
+            --show-only templates/composition.yaml | kubectl apply -f -
+      - printf '{{.C_STEP}}▸ Applying AzurePlatformCluster claim...{{.C_RESET}}\n'
+      - cmd: |
+          helm template hub-azure \
+            "{{.GITOPS_ROOT}}/abstractions/crossplane/azure-platform-cluster" \
+            --set clusters.hub.clusterName="{{.HUB_CLUSTER_NAME}}" \
+            --set clusters.hub.location="{{.AZURE_LOCATION}}" \
+            --set "clusters.hub.subscriptionId={{.AZURE_SUB_ID}}" \
+            --set "clusters.hub.tenantId={{.AZURE_TENANT_ID}}" \
+            --set clusters.hub.resourceGroup="{{.AZURE_RG}}" \
+            --set clusters.hub.kubernetesVersion="{{.HUB_K8S_VERSION}}" \
+            --show-only templates/claim.yaml | kubectl apply -f -
+      - printf '{{.C_OK}}✓ AzurePlatformCluster claim created — AKS provisioning started.{{.C_RESET}}\n'
+      - printf '{{.C_INFO}}  Monitor progress: kubectl get azureplatformclusters -n crossplane-system -w{{.C_RESET}}\n'
+
+  # ── HUB ───────────────────────────────────────────────────────────────────
+  hub:kubeconfig:
+    desc: Fetch hub AKS kubeconfig
+    cmds:
+      - rm -f "{{.ROOT_DIR}}/private/hub-kubeconfig"
+      - az aks get-credentials \
+          --name "{{.HUB_CLUSTER_NAME}}" \
+          --resource-group "{{.AZURE_RG}}" \
+          --file "{{.ROOT_DIR}}/private/hub-kubeconfig" \
+          --overwrite-existing \
+          --output none
+
+  hub:seed:
+    desc: Wait for AKS hub cluster to be Ready, then fetch credentials
+    cmds:
+      - printf '{{.C_STEP}}▸ Waiting for AzurePlatformCluster to be Ready (up to 90 min)...{{.C_RESET}}\n'
+      - cmd: |
+          kubectl wait --for=condition=Ready \
+            --timeout=5400s \
+            azureplatformclusters.platform.gitops.io/"{{.HUB_CLUSTER_NAME}}" \
+            -n crossplane-system 2>/dev/null || \
+            printf '{{.C_STEP}}  XR wait timed out — checking AKS directly...{{.C_RESET}}\n'
+      - printf '{{.C_STEP}}▸ Verifying AKS cluster is Succeeded...{{.C_RESET}}\n'
+      - cmd: |
+          until az aks show \
+              --name "{{.HUB_CLUSTER_NAME}}" \
+              --resource-group "{{.AZURE_RG}}" \
+              --query provisioningState -o tsv 2>/dev/null | grep -q Succeeded; do
+            printf '  waiting for AKS...\n'
+            sleep 20
+          done
+      - printf '{{.C_STEP}}▸ Fetching hub kubeconfig...{{.C_RESET}}\n'
+      - task: hub:kubeconfig
+      - printf '{{.C_STEP}}▸ Granting cluster-admin to current identity...{{.C_RESET}}\n'
+      - cmd: |
+          PRINCIPAL_OID=$(az ad signed-in-user show --query id -o tsv 2>/dev/null || \
+            az account show --query id -o tsv)
+          az aks command invoke \
+            --name "{{.HUB_CLUSTER_NAME}}" \
+            --resource-group "{{.AZURE_RG}}" \
+            --command "kubectl create clusterrolebinding bootstrap-admin --clusterrole=cluster-admin --user=${PRINCIPAL_OID} 2>/dev/null || true" \
+            --output none 2>/dev/null || true
+      - printf '{{.C_OK}}✓ Hub cluster accessible.{{.C_RESET}}\n'
+
+  hub:install-eso:
+    desc: Install External Secrets Operator on hub AKS
+    vars:
+      ESO_VERSION:
+        sh: yq '.external-secrets.defaultVersion' {{.GITOPS_ROOT}}/addons/registry/core.yaml
+      ESO_MI_CLIENT_ID:
+        sh: |
+          kubectl get xazureplatformcluster "{{.HUB_CLUSTER_NAME}}" \
+            -o jsonpath='{.status.esoMiClientId}' 2>/dev/null || \
+          az identity show \
+            --name "{{.HUB_CLUSTER_NAME}}-eso-mi" \
+            --resource-group "{{.AZURE_RG}}" \
+            --query clientId -o tsv 2>/dev/null || echo ""
+    status:
+      - KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig helm status external-secrets -n external-secrets 2>/dev/null | grep -q deployed
+    cmds:
+      - task: hub:kubeconfig
+      - KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig helm repo add external-secrets https://charts.external-secrets.io --force-update --quiet
+      - cmd: |
+          KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig \
+          helm upgrade --install external-secrets external-secrets/external-secrets \
+            --namespace external-secrets \
+            --create-namespace \
+            --version "{{.ESO_VERSION}}" \
+            --set serviceAccount.name=external-secrets-sa \
+            --set "serviceAccount.annotations.azure\.workload\.identity/client-id={{.ESO_MI_CLIENT_ID}}" \
+            --set "podLabels.azure\.workload\.identity/use=true" \
+            --wait --timeout 5m
+      - printf '{{.C_OK}}✓ External Secrets Operator installed on hub.{{.C_RESET}}\n'
+
+  hub:cluster-secret-store:
+    desc: Apply ClusterSecretStore pointing to Azure Key Vault
+    cmds:
+      - task: hub:kubeconfig
+      - cmd: |
+          helm template azure-css \
+            "{{.ROOT_DIR}}/gitops/addons/charts/azure-cluster-secret-store" \
+            --set azure.keyVaultName="{{.AZURE_KV_NAME}}" | \
+          KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig kubectl apply -f -
+      - printf '{{.C_OK}}✓ ClusterSecretStore azure-key-vault applied.{{.C_RESET}}\n'
+
+  # ── KEY VAULT ─────────────────────────────────────────────────────────────
+  keyvault:seed:
+    desc: Seed platform config into Azure Key Vault (preserves overlay_repo fields)
+    cmds:
+      - printf '{{.C_STEP}}▸ Seeding platform config into Key Vault...{{.C_RESET}}\n'
+      - cmd: |
+          SECRET_KEY="{{.HUB_CLUSTER_NAME}}-config"
+          # Preserve existing overlay_repo values to avoid breaking fleet-config wiring
+          EXISTING=$(az keyvault secret show \
+            --vault-name "{{.AZURE_KV_NAME}}" \
+            --name "$SECRET_KEY" \
+            --query value -o tsv 2>/dev/null || echo "{}")
+          OVERLAY_URL=$(echo "$EXISTING" | jq -r '.overlay_repo_url // ""')
+          OVERLAY_REV=$(echo "$EXISTING" | jq -r '.overlay_repo_revision // ""')
+          OVERLAY_BASE=$(echo "$EXISTING" | jq -r '.overlay_repo_basepath // ""')
+
+          CONFIG=$(jq -n \
+            --arg addonsRepoURL "{{.REPO_URL}}" \
+            --arg addonsRepoRevision "{{.REPO_REVISION}}" \
+            --arg addonsRepoBasepath "{{.REPO_BASEPATH}}" \
+            --arg fleetRepoURL "{{.FLEET_REPO_URL}}" \
+            --arg fleetRepoRevision "{{.FLEET_REPO_REVISION}}" \
+            --arg fleetRepoBasepath "{{.FLEET_REPO_BASEPATH}}" \
+            --arg azure_location "{{.AZURE_LOCATION}}" \
+            --arg azure_subscription_id "{{.AZURE_SUB_ID}}" \
+            --arg azure_cluster_name "{{.HUB_CLUSTER_NAME}}" \
+            --arg ingress_domain_name "{{.DOMAIN}}" \
+            --arg resource_prefix "{{.RESOURCE_PREFIX}}" \
+            --arg insecure "{{.INSECURE}}" \
+            --arg overlay_repo_url "$OVERLAY_URL" \
+            --arg overlay_repo_revision "$OVERLAY_REV" \
+            --arg overlay_repo_basepath "$OVERLAY_BASE" \
+            '{
+              addonsRepoURL: $addonsRepoURL,
+              addonsRepoRevision: $addonsRepoRevision,
+              addonsRepoBasepath: $addonsRepoBasepath,
+              fleetRepoURL: $fleetRepoURL,
+              fleetRepoRevision: $fleetRepoRevision,
+              fleetRepoBasepath: $fleetRepoBasepath,
+              azure_location: $azure_location,
+              azure_subscription_id: $azure_subscription_id,
+              azure_cluster_name: $azure_cluster_name,
+              ingress_domain_name: $ingress_domain_name,
+              resource_prefix: $resource_prefix,
+              insecure: $insecure,
+              overlay_repo_url: $overlay_repo_url,
+              overlay_repo_revision: $overlay_repo_revision,
+              overlay_repo_basepath: $overlay_repo_basepath
+            }')
+          az keyvault secret set \
+            --vault-name "{{.AZURE_KV_NAME}}" \
+            --name "$SECRET_KEY" \
+            --value "$CONFIG" \
+            --output none
+          printf '{{.C_OK}}✓ Platform config seeded to Key Vault.{{.C_RESET}}\n'
+
+  keyvault:seed-keycloak:
+    desc: Seed Keycloak credentials into Azure Key Vault (idempotent — never overwrites)
+    cmds:
+      - cmd: |
+          SECRET_KEY="{{.HUB_CLUSTER_NAME}}-keycloak"
+          if az keyvault secret show \
+              --vault-name "{{.AZURE_KV_NAME}}" \
+              --name "$SECRET_KEY" \
+              --output none 2>/dev/null; then
+            printf '{{.C_INFO}}  Keycloak secret already exists — skipping (idempotent).{{.C_RESET}}\n'
+          else
+            ADMIN_PASS=$(openssl rand -base64 32 | tr -d '=+/' | head -c 32)
+            PG_PASS=$(openssl rand -base64 32 | tr -d '=+/' | head -c 32)
+            USER_PASS=$(openssl rand -base64 24 | tr -d '=+/' | head -c 20)
+            KC_JSON=$(jq -n \
+              --arg keycloak_admin_password "$ADMIN_PASS" \
+              --arg keycloak_postgres_password "$PG_PASS" \
+              --arg user_password "$USER_PASS" \
+              '{keycloak_admin_password: $keycloak_admin_password,
+                keycloak_postgres_password: $keycloak_postgres_password,
+                user_password: $user_password}')
+            az keyvault secret set \
+              --vault-name "{{.AZURE_KV_NAME}}" \
+              --name "$SECRET_KEY" \
+              --value "$KC_JSON" \
+              --output none
+            printf '{{.C_OK}}✓ Keycloak credentials seeded to Key Vault.{{.C_RESET}}\n'
+          fi
+
+  hub:set-overlay-repo:
+    desc: Wire fleet-config overlay repo URL into Key Vault config (called by consumer after GitLab setup)
+    vars:
+      OVERLAY_URL: '{{.OVERLAY_URL | default ""}}'
+      OVERLAY_REVISION: '{{.OVERLAY_REVISION | default "main"}}'
+      OVERLAY_BASEPATH: '{{.OVERLAY_BASEPATH | default ""}}'
+    cmds:
+      - cmd: |
+          if [ -z "{{.OVERLAY_URL}}" ]; then
+            echo "Usage: task kind-crossplane-azure:hub:set-overlay-repo -- OVERLAY_URL=<url>"
+            exit 1
+          fi
+          SECRET_KEY="{{.HUB_CLUSTER_NAME}}-config"
+          EXISTING=$(az keyvault secret show \
+            --vault-name "{{.AZURE_KV_NAME}}" \
+            --name "$SECRET_KEY" \
+            --query value -o tsv 2>/dev/null || echo "{}")
+          UPDATED=$(echo "$EXISTING" | jq \
+            --arg url "{{.OVERLAY_URL}}" \
+            --arg rev "{{.OVERLAY_REVISION}}" \
+            --arg base "{{.OVERLAY_BASEPATH}}" \
+            '. + {overlay_repo_url: $url, overlay_repo_revision: $rev, overlay_repo_basepath: $base}')
+          az keyvault secret set \
+            --vault-name "{{.AZURE_KV_NAME}}" \
+            --name "$SECRET_KEY" \
+            --value "$UPDATED" \
+            --output none
+          printf '{{.C_OK}}✓ Overlay repo URL wired in Key Vault.{{.C_RESET}}\n'
+
+  # ── HUB SEED SECRET ───────────────────────────────────────────────────────
+  hub:seed-secret:
+    desc: Create minimal seed ArgoCD cluster secret on the hub
+    vars:
+      ALB_MI_CLIENT_ID:
+        sh: |
+          kubectl get xazureplatformcluster "{{.HUB_CLUSTER_NAME}}" \
+            -o jsonpath='{.status.albMiClientId}' 2>/dev/null || \
+          az identity show \
+            --name "{{.HUB_CLUSTER_NAME}}-alb-mi" \
+            --resource-group "{{.AZURE_RG}}" \
+            --query clientId -o tsv 2>/dev/null || echo ""
+      KV_URL:
+        sh: |
+          kubectl get xazureplatformcluster "{{.HUB_CLUSTER_NAME}}" \
+            -o jsonpath='{.status.keyVaultUrl}' 2>/dev/null || \
+          echo "https://{{.AZURE_KV_NAME}}.vault.azure.net"
+    cmds:
+      - task: hub:kubeconfig
+      - KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig kubectl create namespace argocd --dry-run=client -o yaml | KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig kubectl apply -f -
+      - cmd: |
+          cat <<EOF | KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig kubectl apply -f -
+          apiVersion: v1
+          kind: Secret
+          type: Opaque
+          metadata:
+            name: {{.HUB_CLUSTER_NAME}}
+            namespace: argocd
+            labels:
+              argocd.argoproj.io/secret-type: cluster
+              fleet_member: control-plane
+              environment: control-plane
+              cloud: azure
+              provider: crossplane-azure
+            annotations:
+              addonsRepoURL: "{{.REPO_URL}}"
+              addonsRepoRevision: "{{.REPO_REVISION}}"
+              addonsRepoBasepath: "{{.REPO_BASEPATH}}"
+              fleetRepoURL: "{{.FLEET_REPO_URL}}"
+              fleetRepoRevision: "{{.FLEET_REPO_REVISION}}"
+              fleetRepoBasepath: "{{.FLEET_REPO_BASEPATH}}"
+              azure_cluster_name: "{{.HUB_CLUSTER_NAME}}"
+              azure_location: "{{.AZURE_LOCATION}}"
+              azure_subscription_id: "{{.AZURE_SUB_ID}}"
+              azure_keyvault_name: "{{.AZURE_KV_NAME}}"
+              azure_keyvault_url: "{{.KV_URL}}"
+              azure_alb_mi_client_id: "{{.ALB_MI_CLIENT_ID}}"
+              ingress_domain_name: "{{.DOMAIN}}"
+              resource_prefix: "{{.RESOURCE_PREFIX}}"
+              insecure: "{{.INSECURE}}"
+          stringData:
+            name: "{{.HUB_CLUSTER_NAME}}"
+            server: "https://kubernetes.default.svc"
+            config: '{"tlsClientConfig":{"insecure":false}}'
+            project: default
+          EOF
+      - printf '{{.C_OK}}✓ Seed cluster secret created on hub.{{.C_RESET}}\n'
+      - rm -f "{{.ROOT_DIR}}/private/hub-kubeconfig"
+
+  # ── ARGOCD ────────────────────────────────────────────────────────────────
+  hub:install-argocd:
+    desc: Install ArgoCD self-hosted via Helm on AKS hub
+    status:
+      - KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig helm status argocd -n argocd 2>/dev/null | grep -q deployed
+    cmds:
+      - task: hub:kubeconfig
+      - KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig helm repo add argo https://argoproj.github.io/argo-helm --force-update --quiet
+      - cmd: |
+          KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig \
+          helm upgrade --install argocd argo/argo-cd \
+            --namespace argocd \
+            --create-namespace \
+            --version "{{.ARGOCD_VERSION}}" \
+            --set "configs.cm.url=https://{{.DOMAIN}}/argocd" \
+            --wait --timeout 10m
+      - cmd: |
+          KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig \
+          kubectl create clusterrolebinding argocd-admin \
+            --clusterrole=cluster-admin \
+            --serviceaccount=argocd:argocd-application-controller 2>/dev/null || true
+      - printf '{{.C_OK}}✓ ArgoCD installed. Keycloak OIDC wired after Keycloak syncs.{{.C_RESET}}\n'
+
+  hub:apply-root-appset:
+    desc: Apply root-appset and hub-fleet-secret-azure ApplicationSets
+    cmds:
+      - task: hub:kubeconfig
+      - printf '{{.C_STEP}}▸ Waiting for ArgoCD CRDs to be Established...{{.C_RESET}}\n'
+      - cmd: |
+          KC={{.ROOT_DIR}}/private/hub-kubeconfig
+          for i in $(seq 1 60); do
+            if KUBECONFIG=$KC kubectl get crd applicationsets.argoproj.io >/dev/null 2>&1; then
+              break
+            fi
+            printf '  [%s/60] ArgoCD CRDs not ready yet...\n' "$i"
+            sleep 10
+          done
+          KUBECONFIG=$KC kubectl wait --for=condition=Established \
+            crd/applicationsets.argoproj.io \
+            crd/applications.argoproj.io \
+            --timeout=120s
+      - printf '{{.C_STEP}}▸ Applying root-appset...{{.C_RESET}}\n'
+      - KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig kubectl apply -f "{{.GITOPS_ROOT}}/bootstrap/root-appset.yaml"
+      - printf '{{.C_STEP}}▸ Applying hub-fleet-secret-azure...{{.C_RESET}}\n'
+      - KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig kubectl apply -f "{{.GITOPS_ROOT}}/bootstrap/hub-fleet-secret-azure.yaml"
+      - rm -f "{{.ROOT_DIR}}/private/hub-kubeconfig"
+      - printf '{{.C_OK}}✓ Root appset applied. Hub is now self-managing.{{.C_RESET}}\n'
+
+  hub:wait-for-sync:
+    desc: Wait for hub ArgoCD apps to reach Synced state
+    cmds:
+      - task: hub:kubeconfig
+      - printf '{{.C_STEP}}▸ Waiting for ArgoCD apps to sync...{{.C_RESET}}\n'
+      - cmd: |
+          TIMEOUT=1800; ELAPSED=0; INTERVAL=15
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            APP_OUT=$(KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig \
+              kubectl get applications -n argocd --no-headers 2>/dev/null || echo "")
+            TOTAL=$(echo "$APP_OUT" | awk '$2 != "Unknown" && NF>0' | wc -l | tr -d ' ')
+            SYNCED=$(echo "$APP_OUT" | awk '$2 == "Synced"' | wc -l | tr -d ' ')
+            OUTOFSYNC=$((TOTAL - SYNCED))
+            printf '  Apps: %s/%s synced, %s out-of-sync (%ss)\n' "$SYNCED" "$TOTAL" "$OUTOFSYNC" "$ELAPSED"
+            [ "$TOTAL" -gt 0 ] && [ "$OUTOFSYNC" -le 3 ] && \
+              printf '{{.C_OK}}✓ Hub apps synced.{{.C_RESET}}\n' && break
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+      - rm -f "{{.ROOT_DIR}}/private/hub-kubeconfig"

@@ -1,0 +1,14 @@
+# DeploymentRuntimeConfig for Azure Workload Identity.
+# Adds the required label to all provider pods so the azure-workload-identity
+# mutating webhook injects the projected service account token.
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: azure-workload-identity-drc
+spec:
+  deploymentTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            azure.workload.identity/use: "true"

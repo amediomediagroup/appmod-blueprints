@@ -1,0 +1,10 @@
+apiVersion: v2
+name: alb-controller
+description: |
+  Azure ALB Controller for Application Gateway for Containers (AGC).
+  Deployed via addon registry (azure.yaml) referencing upstream helm chart directly.
+  Chart: https://azure.github.io/azure-alb-controller/helm
+  Version: 1.12.2 (latest stable, min K8s v1.32, compatible with AKS 1.36)
+  Replaces legacy AGIC (ingress-azure). AGC is GA since 2024, WAF added Nov 2025.
+type: application
+version: 0.1.0

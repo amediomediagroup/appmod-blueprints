@@ -1,0 +1,3 @@
+# Per-addon value overrides for the control-plane-azure environment.
+# Add here when an addon needs Azure-specific configuration beyond what
+# the cluster secret annotations provide.

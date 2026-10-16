@@ -1,0 +1,44 @@
+# Azure-specific addons — only deployed to clusters with cloud=azure label.
+# All valuesObject fields use annotations injected by hub:seed-secret (no PII in code).
+
+azure_cluster_secret_store:
+  namespace: external-secrets
+  path: '{{.metadata.annotations.addonsRepoBasepath}}addons/charts/azure-cluster-secret-store'
+  annotationsAppSet:
+    argocd.argoproj.io/sync-wave: '-1'
+  selector:
+    matchExpressions:
+      - key: enable_azure_cluster_secret_store
+        operator: In
+        values: ['true']
+      - key: cloud
+        operator: In
+        values: ['azure']
+  valuesObject:
+    azure:
+      keyVaultName: '{{default "" (index .metadata.annotations "azure_keyvault_name")}}'
+
+agic:
+  namespace: azure-alb-system
+  chartName: alb-controller
+  releaseName: alb-controller
+  # ALB Controller v1.12.2 — latest stable, min K8s v1.32, compatible with AKS 1.36+
+  # Manages Application Gateway for Containers (AGC) — successor to AGIC (GA 2024)
+  chartRepository: https://azure.github.io/azure-alb-controller/helm
+  defaultVersion: '1.12.2'
+  annotationsAppSet:
+    argocd.argoproj.io/sync-wave: '5'
+  goTemplateOptions:
+    - "missingkey=zero"
+  selector:
+    matchExpressions:
+      - key: enable_agic
+        operator: In
+        values: ['true']
+      - key: cloud
+        operator: In
+        values: ['azure']
+  valuesObject:
+    albController:
+      podIdentity:
+        clientID: '{{default "" (index .metadata.annotations "azure_alb_mi_client_id")}}'

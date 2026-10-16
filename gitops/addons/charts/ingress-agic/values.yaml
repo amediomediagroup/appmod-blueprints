@@ -1,0 +1,13 @@
+ingress-azure:
+  appgw:
+    subscriptionID: ""
+    resourceGroup: ""
+    name: ""
+    usePrivateIP: false
+  armAuth:
+    type: workloadIdentity
+    identityClientID: ""
+  rbac:
+    enabled: true
+  kubernetes:
+    watchNamespace: ""

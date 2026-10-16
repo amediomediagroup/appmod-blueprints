@@ -1,0 +1,11 @@
+xrd:
+  enabled: true
+
+# No clusters provisioned by default.
+# Override per-cluster via Taskfile helm template --set clusters.hub.*
+clusters: {}
+
+global:
+  subscriptionId: ""
+  tenantId: ""
+  defaultLocation: ""

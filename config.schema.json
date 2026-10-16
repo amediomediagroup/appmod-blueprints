@@ -14,6 +14,9 @@
       "type": "string",
       "enum": [
         "kind-crossplane",
+        "kind-crossplane-azure",
+        "kind-kro-ack",
+        "terraform",
         "byoc"
       ],
       "default": "kind-crossplane",
@@ -263,6 +266,42 @@
           "type": "string",
           "default": "argocd",
           "description": "EKS ArgoCD Capability name"
+        }
+      }
+    },
+    "azure": {
+      "type": "object",
+      "description": "Azure configuration — required when clusterProvider is 'kind-crossplane-azure'",
+      "properties": {
+        "subscriptionId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "description": "Azure subscription ID"
+        },
+        "tenantId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "description": "Azure Entra ID tenant ID"
+        },
+        "location": {
+          "type": "string",
+          "description": "Azure region. Do not hardcode — read from Bootstrap Key Vault at runtime."
+        },
+        "uamiClientId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "description": "User-Assigned Managed Identity client ID (from AVM module). Used for both GitHub Actions OIDC and Kind bootstrap Workload Identity."
+        },
+        "resourceGroup": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Pre-existing Azure Resource Group name (from AVM module)"
+        },
+        "keyVaultName": {
+          "type": "string",
+          "maxLength": 24,
+          "minLength": 3,
+          "description": "Azure Key Vault name (max 24 chars). Defaults to <clusterName[:12]>-kv if omitted."
         }
       }
     }

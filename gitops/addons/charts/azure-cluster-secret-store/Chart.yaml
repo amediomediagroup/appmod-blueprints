@@ -1,0 +1,5 @@
+apiVersion: v2
+name: azure-cluster-secret-store
+description: ClusterSecretStore pointing to Azure Key Vault via Workload Identity
+type: application
+version: 0.1.0

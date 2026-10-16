@@ -42,6 +42,7 @@ spec:
               - $defaults/{{ .metadata.annotations.addonsRepoBasepath }}addons/registry/observability.yaml
               - $defaults/{{ .metadata.annotations.addonsRepoBasepath }}addons/registry/platform.yaml
               - $defaults/{{ .metadata.annotations.addonsRepoBasepath }}addons/registry/ml.yaml
+              - $defaults/{{ .metadata.annotations.addonsRepoBasepath }}addons/registry/azure.yaml
               - $defaults/{{ .metadata.annotations.addonsRepoBasepath }}overlays/environments/{{ .metadata.labels.environment }}/overrides.yaml
               - $defaults/{{ .metadata.annotations.addonsRepoBasepath }}overlays/clusters/{{ .nameNormalized }}/overrides.yaml
               # Overlay (fleet-config) overlays/* content is at the REPO ROOT

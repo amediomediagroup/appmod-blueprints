@@ -101,3 +101,13 @@ adminRoleName: "<console-role-name>"       # e.g. WSParticipantRole
 # ML model S3 bucket (created by Taskfile if enabled)
 modelS3Bucket:
   enabled: false
+
+# Azure configuration (required when clusterProvider is "kind-crossplane-azure")
+# Values must NOT be hardcoded here — fetch from your Bootstrap Key Vault at runtime.
+# azure:
+#   subscriptionId: "<from-bootstrap-kv>"   # Never commit — read from Bootstrap KV
+#   tenantId: "<from-bootstrap-kv>"         # Never commit — read from Bootstrap KV
+#   location: "<from-bootstrap-kv>"         # Never commit — read from Bootstrap KV
+#   uamiClientId: "<from-bootstrap-kv>"     # UAMI client ID (from AVM module / Bootstrap KV)
+#   resourceGroup: "<from-bootstrap-kv>"    # Pre-existing resource group (from AVM module / Bootstrap KV)
+#   keyVaultName: "<from-bootstrap-kv>"     # Platform Key Vault name (max 24 chars)

@@ -31,6 +31,12 @@ includes:
     vars:
       CONFIG_FILE: "{{.CONFIG_FILE}}"
     optional: true
+  kind-crossplane-azure:
+    taskfile: ./cluster-providers/kind-crossplane-azure/Taskfile.yaml
+    dir: ./cluster-providers/kind-crossplane-azure
+    vars:
+      CONFIG_FILE: "{{.CONFIG_FILE}}"
+    optional: true
 
 tasks:
   default:

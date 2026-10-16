@@ -1,0 +1,5 @@
+apiVersion: v2
+name: azure-platform-cluster
+description: Crossplane XRD + Composition for Azure AKS hub cluster provisioning
+type: application
+version: 0.1.0
