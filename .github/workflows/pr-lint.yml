@@ -1,0 +1,65 @@
+name: PR Lint
+
+# Runs on every pull request:
+#   1. Gitleaks   — detect secrets/credentials accidentally committed
+#   2. PR title   — enforce Conventional Commits spec on PR title
+#                   (used as squash commit message when merging)
+#
+# Conventional Commits format: <type>(<scope>): <description>
+# Types: feat, fix, docs, chore, refactor, perf, test, ci, build, revert
+# Examples:
+#   feat(azure): add kind-crossplane-azure bootstrap provider
+#   fix(azure-bootstrap): AADSTS700213 federated credential mismatch
+#   chore(deps): bump actions/checkout from v6 to v7
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write   # Post comment on violation
+
+jobs:
+  gitleaks:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # full history so gitleaks can scan all commits in PR
+
+      - name: Gitleaks — detect secrets
+        uses: gitleaks/gitleaks-action@v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}   # optional — free for public repos
+
+  conventional-commits:
+    name: PR Title (Conventional Commits)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Allowed types (Conventional Commits spec)
+          types: |
+            feat
+            fix
+            docs
+            chore
+            refactor
+            perf
+            test
+            ci
+            build
+            revert
+          # Scope is optional but validated if provided
+          requireScope: false
+          # Disallow uppercase first letter in description
+          validateSingleCommit: false
+          # Ignore dependabot PRs
+          ignoreLabels: |
+            bot
+            dependencies
