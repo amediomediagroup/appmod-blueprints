@@ -22,5 +22,5 @@ output "tenant_id" {
 
 output "acr_login_server" {
   description = "ACR login server URL (e.g. myacr.azurecr.io)."
-  value       = module.acr.resource.login_server
+  value       = module.acr.login_server
 }
