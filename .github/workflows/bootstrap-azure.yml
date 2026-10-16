@@ -58,11 +58,10 @@ permissions:
   issues: write
   security-events: write
 
-# Shared Terraform vars — available to all jobs
+# Shared NON-SENSITIVE vars only — available to all jobs
+# Secrets (TF_VAR_subscription_id, tenant_id, platform_domain, GITHUB_TOKEN)
+# are scoped to individual job env: blocks to satisfy CKV_GIT_4
 env:
-  TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-  TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
-  TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
   TF_VAR_location: ${{ vars.AZURE_LOCATION }}
   TF_VAR_hub_resource_group: ${{ vars.HUB_RESOURCE_GROUP }}
   TF_VAR_hub_cluster_name: ${{ vars.HUB_CLUSTER_NAME }}
@@ -70,8 +69,6 @@ env:
   TF_VAR_github_org: ${{ github.repository_owner }}
   TF_VAR_github_repo: ${{ github.event.repository.name }}
   TF_VAR_resource_name_location_short: ${{ vars.LOCATION_SHORT }}
-  GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-  TF_WORKING_DIR: cluster-providers/kind-crossplane-azure/bootstrap
 
 # ── 1. Validate ───────────────────────────────────────────────────────────────
 # Fast feedback: format, validate, lint, security scan
@@ -167,6 +164,11 @@ jobs:
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       # Read-only UAMI for plan — Reader only, safe on untrusted PRs
       ARM_CLIENT_ID: ${{ secrets.AZURE_READONLY_CLIENT_ID || secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+      # Secrets scoped to this job only (CKV_GIT_4)
+      TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
+      GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
       # Job-level so env.INFRACOST_API_KEY is available in step if: conditions
       INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 
@@ -332,6 +334,11 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       ARM_CLIENT_ID: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+      # Secrets scoped to this job only (CKV_GIT_4)
+      TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
+      GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -404,6 +411,11 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       ARM_CLIENT_ID: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+      # Secrets scoped to this job only (CKV_GIT_4)
+      TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
+      GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
