@@ -1,0 +1,173 @@
+name: Image Mirror — Pull, Scan, Push ACR, Sign
+
+# Mirrors third-party platform images (ArgoCD, ESO, cert-manager, etc.) to ACR.
+#
+# Flow per image:
+#   pull public image → trivy scan (fail on CRITICAL) → push to ACR → cosign sign
+#
+# Image list: .github/images-to-mirror.yaml
+# Schedule: weekly Sunday 00:00 UTC (catch upstream CVE patches)
+# Manual:   gh workflow run image-mirror.yml
+#
+# Required secrets:
+#   AZURE_BOOTSTRAP_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+# Required vars:
+#   ACR_NAME
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_filter:
+        description: "Mirror only images matching this substring (e.g. 'argocd'). Empty = all."
+        default: ""
+
+  schedule:
+    - cron: "0 0 * * 0"   # Weekly Sunday 00:00 UTC
+
+permissions:
+  id-token: write   # OIDC for Azure + Cosign keyless
+  contents: read
+  security-events: write
+
+env:
+  PLATFORM: linux/arm64   # AKS ARM64 node pools (Standard_Dps_v5 / Ampere Altra)
+
+jobs:
+  # Build matrix from images-to-mirror.yaml
+  prepare:
+    name: Prepare image matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build matrix from images-to-mirror.yaml
+        id: build
+        env:
+          FILTER: ${{ inputs.image_filter || '' }}
+        run: |
+          python3 - << 'PYEOF'
+          import json, os, sys
+          try:
+              import yaml
+          except ImportError:
+              import subprocess; subprocess.run(["pip","install","pyyaml","-q"])
+              import yaml
+
+          with open(".github/images-to-mirror.yaml") as f:
+              data = yaml.safe_load(f)
+
+          images = data.get("images", [])
+          filt = os.environ.get("FILTER", "").strip()
+          if filt:
+              images = [i for i in images if filt in i["source"] or filt in i["target"]]
+
+          if not images:
+              print("No images matched filter", file=sys.stderr)
+              print('matrix={"include":[]}')
+          else:
+              matrix = {"include": [{"source": i["source"], "target": i["target"]} for i in images]}
+              print(f"matrix={json.dumps(matrix)}")
+
+          import subprocess
+          result = subprocess.run(["bash","-c",f'echo "matrix={json.dumps(matrix)}" >> $GITHUB_OUTPUT'], capture_output=True)
+          PYEOF
+
+  mirror:
+    name: Mirror ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.matrix != '{"include":[]}'
+    strategy:
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      fail-fast: false   # continue other images even if one fails
+    env:
+      ACR_REGISTRY: ${{ vars.ACR_NAME }}.azurecr.io
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # ── Azure login + ACR ──────────────────────────────────────────────────
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        run: az acr login --name "${{ vars.ACR_NAME }}"
+
+      # ── Pull from public registry ──────────────────────────────────────────
+      - name: Pull ${{ matrix.source }}
+        run: |
+          docker pull --platform "${{ env.PLATFORM }}" "${{ matrix.source }}"
+          echo "✓ Pulled (arm64): ${{ matrix.source }}"
+
+      # ── Trivy scan — BLOCK on CRITICAL ────────────────────────────────────
+      - name: Trivy scan
+        id: scan
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: ${{ matrix.source }}
+          format: sarif
+          output: trivy-mirror.sarif
+          severity: CRITICAL
+          exit-code: 1         # block on CRITICAL only (third-party images often have HIGH)
+          ignore-unfixed: true  # ignore CVEs with no fix available
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4
+        with:
+          sarif_file: trivy-mirror.sarif
+          category: mirror-${{ matrix.target }}
+
+      # ── Re-tag and push to ACR ─────────────────────────────────────────────
+      - name: Tag for ACR
+        run: |
+          docker tag "${{ matrix.source }}" "${{ env.ACR_REGISTRY }}/${{ matrix.target }}"
+          echo "✓ Tagged: ${{ env.ACR_REGISTRY }}/${{ matrix.target }}"
+
+      - name: Push to ACR
+        id: push
+        run: |
+          docker push "${{ env.ACR_REGISTRY }}/${{ matrix.target }}"
+          # Capture digest for signing
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${{ env.ACR_REGISTRY }}/${{ matrix.target }}" \
+            | cut -d@ -f2)
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "✓ Pushed: ${{ env.ACR_REGISTRY }}/${{ matrix.target }}@${DIGEST}"
+
+      # ── Cosign keyless sign ────────────────────────────────────────────────
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign with Cosign (keyless)
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          IMAGE_REF="${{ env.ACR_REGISTRY }}/${{ matrix.target }}@${DIGEST}"
+          cosign sign --yes "${IMAGE_REF}"
+          echo "✓ Signed: ${IMAGE_REF}"
+
+      - name: Verify signature
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          cosign verify \
+            --certificate-identity-regexp="https://github.com/${{ github.repository }}" \
+            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+            "${{ env.ACR_REGISTRY }}/${{ matrix.target }}@${DIGEST}" \
+            | python3 -m json.tool | grep -E '"Issuer"|"Subject"'
+          echo "✓ Signature verified"
+
+      - name: Mirror summary
+        if: always()
+        run: |
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Source | \`${{ matrix.source }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ACR target | \`${{ env.ACR_REGISTRY }}/${{ matrix.target }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Digest | \`${{ steps.push.outputs.digest }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Status | ${{ job.status }} |" >> "$GITHUB_STEP_SUMMARY"

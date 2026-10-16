@@ -1,0 +1,141 @@
+name: Helm Mirror — Pull, Push OCI to ACR
+
+# Mirrors Helm charts from public repos to ACR as OCI artifacts.
+#
+# Flow per chart:
+#   helm pull <repo>/<chart> → helm push oci://<acr>/helm/<chart>
+#
+# Chart list: .github/images-to-mirror.yaml (helm_charts section)
+# Consume from ACR later:
+#   helm install argocd oci://peeksplatformsea.azurecr.io/helm/argo-cd --version 7.9.1
+#
+# Required secrets:
+#   AZURE_BOOTSTRAP_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+# Required vars:
+#   ACR_NAME
+
+on:
+  workflow_dispatch:
+    inputs:
+      chart_filter:
+        description: "Mirror only charts matching this name (empty = all)"
+        default: ""
+
+  schedule:
+    - cron: "0 1 * * 0"   # Weekly Sunday 01:00 UTC (after image mirror)
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  prepare:
+    name: Prepare chart matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+      has_charts: ${{ steps.build.outputs.has_charts }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build matrix from images-to-mirror.yaml
+        id: build
+        env:
+          FILTER: ${{ inputs.chart_filter || '' }}
+        run: |
+          pip install pyyaml -q
+          python3 - << 'PYEOF'
+          import json, os, yaml
+
+          with open(".github/images-to-mirror.yaml") as f:
+              data = yaml.safe_load(f)
+
+          charts = data.get("helm_charts", [])
+          filt = os.environ.get("FILTER", "").strip()
+          if filt:
+              charts = [c for c in charts if filt in c["name"]]
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              if charts:
+                  matrix = {"include": charts}
+                  out.write(f"matrix={json.dumps(matrix)}\n")
+                  out.write("has_charts=true\n")
+              else:
+                  out.write('matrix={"include":[]}\n')
+                  out.write("has_charts=false\n")
+          print(f"Charts to mirror: {[c['name'] for c in charts]}")
+          PYEOF
+
+  mirror:
+    name: ${{ matrix.name }} ${{ matrix.version }}
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.has_charts == 'true'
+    strategy:
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      fail-fast: false
+    env:
+      ACR_REGISTRY: ${{ vars.ACR_NAME }}.azurecr.io
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Helm
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097b9c97ded8c2e # v4.3.2
+        with:
+          version: latest
+
+      # ── Azure login + ACR ──────────────────────────────────────────────────
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login ACR for Helm OCI
+        run: |
+          TOKEN=$(az acr login --name "${{ vars.ACR_NAME }}" --expose-token --query accessToken -o tsv)
+          echo "${TOKEN}" | helm registry login \
+            "${{ env.ACR_REGISTRY }}" \
+            --username 00000000-0000-0000-0000-000000000000 \
+            --password-stdin
+          echo "✓ Helm logged into ACR OCI registry"
+
+      # ── Pull Helm chart ────────────────────────────────────────────────────
+      - name: Pull chart ${{ matrix.name }} ${{ matrix.version }}
+        run: |
+          helm pull "${{ matrix.name }}" \
+            --repo "${{ matrix.repo }}" \
+            --version "${{ matrix.version }}" \
+            --destination /tmp/charts
+          CHART_FILE=$(ls /tmp/charts/${{ matrix.name }}-*.tgz)
+          echo "CHART_FILE=${CHART_FILE}" >> "$GITHUB_ENV"
+          echo "✓ Pulled: ${CHART_FILE}"
+
+      # ── Push to ACR OCI ────────────────────────────────────────────────────
+      - name: Push to ACR OCI
+        run: |
+          helm push "${{ env.CHART_FILE }}" \
+            "oci://${{ env.ACR_REGISTRY }}/${{ matrix.acr_path }}/../.."
+          # Push to correct ACR path: oci://registry/helm/<chart>
+          helm push "${{ env.CHART_FILE }}" \
+            "oci://${{ env.ACR_REGISTRY }}/helm"
+          echo "✓ Pushed: oci://${{ env.ACR_REGISTRY }}/helm/${{ matrix.name }}:${{ matrix.version }}"
+
+      - name: Verify OCI chart in ACR
+        run: |
+          helm show chart \
+            "oci://${{ env.ACR_REGISTRY }}/helm/${{ matrix.name }}" \
+            --version "${{ matrix.version }}" \
+            | grep -E "^(name|version|appVersion):"
+          echo "✓ Chart available in ACR"
+
+      - name: Mirror summary
+        if: always()
+        run: |
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Chart | \`${{ matrix.name }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version | \`${{ matrix.version }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| OCI path | \`oci://${{ env.ACR_REGISTRY }}/helm/${{ matrix.name }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Status | ${{ job.status }} |" >> "$GITHUB_STEP_SUMMARY"

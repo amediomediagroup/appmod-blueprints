@@ -1,0 +1,164 @@
+name: Image — Build, Scan, Push, Sign
+
+# Build container image, scan with Trivy, push to ACR, sign with Cosign (keyless OIDC).
+#
+# Flow:
+#   build → trivy scan (fail on CRITICAL) → push to ACR → cosign sign (keyless)
+#
+# Required secrets:
+#   AZURE_BOOTSTRAP_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#   (same OIDC UAMI used by bootstrap — must have AcrPush on the ACR)
+# Required vars:
+#   ACR_NAME (e.g. peeksplatformsea)
+#
+# Cosign keyless: identity anchored to GitHub OIDC token.
+# Verify later:
+#   cosign verify \
+#     --certificate-identity-regexp="https://github.com/amediomediagroup/appmod-blueprints" \
+#     --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+#     <acr>.azurecr.io/<image>@<digest>
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_name:
+        description: "Image name (e.g. backend, frontend)"
+        required: true
+      dockerfile:
+        description: "Path to Dockerfile"
+        default: "Dockerfile"
+      context:
+        description: "Build context path"
+        default: "."
+      push:
+        description: "Push and sign after scan?"
+        type: boolean
+        default: true
+
+  workflow_call:
+    inputs:
+      image_name:
+        type: string
+        required: true
+      dockerfile:
+        type: string
+        default: "Dockerfile"
+      context:
+        type: string
+        default: "."
+      push:
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write   # OIDC for Azure login + Cosign keyless
+  contents: read
+  packages: write
+  security-events: write
+
+env:
+  ACR_REGISTRY: ${{ vars.ACR_NAME }}.azurecr.io
+
+jobs:
+  build-scan-push-sign:
+    name: ${{ inputs.image_name }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # ── Azure login (OIDC) ─────────────────────────────────────────────────
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        run: az acr login --name "${{ vars.ACR_NAME }}"
+
+      # ── Docker metadata (tags + labels) ───────────────────────────────────
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}
+          tags: |
+            type=sha,prefix=,format=long
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      # ── Build (no push yet — scan first) ──────────────────────────────────
+      - name: Build image
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: false
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}:buildcache
+          cache-to:   type=registry,ref=${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}:buildcache,mode=max
+
+      # ── Trivy scan — BLOCK on CRITICAL ────────────────────────────────────
+      - name: Trivy scan — CRITICAL/HIGH
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: ${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}:${{ github.sha }}
+          format: sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH
+          exit-code: 1        # block on CRITICAL/HIGH
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image-${{ inputs.image_name }}
+
+      # ── Push to ACR (only if scan passed + push=true) ─────────────────────
+      - name: Push to ACR
+        id: push
+        if: inputs.push == true
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}:buildcache
+          cache-to:   type=registry,ref=${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}:buildcache,mode=max
+
+      # ── Cosign keyless sign (GitHub OIDC) ─────────────────────────────────
+      - name: Install Cosign
+        if: inputs.push == true
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign image with Cosign (keyless)
+        if: inputs.push == true
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          TAGS:   ${{ steps.meta.outputs.tags }}
+        run: |
+          # Sign each tag by digest — digest is immutable, tags are mutable
+          IMAGE_REF="${ACR_REGISTRY}/${{ inputs.image_name }}@${DIGEST}"
+          echo "Signing: ${IMAGE_REF}"
+          cosign sign --yes "${IMAGE_REF}"
+          echo "✓ Signed: ${IMAGE_REF}"
+
+      - name: Verify signature
+        if: inputs.push == true
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          cosign verify \
+            --certificate-identity-regexp="https://github.com/${{ github.repository }}" \
+            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+            "${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}@${DIGEST}" \
+            | python3 -m json.tool | grep -E '"Issuer"|"Subject"'
+          echo "✓ Signature verified"
