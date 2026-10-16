@@ -148,12 +148,13 @@ jobs:
 
           else
             # Only specific env tfvars changed → targeted envs only
-            ENVS=$(
-              { [ "$DEV"  = "true" ] && printf '"dev"\n';  true; }
-              { [ "$TEST" = "true" ] && printf '"test"\n'; true; }
-              { [ "$STG"  = "true" ] && printf '"stg"\n';  true; }
-              { [ "$PROD" = "true" ] && printf '"prod"\n'; true; }
-            | jq -sc '.')
+            DETECTED=""
+            [ "$DEV"  = "true" ] && DETECTED="$DETECTED dev"
+            [ "$TEST" = "true" ] && DETECTED="$DETECTED test"
+            [ "$STG"  = "true" ] && DETECTED="$DETECTED stg"
+            [ "$PROD" = "true" ] && DETECTED="$DETECTED prod"
+            ENVS=$(echo "$DETECTED" | tr ' ' '\n' | grep -v '^$' | jq -R . | jq -sc .)
+            [ "$ENVS" = "null" ] || [ -z "$ENVS" ] && ENVS="[]"
           fi
 
           echo "matrix={\"env\":$ENVS}" >> "$GITHUB_OUTPUT"

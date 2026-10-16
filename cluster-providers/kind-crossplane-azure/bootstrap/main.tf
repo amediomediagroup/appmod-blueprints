@@ -158,7 +158,7 @@ resource "azurerm_key_vault_secret" "platform_config" {
     clusterName    = var.hub_cluster_name
     uamiClientId   = module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"]
     resourcePrefix = var.resource_prefix
-    acrLoginServer = module.acr.resource.login_server
+    acrLoginServer = module.acr.login_server
   })
 
   depends_on = [azurerm_role_assignment.runner_kv_officer]
