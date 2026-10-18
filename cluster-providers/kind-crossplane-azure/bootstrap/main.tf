@@ -219,28 +219,28 @@ module "acr" {
 # Only 3 secrets. Everything else comes from Bootstrap KV at runtime.
 
 resource "github_actions_environment_secret" "client_id" {
-  repository      = var.github_repo
-  environment     = var.github_environment
-  secret_name     = "AZURE_CLIENT_ID"
-  plaintext_value = try(module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"], "")
+  repository  = var.github_repo
+  environment = var.github_environment
+  secret_name = "AZURE_CLIENT_ID"
+  value       = try(module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"], "")
 
   depends_on = [module.cicd_bootstrap]
 }
 
 resource "github_actions_environment_secret" "tenant_id" {
-  repository      = var.github_repo
-  environment     = var.github_environment
-  secret_name     = "AZURE_TENANT_ID"
-  plaintext_value = module.cicd_bootstrap.tenant_id
+  repository  = var.github_repo
+  environment = var.github_environment
+  secret_name = "AZURE_TENANT_ID"
+  value       = module.cicd_bootstrap.tenant_id
 
   depends_on = [module.cicd_bootstrap]
 }
 
 resource "github_actions_environment_secret" "kv_name" {
-  repository      = var.github_repo
-  environment     = var.github_environment
-  secret_name     = "BOOTSTRAP_KV_NAME"
-  plaintext_value = var.bootstrap_keyvault_name
+  repository  = var.github_repo
+  environment = var.github_environment
+  secret_name = "BOOTSTRAP_KV_NAME"
+  value       = var.bootstrap_keyvault_name
 
   depends_on = [azurerm_key_vault.bootstrap]
 }

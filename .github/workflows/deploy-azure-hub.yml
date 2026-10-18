@@ -1,25 +1,55 @@
 name: Deploy Azure Hub
 
-# SECURITY MODEL:
-# - Only 3 GitHub secrets required: AZURE_CLIENT_ID, AZURE_TENANT_ID, BOOTSTRAP_KV_NAME
-# - All platform config (subscription ID, location, domain, cluster name, etc.)
-#   is fetched from the Bootstrap Key Vault at runtime — NEVER stored in GitHub.
-# - All sensitive values are masked via ::add-mask:: before use.
-# - No customer PII appears in workflow logs or code.
+# ─────────────────────────────────────────────────────────────────────────────
+# SECURITY MODEL
+# ──────────────
+#  * Manual only (workflow_dispatch), triggerable only by someone with write
+#    access to a protected branch. The job runs on a PERSISTENT, dedicated
+#    self-hosted management runner (see "Runner prerequisite" below) so the Kind
+#    bootstrap control plane survives across runs — hosted runners are ephemeral
+#    and would orphan the Kind cluster and its OIDC issuer federation.
+#  * Per-environment isolation: each of dev/test/stg/prod has its own GitHub
+#    deployment environment (azure-hub-{env}; destructive actions use
+#    azure-hub-{env}-destroy with extra reviewers) carrying its own
+#    AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID / BOOTSTRAP_KV_NAME.
+#    Nothing is shared globally.
+#  * The environment input is validated against a strict allowlist in a
+#    credential-less job BEFORE any Azure login. Free-form inputs are never
+#    interpolated into shell/yq expressions — they arrive via env: and are read
+#    with yq `strenv()` / shell `"$VAR"` so a crafted value cannot inject code.
+#  * All platform config (subscription ID, location, domain, cluster name) is
+#    fetched from the per-env Bootstrap Key Vault at runtime and masked with
+#    ::add-mask:: before use. No customer PII in logs or code.
+#  * Image signatures are verified FAIL-CLOSED against the exact mirrored-image
+#    inventory (.github/images-to-mirror.yaml) BEFORE `task install`. The ACR
+#    login server comes from the Bootstrap KV platform-config.acrLoginServer.
+#    Verification pins the trusted signer workflow identity (image-mirror.yml /
+#    image-publish.yml on refs/heads/main), not a broad repo regexp.
 #
-# Trigger: manual only (workflow_dispatch)
-# Gate:    environment:azure-hub (required reviewer + wait timer)
-#          environment:azure-hub-destroy for destructive actions (extra protection)
+# Runner prerequisite (NOT provisioned by this workflow — operator sets up once
+# per environment; documented in cluster-providers/kind-crossplane-azure/README.md):
+#   A persistent self-hosted runner registered with the labels
+#     [self-hosted, linux, x64, azure-bootstrap-<env>]
+#   with Docker, kind, kubectl, helm, yq, jq, az CLI and cosign available. The
+#   Kind kubeconfig and OIDC material live under the repo `private/` directory on
+#   that runner and are reused across runs via `kind export kubeconfig`.
 #
 # Actions:
 #   install      — provision AKS + bootstrap platform (idempotent)
-#   status       — show current cluster and ArgoCD sync status
-#   destroy-kind — delete local Kind bootstrap cluster only (AKS persists)
-#   destroy      — ⚠️ FULL TEARDOWN — deletes AKS cluster and all resources
+#   status       — show current cluster and ArgoCD sync status (read-only)
+#   destroy-kind — delete the local Kind bootstrap cluster + its OIDC federation
+#                  (AKS hub persists; only runs once managed resources are gone)
+#   destroy      — FULL TEARDOWN — deletes AKS cluster and all Azure resources
+# ─────────────────────────────────────────────────────────────────────────────
 
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Target environment"
+        type: choice
+        options: [dev, test, stg, prod]
+        required: true
       hub_cluster_name:
         description: "Hub AKS cluster name"
         required: true
@@ -33,59 +63,150 @@ on:
         options: [install, status, destroy-kind, destroy]
         default: install
 
-# Prevent concurrent deploys to the same cluster
+# Serialize the FULL deployment lifecycle per environment+cluster. Never cancel a
+# running deploy/destroy — a cancelled teardown can orphan Azure resources or the
+# OIDC issuer federation.
 concurrency:
-  group: deploy-azure-hub-${{ inputs.hub_cluster_name }}
-  cancel-in-progress: false   # never cancel a running deploy
+  group: deploy-azure-hub-${{ inputs.environment }}-${{ inputs.hub_cluster_name }}
+  cancel-in-progress: false
 
+# Least privilege at the workflow root. The deploy job widens to id-token: write
+# for OIDC federation.
 permissions:
-  id-token: write   # OIDC federation
   contents: read
 
 jobs:
+  # ── 1. Validate inputs — credential-less, before any Azure login ────────────
+  validate:
+    name: Validate inputs
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      environment: ${{ steps.check.outputs.environment }}
+    steps:
+      # Free-form inputs arrive via env: (never interpolated into the script
+      # body) so a crafted dispatch value cannot inject shell. The environment
+      # is validated against a strict allowlist; the cluster name must be a
+      # DNS-compatible label.
+      - name: Validate environment + cluster name
+        id: check
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          CLUSTER: ${{ inputs.hub_cluster_name }}
+          K8S_VERSION: ${{ inputs.kubernetes_version }}
+          ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          ALLOWED=(dev test stg prod)
+          ok=""
+          for a in "${ALLOWED[@]}"; do
+            [ "$ENVIRONMENT" = "$a" ] && ok="yes"
+          done
+          if [ -z "$ok" ]; then
+            echo "::error::Unknown environment '$ENVIRONMENT' — allowed: ${ALLOWED[*]}"
+            exit 1
+          fi
+
+          # Cluster name: DNS-1123 label, <=63 chars (storage-account derivation
+          # strips hyphens + truncates downstream; validate the human input here).
+          if ! printf '%s' "$CLUSTER" | grep -Eq '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$'; then
+            echo "::error::Invalid hub_cluster_name '$CLUSTER' — must be a lowercase DNS-1123 label (a-z, 0-9, '-'), max 63 chars."
+            exit 1
+          fi
+
+          # Kubernetes version: major.minor only.
+          if ! printf '%s' "$K8S_VERSION" | grep -Eq '^[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid kubernetes_version '$K8S_VERSION' — expected MAJOR.MINOR (e.g. 1.37)."
+            exit 1
+          fi
+
+          case "$ACTION" in
+            install|status|destroy-kind|destroy) ;;
+            *) echo "::error::Unknown action '$ACTION'"; exit 1 ;;
+          esac
+
+          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
+          echo "✓ Inputs validated (env=$ENVIRONMENT, action=$ACTION)"
+
+  # ── 2. Deploy — gated per-env; persistent self-hosted management runner ─────
   deploy:
-    name: ${{ inputs.action }} — ${{ inputs.hub_cluster_name }}
-    runs-on: ubuntu-24.04   # pinned — ubuntu-latest migrates to Ubuntu 26 on Oct 19 2026
-    timeout-minutes: 90     # task install can take 45-60min; give headroom
-    # Destructive actions use a separate environment with extra protection
-    environment: ${{ (inputs.action == 'destroy') && 'azure-hub-destroy' || 'azure-hub' }}
+    name: ${{ inputs.action }} — ${{ inputs.environment }} / ${{ inputs.hub_cluster_name }}
+    needs: [validate]
+    # Persistent, dedicated management runner per environment. The Kind
+    # bootstrap control plane and its OIDC material persist on this host across
+    # runs; a hosted ephemeral runner cannot preserve that lifecycle.
+    runs-on: [self-hosted, linux, x64, "azure-bootstrap-${{ needs.validate.outputs.environment }}"]
+    timeout-minutes: 120    # task install can take 45-90min; give headroom
+    # Destructive actions use a separate environment with extra protection.
+    environment: >-
+      ${{ (inputs.action == 'destroy' || inputs.action == 'destroy-kind')
+          && format('azure-hub-{0}-destroy', needs.validate.outputs.environment)
+          || format('azure-hub-{0}', needs.validate.outputs.environment) }}
+    permissions:
+      id-token: write   # OIDC federation
+      contents: read
 
     steps:
+      # Never persist the Actions token into the on-runner git config — this is a
+      # long-lived self-hosted host shared across runs.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      # Authenticate with Azure using OIDC — subscription fetched from KV, not hardcoded
+      # Authenticate with Azure using the per-environment OIDC identity.
       - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - uses: azure/setup-kubectl@bda439f5f36b99b262ebdcd3613869bddb064c8e # v5.2.0
         with:
-          version: latest
+          version: v1.33.3   # pinned — never resolve 'latest' at deploy time
 
       - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         with:
           version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install yq + kind
+      # Pinned yq + kind + cosign (no 'latest'); install only if the pinned
+      # version is not already present on the persistent runner.
+      - name: Install pinned tooling (yq, kind, cosign)
         run: |
-          sudo wget -qO /usr/local/bin/yq \
-            https://github.com/mikefarah/yq/releases/download/v4.54.1/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-          curl -Lo /tmp/kind \
-            https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
-          chmod +x /tmp/kind && sudo mv /tmp/kind /usr/local/bin/kind
+          set -euo pipefail
+          install_bin() {
+            local name="$1" url="$2" want="$3" have=""
+            if command -v "$name" >/dev/null 2>&1; then
+              have="$("$name" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+            fi
+            if [ "$have" = "$want" ]; then
+              echo "✓ $name $want already present"
+              return
+            fi
+            curl -fsSL "$url" -o "/tmp/$name"
+            chmod +x "/tmp/$name"
+            sudo mv "/tmp/$name" "/usr/local/bin/$name"
+            echo "✓ installed $name $want"
+          }
+          install_bin yq     https://github.com/mikefarah/yq/releases/download/v4.54.1/yq_linux_amd64            4.54.1
+          install_bin kind   https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64                                0.33.0
+          install_bin cosign https://github.com/sigstore/cosign/releases/download/v2.6.1/cosign-linux-amd64      2.6.1
 
-      # Fetch ALL config from Bootstrap Key Vault — mask every sensitive value
+      # Fetch ALL config from the per-env Bootstrap Key Vault — mask every
+      # sensitive value before use.
       - name: Fetch config from Bootstrap Key Vault
+        env:
+          BOOTSTRAP_KV_NAME: ${{ secrets.BOOTSTRAP_KV_NAME }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          CLUSTER: ${{ inputs.hub_cluster_name }}
         run: |
+          set -euo pipefail
           CONFIG=$(az keyvault secret show \
-            --vault-name "${{ secrets.BOOTSTRAP_KV_NAME }}" \
+            --vault-name "$BOOTSTRAP_KV_NAME" \
             --name "platform-config" \
             --query value -o tsv)
 
-          # Extract and mask each sensitive value before use
           SUB_ID=$(echo "$CONFIG" | jq -r '.subscriptionId')
           echo "::add-mask::$SUB_ID"
 
@@ -101,17 +222,22 @@ jobs:
           REPO_REV=$(echo "$CONFIG" | jq -r '.repoRevision // "main"')
           PREFIX=$(echo "$CONFIG" | jq -r '.resourcePrefix // ""')
           UAMI_CLIENT_ID=$(echo "$CONFIG" | jq -r '.uamiClientId // ""')
-          [ -z "$UAMI_CLIENT_ID" ] && UAMI_CLIENT_ID="${{ secrets.AZURE_CLIENT_ID }}"
+          [ -z "$UAMI_CLIENT_ID" ] && UAMI_CLIENT_ID="$AZURE_CLIENT_ID"
           echo "::add-mask::$UAMI_CLIENT_ID"
 
-          # Derive cluster KV name from cluster name (convention: first 12 chars + -kv)
-          CLUSTER="${{ inputs.hub_cluster_name }}"
+          # ACR login server is authoritative config from Terraform (platform-config);
+          # never derive it from the KV name. Fail closed if it is missing.
+          ACR_LOGIN_SERVER=$(echo "$CONFIG" | jq -r '.acrLoginServer // ""')
+          if [ -z "$ACR_LOGIN_SERVER" ]; then
+            echo "::error::platform-config.acrLoginServer is missing from the Bootstrap Key Vault — cannot verify image signatures. Run bootstrap Terraform first."
+            exit 1
+          fi
+
+          # Derive cluster KV name from cluster name (first 12 chars + -kv).
           KV_NAME="${CLUSTER:0:12}-kv"
 
-          # Set subscription context
           az account set --subscription "$SUB_ID"
 
-          # Write to GITHUB_ENV (values already masked above)
           {
             echo "AZURE_SUB_ID=$SUB_ID"
             echo "AZURE_LOCATION=$LOCATION"
@@ -122,30 +248,116 @@ jobs:
             echo "RESOURCE_PREFIX=$PREFIX"
             echo "AZURE_UAMI_CLIENT_ID=$UAMI_CLIENT_ID"
             echo "AZURE_KV_NAME=$KV_NAME"
+            echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER"
           } >> "$GITHUB_ENV"
 
-      # Build config.local.yaml entirely from masked env vars — no PII in file
-      - name: Prepare config.local.yaml
+      # Verify image signatures FAIL-CLOSED against the exact mirrored-image
+      # inventory, BEFORE any mutating task runs. We verify every target in
+      # .github/images-to-mirror.yaml at its ACR coordinate, pinning the trusted
+      # signer workflow identity on refs/heads/main. install/destroy both deploy
+      # or depend on these images; status is read-only and skips.
+      - name: Verify mirrored image signatures (fail-closed)
+        if: inputs.action == 'install'
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
         run: |
-          CLUSTER="${{ inputs.hub_cluster_name }}"
-          K8S_VERSION="${{ inputs.kubernetes_version }}"
+          set -euo pipefail
+          : "${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER not resolved}"
+          az acr login --name "${ACR_LOGIN_SERVER%%.*}"
+
+          # Trusted signer identities: the mirror/publish workflows on main only.
+          OWNER_REPO="$GITHUB_REPOSITORY"
+          ISSUER="https://token.actions.githubusercontent.com"
+          IDENT_MIRROR="${SERVER_URL}/${OWNER_REPO}/.github/workflows/image-mirror.yml@refs/heads/main"
+          IDENT_PUBLISH="${SERVER_URL}/${OWNER_REPO}/.github/workflows/image-publish.yml@refs/heads/main"
+
+          mapfile -t TARGETS < <(yq -r '.images[].target' .github/images-to-mirror.yaml)
+          if [ "${#TARGETS[@]}" -eq 0 ]; then
+            echo "::error::No image targets found in .github/images-to-mirror.yaml"
+            exit 1
+          fi
+
+          fail=0
+          for target in "${TARGETS[@]}"; do
+            ref="${ACR_LOGIN_SERVER}/${target}"
+            # Resolve the tag to an immutable digest; verify the digest.
+            name="${target%%:*}"
+            tag="${target##*:}"
+            digest=$(az acr manifest show \
+              --registry "${ACR_LOGIN_SERVER%%.*}" \
+              --name "${name}:${tag}" \
+              --query digest -o tsv 2>/dev/null || echo "")
+            if [ -z "$digest" ]; then
+              echo "::error::Image not present in ACR (required by install inventory): ${ref}"
+              fail=1
+              continue
+            fi
+            digest_ref="${ACR_LOGIN_SERVER}/${name}@${digest}"
+            if cosign verify \
+                 --certificate-oidc-issuer "$ISSUER" \
+                 --certificate-identity "$IDENT_MIRROR" \
+                 "$digest_ref" >/dev/null 2>&1 \
+               || cosign verify \
+                 --certificate-oidc-issuer "$ISSUER" \
+                 --certificate-identity "$IDENT_PUBLISH" \
+                 "$digest_ref" >/dev/null 2>&1; then
+              echo "✓ verified: ${name}@${digest}"
+            else
+              echo "::error::Cosign verification FAILED for ${digest_ref} — expected keyless signature from a trusted main workflow."
+              fail=1
+            fi
+          done
+
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::One or more required images failed signature verification — refusing to deploy."
+            exit 1
+          fi
+          echo "✓ All ${#TARGETS[@]} mirrored images verified against trusted signer identities."
+
+      # Build config.local.yaml entirely from masked env vars — no PII in file.
+      # Inputs/secrets arrive via env: and are read with yq strenv(), never
+      # interpolated into the yq expression string.
+      - name: Prepare config.local.yaml
+        env:
+          CLUSTER: ${{ inputs.hub_cluster_name }}
+          K8S_VERSION: ${{ inputs.kubernetes_version }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          set -euo pipefail
           cp config.yaml config.local.yaml
 
-          yq -i '.clusterProvider = "kind-crossplane-azure"'              config.local.yaml
-          yq -i ".hub.clusterName = \"${CLUSTER}\""                       config.local.yaml
-          yq -i ".hub.kubernetesVersion = \"${K8S_VERSION}\""             config.local.yaml
-          yq -i ".azure.subscriptionId = \"${AZURE_SUB_ID}\""             config.local.yaml
-          yq -i ".azure.tenantId = \"${{ secrets.AZURE_TENANT_ID }}\""    config.local.yaml
-          yq -i ".azure.location = \"${AZURE_LOCATION}\""                 config.local.yaml
-          yq -i ".azure.uamiClientId = \"${AZURE_UAMI_CLIENT_ID}\""       config.local.yaml
-          yq -i ".azure.resourceGroup = \"${AZURE_RG}\""                  config.local.yaml
-          yq -i ".azure.keyVaultName = \"${AZURE_KV_NAME}\""              config.local.yaml
-          yq -i ".domain = \"${PLATFORM_DOMAIN}\""                        config.local.yaml
-          yq -i ".repo.url = \"${REPO_URL}\""                             config.local.yaml
-          yq -i ".repo.revision = \"${REPO_REVISION}\""                   config.local.yaml
-          yq -i '.repo.basepath = "gitops/"'                              config.local.yaml
-          [ -n "$RESOURCE_PREFIX" ] && \
-            yq -i ".resourcePrefix = \"${RESOURCE_PREFIX}\""              config.local.yaml
+          CLUSTER="$CLUSTER" \
+          K8S_VERSION="$K8S_VERSION" \
+          AZURE_SUB_ID="$AZURE_SUB_ID" \
+          AZURE_TENANT_ID="$AZURE_TENANT_ID" \
+          AZURE_LOCATION="$AZURE_LOCATION" \
+          AZURE_UAMI_CLIENT_ID="$AZURE_UAMI_CLIENT_ID" \
+          AZURE_RG="$AZURE_RG" \
+          AZURE_KV_NAME="$AZURE_KV_NAME" \
+          PLATFORM_DOMAIN="$PLATFORM_DOMAIN" \
+          REPO_URL="$REPO_URL" \
+          REPO_REVISION="$REPO_REVISION" \
+          yq -i '
+            .clusterProvider        = "kind-crossplane-azure" |
+            .hub.clusterName        = strenv(CLUSTER) |
+            .hub.kubernetesVersion  = strenv(K8S_VERSION) |
+            .azure.subscriptionId   = strenv(AZURE_SUB_ID) |
+            .azure.tenantId         = strenv(AZURE_TENANT_ID) |
+            .azure.location         = strenv(AZURE_LOCATION) |
+            .azure.uamiClientId     = strenv(AZURE_UAMI_CLIENT_ID) |
+            .azure.resourceGroup    = strenv(AZURE_RG) |
+            .azure.keyVaultName     = strenv(AZURE_KV_NAME) |
+            .domain                 = strenv(PLATFORM_DOMAIN) |
+            .repo.url               = strenv(REPO_URL) |
+            .repo.revision          = strenv(REPO_REVISION) |
+            .repo.basepath          = "gitops/"
+          ' config.local.yaml
+
+          if [ -n "${RESOURCE_PREFIX:-}" ]; then
+            RESOURCE_PREFIX="$RESOURCE_PREFIX" \
+              yq -i '.resourcePrefix = strenv(RESOURCE_PREFIX)' config.local.yaml
+          fi
 
           echo "config.local.yaml prepared (values masked in logs)"
 
@@ -154,50 +366,31 @@ jobs:
         env:
           KUBECONFIG: ${{ github.workspace }}/private/kubeconfig
 
-      - name: Cosign — verify image signatures (ACR)
-        if: inputs.action == 'install' || inputs.action == 'status'
-        run: |
-          # Install cosign
-          curl -sSL https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64 \
-            -o /tmp/cosign && chmod +x /tmp/cosign && sudo mv /tmp/cosign /usr/local/bin/
-
-          # Get ACR login server from env
-          ACR_SERVER="${AZURE_KV_NAME%-kv}.azurecr.io"
-          echo "Checking image signatures in: $ACR_SERVER"
-
-          # Verify all images in the ACR for this cluster
-          # Images must be signed with Cosign before deployment
-          az acr manifest list-metadata \
-            --registry "${ACR_SERVER%%.*}" \
-            --name '*' \
-            --query "[?!tags[?starts_with(@,'sha256-')]].{name:name,digest:digest}" \
-            -o json 2>/dev/null | jq -r '.[] | .name + "@" + .digest' | \
-          while read -r ref; do
-            if ! cosign verify \
-              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-              --certificate-identity-regexp "^https://github.com/${{ github.repository }}" \
-              "${ACR_SERVER%%.*}.azurecr.io/$ref" 2>/dev/null; then
-              echo "⚠️  No Cosign signature: $ref (consider signing with: cosign sign $ref)"
-            else
-              echo "✓ Signed: $ref"
-            fi
-          done || true   # warn only — don't block deploy during rollout
-
       - name: Deploy summary
         if: always()
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          ACTION: ${{ inputs.action }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          CLUSTER: ${{ inputs.hub_cluster_name }}
+          K8S_VERSION: ${{ inputs.kubernetes_version }}
+          JOB_STATUS: ${{ job.status }}
         with:
+          # Read all free-form values from process.env — never interpolate
+          # ${{ }} expressions into the script body.
           script: |
-            const status = '${{ job.status }}';
+            const status = process.env.JOB_STATUS;
             const icon = status === 'success' ? '✅' : status === 'cancelled' ? '⏹️' : '❌';
-            const action = '${{ inputs.action }}';
-            const cluster = '${{ inputs.hub_cluster_name }}';
-            const k8sVer = '${{ inputs.kubernetes_version }}';
+            const action = process.env.ACTION;
+            const environment = process.env.ENVIRONMENT;
+            const cluster = process.env.CLUSTER;
+            const k8sVer = process.env.K8S_VERSION;
 
             await core.summary
               .addHeading(`${icon} Deploy Azure Hub — ${action.toUpperCase()}`)
               .addTable([
                 [{data: 'Field', header: true}, {data: 'Value', header: true}],
+                ['Environment', environment],
                 ['Cluster', cluster],
                 ['Action', action],
                 ['K8s version', k8sVer],

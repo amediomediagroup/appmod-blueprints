@@ -160,6 +160,7 @@ workshop/cdk.out
 
 # Terraform build files
 .terraform.lock.hcl
+!cluster-providers/kind-crossplane-azure/bootstrap/.terraform.lock.hcl
 
 prodplan
 devplan

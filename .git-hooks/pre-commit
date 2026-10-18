@@ -14,7 +14,10 @@ if [ -n "$TF_FILES" ] && command -v terraform &>/dev/null; then
   for f in $TF_FILES; do
     # Fix triple-space comments (terraform fmt misses these in .tftest.hcl)
     sed -i '' 's/\([^ ]\)   *#/\1 #/g' "$ROOT/$f" 2>/dev/null || true
-    terraform fmt "$ROOT/$f" &>/dev/null
+    # terraform fmt only accepts .tf/.tfvars; older local Terraform rejects
+    # .tftest.hcl outright. Never let a single file abort the commit — CI runs
+    # the authoritative `terraform fmt -check -recursive` on Terraform 1.11.
+    terraform fmt "$ROOT/$f" &>/dev/null || true
     git add "$ROOT/$f"   # re-stage auto-fixed file
   done
   echo "  ✓ fmt done (auto-fixed and re-staged)"

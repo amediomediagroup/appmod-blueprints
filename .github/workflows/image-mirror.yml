@@ -3,13 +3,16 @@ name: Image Mirror — Pull, Scan, Push ACR, Sign
 # Mirrors third-party platform images (ArgoCD, ESO, cert-manager, etc.) to ACR.
 #
 # Flow per image:
-#   pull public image → trivy scan (fail on CRITICAL) → push to ACR → cosign sign
+#   pull public image → trivy scan (ALWAYS, fail on CRITICAL)
+#   → idempotency check (skip push+sign if ACR already holds identical digest)
+#   → push to ACR → cosign sign (keyless OIDC) → verify exact workflow+ref identity
 #
 # Image list: .github/images-to-mirror.yaml
-# Schedule: weekly Sunday 00:00 UTC (catch upstream CVE patches)
-# Manual:   gh workflow run image-mirror.yml
 #
-# Required secrets:
+# SCHEDULE DEFAULT: env=dev — scheduled runs NEVER default to stg/prod to
+# prevent silent production publication. Override with workflow_dispatch.
+#
+# Required secrets (repo-level, bootstrap identity):
 #   AZURE_BOOTSTRAP_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
 # Required vars:
 #   ACR_NAME
@@ -17,68 +20,64 @@ name: Image Mirror — Pull, Scan, Push ACR, Sign
 on:
   workflow_dispatch:
     inputs:
+      env:
+        description: "Target environment (dev=schedule default)"
+        type: choice
+        options: [dev, test, stg, prod]
+        required: true
+        default: dev
       image_filter:
         description: "Mirror only images matching this substring (e.g. 'argocd'). Empty = all."
         default: ""
 
   schedule:
-    - cron: "0 0 * * 0"   # Weekly Sunday 00:00 UTC
+    - cron: "0 0 * * 0"   # Weekly Sunday 00:00 UTC — targets dev only (env default)
 
 permissions:
   id-token: write   # OIDC for Azure + Cosign keyless
   contents: read
   security-events: write
 
+# One mirror run per env at a time; cancel outdated scheduled runs only.
+concurrency:
+  group: image-mirror-${{ inputs.env || 'dev' }}
+  cancel-in-progress: ${{ github.event_name == 'schedule' }}
+
 env:
-  PLATFORM: linux/arm64   # AKS ARM64 node pools (Standard_Dps_v5 / Ampere Altra)
+  PLATFORM: linux/arm64        # AKS ARM64 node pools (Standard_Dps_v5 / Ampere Altra)
+  TARGET_ENV: ${{ inputs.env || 'dev' }}   # Schedule defaults to dev; document explicitly
 
 jobs:
-  # Build matrix from images-to-mirror.yaml
+  # ── Prepare: build matrix via shared helper (safe GITHUB_OUTPUT writes) ──────
   prepare:
     name: Prepare image matrix
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.build.outputs.matrix }}
+      # has_images guards the mirror job; avoids fromJson("") on empty filter result
+      has_images: ${{ steps.build.outputs.has_images }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Build matrix from images-to-mirror.yaml
         id: build
         env:
           FILTER: ${{ inputs.image_filter || '' }}
         run: |
-          python3 - << 'PYEOF'
-          import json, os, sys
-          try:
-              import yaml
-          except ImportError:
-              import subprocess; subprocess.run(["pip","install","pyyaml","-q"])
-              import yaml
+          # artifact_matrix.py writes matrix= and has_images= directly to $GITHUB_OUTPUT
+          # via file append — no shell interpolation of JSON, no NameError on empty result.
+          python3 scripts/ci/artifact_matrix.py images \
+            --input .github/images-to-mirror.yaml \
+            --filter "$FILTER"
 
-          with open(".github/images-to-mirror.yaml") as f:
-              data = yaml.safe_load(f)
-
-          images = data.get("images", [])
-          filt = os.environ.get("FILTER", "").strip()
-          if filt:
-              images = [i for i in images if filt in i["source"] or filt in i["target"]]
-
-          if not images:
-              print("No images matched filter", file=sys.stderr)
-              print('matrix={"include":[]}')
-          else:
-              matrix = {"include": [{"source": i["source"], "target": i["target"]} for i in images]}
-              print(f"matrix={json.dumps(matrix)}")
-
-          import subprocess
-          result = subprocess.run(["bash","-c",f'echo "matrix={json.dumps(matrix)}" >> $GITHUB_OUTPUT'], capture_output=True)
-          PYEOF
-
+  # ── Mirror: pull → scan → idempotency → push → sign ─────────────────────────
   mirror:
     name: Mirror ${{ matrix.target }}
     runs-on: ubuntu-latest
     needs: prepare
-    if: needs.prepare.outputs.matrix != '{"include":[]}'
+    if: needs.prepare.outputs.has_images == 'true'
     strategy:
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
       fail-fast: false   # continue other images even if one fails
@@ -87,6 +86,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # ── Azure login + ACR ──────────────────────────────────────────────────
       - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
@@ -104,7 +105,7 @@ jobs:
           docker pull --platform "${{ env.PLATFORM }}" "${{ matrix.source }}"
           echo "✓ Pulled (arm64): ${{ matrix.source }}"
 
-      # ── Trivy scan — BLOCK on CRITICAL ────────────────────────────────────
+      # ── Trivy scan — ALWAYS runs, even when push will be skipped ──────────
       - name: Trivy scan
         id: scan
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
@@ -123,27 +124,71 @@ jobs:
           sarif_file: trivy-mirror.sarif
           category: mirror-${{ matrix.target }}
 
+      # ── Idempotency check — skip push+sign if digest unchanged in ACR ─────
+      # Scan above always runs regardless. Push is only skipped when the ACR
+      # already holds the exact same manifest digest as the pulled source image.
+      # This avoids triggering unnecessary webhook/policy/audit events.
+      - name: Check idempotency
+        id: idempotency
+        run: |
+          set -euo pipefail
+          TARGET="${{ matrix.target }}"
+          TARGET_REPO="${TARGET%:*}"   # e.g. argoproj/argocd
+          TARGET_TAG="${TARGET##*:}"   # e.g. v3.5.5
+
+          # Source manifest digest from the pulled image's RepoDigests
+          SRC_DGST=$(docker inspect "${{ matrix.source }}" \
+            --format='{{index .RepoDigests 0}}' 2>/dev/null | cut -d@ -f2 || true)
+
+          SKIP=false
+          if [ -n "$SRC_DGST" ]; then
+            # Query ACR for the manifest digest currently stored under this tag.
+            # Empty output means the tag does not exist yet — push proceeds.
+            ACR_DGST=$(az acr manifest list-metadata \
+              --registry "${{ vars.ACR_NAME }}" \
+              --name "${TARGET_REPO}" \
+              --query "[?tags[?@=='${TARGET_TAG}']] | [0].digest" \
+              -o tsv 2>/dev/null || true)
+
+            if [ -n "$ACR_DGST" ] && [ "$SRC_DGST" = "$ACR_DGST" ]; then
+              echo "Digest unchanged ($SRC_DGST) — skipping push + sign"
+              SKIP=true
+            fi
+          fi
+
+          echo "skip=${SKIP}" >> "$GITHUB_OUTPUT"
+          # Expose digest for summary even when push is skipped
+          [ -n "${SRC_DGST:-}" ] && echo "src_digest=${SRC_DGST}" >> "$GITHUB_OUTPUT" || true
+
       # ── Re-tag and push to ACR ─────────────────────────────────────────────
       - name: Tag for ACR
+        if: steps.idempotency.outputs.skip != 'true'
         run: |
           docker tag "${{ matrix.source }}" "${{ env.ACR_REGISTRY }}/${{ matrix.target }}"
           echo "✓ Tagged: ${{ env.ACR_REGISTRY }}/${{ matrix.target }}"
 
       - name: Push to ACR
         id: push
+        if: steps.idempotency.outputs.skip != 'true'
         run: |
+          set -euo pipefail
           docker push "${{ env.ACR_REGISTRY }}/${{ matrix.target }}"
-          # Capture digest for signing
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${{ env.ACR_REGISTRY }}/${{ matrix.target }}" \
-            | cut -d@ -f2)
+          # Capture digest from RepoDigests populated by the registry after push
+          DIGEST=$(docker inspect "${{ env.ACR_REGISTRY }}/${{ matrix.target }}" \
+            --format='{{index .RepoDigests 0}}' 2>/dev/null | cut -d@ -f2 || true)
+          if [ -z "${DIGEST:-}" ]; then
+            echo "::error::Could not determine pushed digest" && exit 1
+          fi
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
           echo "✓ Pushed: ${{ env.ACR_REGISTRY }}/${{ matrix.target }}@${DIGEST}"
 
       # ── Cosign keyless sign ────────────────────────────────────────────────
       - name: Install Cosign
+        if: steps.idempotency.outputs.skip != 'true'
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Sign with Cosign (keyless)
+        if: steps.idempotency.outputs.skip != 'true'
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
@@ -152,11 +197,16 @@ jobs:
           echo "✓ Signed: ${IMAGE_REF}"
 
       - name: Verify signature
+        if: steps.idempotency.outputs.skip != 'true'
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
+          # Exact workflow+ref identity — NOT a repository-prefix regexp.
+          # github.workflow_ref resolves to e.g.:
+          #   amediomediagroup/appmod-blueprints/.github/workflows/image-mirror.yml@refs/heads/main
+          # Signatures from non-main refs will not satisfy the deploy-gate pinned to @refs/heads/main.
           cosign verify \
-            --certificate-identity-regexp="https://github.com/${{ github.repository }}" \
+            --certificate-identity="https://github.com/${{ github.workflow_ref }}" \
             --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
             "${{ env.ACR_REGISTRY }}/${{ matrix.target }}@${DIGEST}" \
             | python3 -m json.tool | grep -E '"Issuer"|"Subject"'
@@ -164,10 +214,16 @@ jobs:
 
       - name: Mirror summary
         if: always()
+        env:
+          DIGEST: ${{ steps.push.outputs.digest || steps.idempotency.outputs.src_digest || '' }}
+          SKIPPED: ${{ steps.idempotency.outputs.skip || 'false' }}
         run: |
-          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Source | \`${{ matrix.source }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| ACR target | \`${{ env.ACR_REGISTRY }}/${{ matrix.target }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Digest | \`${{ steps.push.outputs.digest }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Status | ${{ job.status }} |" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Source | \`${{ matrix.source }}\` |"
+            echo "| ACR target | \`${{ env.ACR_REGISTRY }}/${{ matrix.target }}\` |"
+            echo "| Digest | \`${DIGEST}\` |"
+            echo "| Push skipped (unchanged) | \`${SKIPPED}\` |"
+            echo "| Status | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

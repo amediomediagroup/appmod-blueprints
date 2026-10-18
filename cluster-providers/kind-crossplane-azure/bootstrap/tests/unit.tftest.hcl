@@ -1,17 +1,10 @@
-# unit.tftest.hcl — Terraform unit tests (variable validation + output shape)
+# Terraform unit tests — variable boundaries and missing-identity fallback.
 #
-# Run locally:
-#   cd cluster-providers/kind-crossplane-azure/bootstrap
-#   terraform init -backend=false
+# Requires Terraform >= 1.11. From the bootstrap directory:
+#   terraform init -backend=false -lockfile=readonly
 #   terraform test -filter=tests/unit.tftest.hcl
 #
-# Uses mock_provider + override_module (standard unit test pattern):
-#   - mock_provider  — replace external providers (no Azure/GitHub API calls)
-#   - override_module — mock AVM external modules so tests focus on OUR code
-#     (variable validations, output logic) not AVM internals.
-#
-# This is the same pattern as mocking in Go/Python/JS unit tests.
-# Integration tests (with real credentials) belong in a separate test file.
+# Providers and external AVM modules are mocked; no cloud credentials are used.
 
 mock_provider "azurerm" {}
 mock_provider "azapi" {}
@@ -59,7 +52,7 @@ variables {
 run "acr_name_too_short_fails" {
   command = plan
   variables {
-    acr_name = "ab"
+    acr_name = "abcd" # 4 characters: one below the minimum.
   }
   expect_failures = [var.acr_name]
 }
@@ -67,7 +60,7 @@ run "acr_name_too_short_fails" {
 run "acr_name_too_long_fails" {
   command = plan
   variables {
-    acr_name = "thisacrnameiswaytoolongandexceedsfiftychars123456"
+    acr_name = join("", [for _ in range(51) : "a"])
   }
   expect_failures = [var.acr_name]
 }
@@ -80,51 +73,38 @@ run "acr_name_with_hyphen_fails" {
   expect_failures = [var.acr_name]
 }
 
-run "acr_name_valid_passes" {
-  command = plan
-  variables {
-    acr_name = "testacr"
-  }
-}
 
 run "keyvault_name_too_long_fails" {
   command = plan
   variables {
-    bootstrap_keyvault_name = "kv-this-name-is-way-too-long-25ch"
+    bootstrap_keyvault_name = join("", [for _ in range(25) : "a"])
   }
   expect_failures = [var.bootstrap_keyvault_name]
 }
 
-run "keyvault_name_max_valid_passes" {
-  command = plan
-  variables {
-    bootstrap_keyvault_name = "kv-exactly-24-chars12345"
-  }
-}
 
 run "workload_name_too_long_fails" {
   command = plan
   variables {
-    resource_name_workload = "toolng"
+    resource_name_workload = "plats" # 5 characters: one above the maximum.
   }
   expect_failures = [var.resource_name_workload]
 }
 
-run "workload_name_max_valid_passes" {
-  command = plan
-  variables {
-    resource_name_workload = "plat"
-  }
-}
 
-# ── Output shape test ─────────────────────────────────────────────────────────
-# Verifies try() guards don't crash when managed_identity_client_ids is empty.
+# The maximum valid names must plan successfully even before an identity exists.
+# Verify the try() fallback, not an echoed output from the mocked ACR module.
 
 run "outputs_safe_on_fresh_state" {
   command = plan
+  variables {
+    acr_name                = join("", [for _ in range(50) : "a"])
+    bootstrap_keyvault_name = join("", [for _ in range(24) : "a"])
+    resource_name_workload  = "plat"
+  }
 
   assert {
-    condition     = output.acr_login_server == "testplatformsea.azurecr.io"
-    error_message = "acr_login_server must match mock ACR output"
+    condition     = output.platform_uami_client_id == null
+    error_message = "A missing environment identity must produce a null client ID."
   }
 }
