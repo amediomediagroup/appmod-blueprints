@@ -181,6 +181,10 @@ cluster-providers/kind-crossplane-azure/bootstrap/backend.conf
 cluster-providers/kind-crossplane-azure/bootstrap/.terraform/
 cluster-providers/kind-crossplane-azure/bootstrap/tfplan
 
+# Python bytecode
+__pycache__/
+*.pyc
+
 # Local scratch / chat session artifacts (never commit)
 .local/
 
