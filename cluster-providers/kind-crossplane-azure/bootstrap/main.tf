@@ -22,8 +22,8 @@ data "azurerm_client_config" "current" {}
 # ── 1. AVM: GitHub CI/CD Bootstrap ────────────────────────────────────────────
 # Creates GitHub environment + UAMIs + federated credentials
 
-# checkov:skip=CKV_TF_1:AVM module from Terraform Registry — commit hash not supported, version pinned instead
 module "cicd_bootstrap" {
+  # checkov:skip=CKV_TF_1: AVM module from Terraform Registry — commit hash not supported, version pinned instead
   source  = "Azure/avm-ptn-alz-application-landing-zone-cicd-bootstrap-github/azure"
   version = "0.1.1"
 
@@ -156,7 +156,7 @@ resource "azurerm_key_vault_secret" "platform_config" {
     repoUrl        = "https://github.com/${var.github_org}/${var.github_repo}.git"
     repoRevision   = var.repo_revision
     clusterName    = var.hub_cluster_name
-    uamiClientId   = module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"]
+    uamiClientId   = try(module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"], "")
     resourcePrefix = var.resource_prefix
     acrLoginServer = module.acr.login_server
   })
@@ -174,17 +174,15 @@ resource "azurerm_key_vault_secret" "platform_config" {
 # ── 5. Azure Container Registry ───────────────────────────────────────────────
 # All platform container images stored here.
 # Platform UAMI gets AcrPull; bootstrap runner gets AcrPush (for image import).
-# checkov:skip=CKV_TF_1:AVM Registry module from Terraform Registry — commit hash not applicable
-
-# checkov:skip=CKV_TF_1:AVM module from Terraform Registry
 module "acr" {
+  # checkov:skip=CKV_TF_1: AVM module from Terraform Registry — commit hash not supported, version pinned instead
   source  = "Azure/avm-res-containerregistry-registry/azurerm"
   version = "0.8.0"
 
   name                = var.acr_name
   resource_group_name = split("/", module.cicd_bootstrap.resource_id)[4]
   location            = var.location
-  sku                 = "Premium"  # Premium: geo-replication, private endpoint, retention
+  sku                 = "Premium" # Premium: geo-replication, private endpoint, retention
   enable_telemetry    = false
 
   # RBAC only — no admin account (CKV_AZURE_137)
@@ -219,28 +217,28 @@ module "acr" {
 # Only 3 secrets. Everything else comes from Bootstrap KV at runtime.
 
 resource "github_actions_environment_secret" "client_id" {
-  repository      = var.github_repo
-  environment     = var.github_environment
-  secret_name     = "AZURE_CLIENT_ID"
-  plaintext_value = module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"]
+  repository  = var.github_repo
+  environment = var.github_environment
+  secret_name = "AZURE_CLIENT_ID"
+  value       = try(module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"], "")
 
   depends_on = [module.cicd_bootstrap]
 }
 
 resource "github_actions_environment_secret" "tenant_id" {
-  repository      = var.github_repo
-  environment     = var.github_environment
-  secret_name     = "AZURE_TENANT_ID"
-  plaintext_value = module.cicd_bootstrap.tenant_id
+  repository  = var.github_repo
+  environment = var.github_environment
+  secret_name = "AZURE_TENANT_ID"
+  value       = module.cicd_bootstrap.tenant_id
 
   depends_on = [module.cicd_bootstrap]
 }
 
 resource "github_actions_environment_secret" "kv_name" {
-  repository      = var.github_repo
-  environment     = var.github_environment
-  secret_name     = "BOOTSTRAP_KV_NAME"
-  plaintext_value = var.bootstrap_keyvault_name
+  repository  = var.github_repo
+  environment = var.github_environment
+  secret_name = "BOOTSTRAP_KV_NAME"
+  value       = var.bootstrap_keyvault_name
 
   depends_on = [azurerm_key_vault.bootstrap]
 }

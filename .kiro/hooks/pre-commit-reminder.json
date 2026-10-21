@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Pre-commit conventional commit reminder",
+      "trigger": "PreToolUse",
+      "matcher": "execute_bash",
+      "description": "Before git commit commands, validate message follows Conventional Commits. Silent on non-commit commands.",
+      "action": {
+        "type": "command",
+        "command": "CMD=$(echo \"$KIRO_TOOL_INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('command',''))\" 2>/dev/null)\n# Silent exit if not a git commit\nif ! echo \"$CMD\" | grep -qE 'git commit'; then exit 0; fi\n# Extract -m message\nMSG=$(echo \"$CMD\" | grep -oP '(?<=-m )([\"'\\''`]).*?\\1' | tr -d '\"'\\''`' | head -1)\n[ -z \"$MSG\" ] && exit 0\nPATTERN='^(feat|fix|docs|chore|refactor|perf|test|ci|build|revert)(\\([a-z0-9._/-]+\\))?(!)?: .{1,100}$'\nif ! echo \"$MSG\" | grep -qE \"$PATTERN\"; then\n  echo \"⚠ Commit message doesn't follow Conventional Commits:\"\n  echo \"  Got: $MSG\"\n  echo \"  Expected: <type>(<scope>): <description>\"\n  echo \"  Types: feat|fix|docs|chore|refactor|perf|test|ci|build|revert\"\nfi\nexit 0"
+      }
+    }
+  ]
+}

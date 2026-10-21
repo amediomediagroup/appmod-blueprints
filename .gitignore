@@ -160,6 +160,7 @@ workshop/cdk.out
 
 # Terraform build files
 .terraform.lock.hcl
+!cluster-providers/kind-crossplane-azure/bootstrap/.terraform.lock.hcl
 
 prodplan
 devplan
@@ -179,6 +180,10 @@ cluster-providers/kind-crossplane-azure/bootstrap/terraform.tfvars
 cluster-providers/kind-crossplane-azure/bootstrap/backend.conf
 cluster-providers/kind-crossplane-azure/bootstrap/.terraform/
 cluster-providers/kind-crossplane-azure/bootstrap/tfplan
+
+# Python bytecode
+__pycache__/
+*.pyc
 
 # Local scratch / chat session artifacts (never commit)
 .local/

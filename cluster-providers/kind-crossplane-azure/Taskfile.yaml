@@ -165,8 +165,10 @@ tasks:
 
   # ── STATUS ────────────────────────────────────────────────────────────────
   status:
-    desc: Show current bootstrap and cluster status
+    desc: Show current bootstrap and cluster status (read-only; not a teardown)
     cmds:
+      - task: kind:reconnect
+        ignore_error: true   # status is read-only; a missing cluster is reported, not fatal
       - printf '{{.C_STEP}}▸ Kind clusters:{{.C_RESET}}\n'
       - kind get clusters 2>/dev/null | grep "^{{.KIND_CLUSTER_NAME}}$" && printf '  ✓ %s running\n' "{{.KIND_CLUSTER_NAME}}" || printf '  (not running)\n'
       - printf '{{.C_STEP}}▸ AzurePlatformCluster:{{.C_RESET}}\n'
@@ -186,87 +188,165 @@ tasks:
   destroy:
     desc: Full teardown — delete AKS + all Azure resources + Kind cluster
     cmds:
+      # Fail closed if the bootstrap control plane is unreachable: without it we
+      # cannot drive (or confirm) the Crossplane cascade, so we must NOT proceed
+      # to delete the OIDC issuer/federation and leave Azure resources orphaned.
+      - task: kind:reconnect
       - printf '{{.C_STEP}}▸ Deleting AzurePlatformCluster claim (triggers Crossplane cascade)...{{.C_RESET}}\n'
       - cmd: |
+          set -euo pipefail
+          if ! kubectl cluster-info >/dev/null 2>&1; then
+            printf '{{.C_ERR}}✗ Bootstrap control plane is not accessible — refusing to destroy.{{.C_RESET}}\n'
+            printf '{{.C_ERR}}  Deleting Azure resources requires a working Crossplane control plane to\n'
+            printf '{{.C_ERR}}  cascade managed-resource deletion. Reconnect/rebuild Kind, then re-run.{{.C_RESET}}\n'
+            exit 1
+          fi
           kubectl delete azureplatformclusters.platform.gitops.io \
-            "{{.HUB_CLUSTER_NAME}}" -n crossplane-system --wait=false 2>/dev/null || true
-        ignore_error: true
+            "{{.HUB_CLUSTER_NAME}}" -n crossplane-system --wait=false --ignore-not-found
       - printf '{{.C_STEP}}▸ Waiting for Azure resources to be deleted (may take 20+ min)...{{.C_RESET}}\n'
       - cmd: |
-          for i in $(seq 1 120); do
-            COUNT=$(kubectl get managed 2>/dev/null | \
-              grep -c "{{.HUB_CLUSTER_NAME}}" || echo 0)
-            [ "$COUNT" = "0" ] && \
-              printf '{{.C_OK}}✓ All managed resources deleted.{{.C_RESET}}\n' && break
+          set -euo pipefail
+          DELETED=""
+          for i in $(seq 1 180); do
+            if ! kubectl cluster-info >/dev/null 2>&1; then
+              printf '{{.C_ERR}}✗ Lost access to the bootstrap control plane mid-teardown — aborting.{{.C_RESET}}\n'
+              exit 1
+            fi
+            COUNT=$(kubectl get managed --no-headers 2>/dev/null | \
+              grep -c "{{.HUB_CLUSTER_NAME}}" || true)
+            COUNT="${COUNT:-0}"
+            if [ "$COUNT" = "0" ]; then
+              printf '{{.C_OK}}✓ All managed resources deleted.{{.C_RESET}}\n'
+              DELETED="yes"
+              break
+            fi
             [ $((i % 6)) -eq 0 ] && \
               printf '{{.C_INFO}}  [%ds] %s resources remaining...{{.C_RESET}}\n' "$((i*10))" "$COUNT"
             sleep 10
           done
-        ignore_error: true
+          if [ -z "$DELETED" ]; then
+            printf '{{.C_ERR}}✗ Managed resources still present after timeout — Azure teardown incomplete.{{.C_RESET}}\n'
+            printf '{{.C_ERR}}  NOT deleting the OIDC issuer/federation while resources remain (they still\n'
+            printf '{{.C_ERR}}  authenticate via it). Investigate: kubectl get managed | grep -v True{{.C_RESET}}\n'
+            exit 1
+          fi
+      # Only reached once every managed resource owned by this cluster is gone.
       - task: destroy-kind
       - printf '{{.C_OK}}✓ Azure hub fully destroyed.{{.C_RESET}}\n'
 
   destroy-kind:
-    desc: Delete Kind bootstrap cluster and OIDC storage (AKS hub persists)
+    desc: Delete Kind bootstrap cluster + its OIDC issuer/federation (AKS hub persists)
     cmds:
+      # Guard: the OIDC issuer and federated credential authenticate Crossplane
+      # to Azure. Deleting them while managed resources still exist would strand
+      # those resources (no identity to reconcile/delete them). Refuse unless the
+      # control plane is gone or reports zero remaining managed resources.
+      - cmd: |
+          set -euo pipefail
+          if kind get clusters 2>/dev/null | grep -q "^{{.KIND_CLUSTER_NAME}}$"; then
+            kind export kubeconfig --name "{{.KIND_CLUSTER_NAME}}" --kubeconfig "{{.KUBECONFIG}}" 2>/dev/null || true
+            if kubectl --kubeconfig "{{.KUBECONFIG}}" cluster-info >/dev/null 2>&1; then
+              COUNT=$(kubectl --kubeconfig "{{.KUBECONFIG}}" get managed --no-headers 2>/dev/null | \
+                grep -c "{{.HUB_CLUSTER_NAME}}" || true)
+              COUNT="${COUNT:-0}"
+              if [ "$COUNT" != "0" ]; then
+                printf '{{.C_ERR}}✗ %s managed Azure resource(s) still owned by this cluster.{{.C_RESET}}\n' "$COUNT"
+                printf '{{.C_ERR}}  Refusing to delete the active OIDC issuer/federation — run destroy first\n'
+                printf '{{.C_ERR}}  (or wait for the Crossplane cascade to finish) so resources are not orphaned.{{.C_RESET}}\n'
+                exit 1
+              fi
+            fi
+          fi
       - printf '{{.C_STEP}}▸ Deleting Kind cluster...{{.C_RESET}}\n'
       - kind delete cluster --name "{{.KIND_CLUSTER_NAME}}" 2>/dev/null || true
       - printf '{{.C_STEP}}▸ Removing OIDC storage account...{{.C_RESET}}\n'
       - cmd: |
-          az storage account delete \
-            --name "{{.OIDC_STORAGE_ACCOUNT}}" \
-            --resource-group "{{.AZURE_RG}}" \
-            --yes 2>/dev/null || true
-        ignore_error: true
+          set -euo pipefail
+          if az storage account show --name "{{.OIDC_STORAGE_ACCOUNT}}" --resource-group "{{.AZURE_RG}}" --output none 2>/dev/null; then
+            az storage account delete \
+              --name "{{.OIDC_STORAGE_ACCOUNT}}" \
+              --resource-group "{{.AZURE_RG}}" \
+              --yes --output none
+          fi
       - printf '{{.C_STEP}}▸ Removing Kind OIDC federated credential...{{.C_RESET}}\n'
       - cmd: |
+          set -euo pipefail
           IDENTITY_NAME=$(az identity list \
             --resource-group "{{.AZURE_RG}}" \
             --query "[?clientId=='{{.AZURE_UAMI_CLIENT_ID}}'].name" \
-            -o tsv 2>/dev/null || echo "")
+            -o tsv 2>/dev/null | head -1 || echo "")
           if [ -n "$IDENTITY_NAME" ]; then
-            az identity federated-credential delete \
-              --identity-name "$IDENTITY_NAME" \
-              --resource-group "{{.AZURE_RG}}" \
-              --name "kind-bootstrap-{{.HUB_CLUSTER_NAME}}" \
-              --yes 2>/dev/null || true
+            if az identity federated-credential show \
+                 --identity-name "$IDENTITY_NAME" \
+                 --resource-group "{{.AZURE_RG}}" \
+                 --name "kind-bootstrap-{{.HUB_CLUSTER_NAME}}" \
+                 --output none 2>/dev/null; then
+              az identity federated-credential delete \
+                --identity-name "$IDENTITY_NAME" \
+                --resource-group "{{.AZURE_RG}}" \
+                --name "kind-bootstrap-{{.HUB_CLUSTER_NAME}}" \
+                --yes --output none
+            fi
           fi
-        ignore_error: true
       - rm -f "{{.ROOT_DIR}}/private/kubeconfig" "{{.ROOT_DIR}}/private/hub-kubeconfig"
       - rm -rf "{{.ROOT_DIR}}/private/oidc" "{{.ROOT_DIR}}/private/kind-config.yaml"
-      - printf '{{.C_OK}}✓ Kind cluster and OIDC resources cleaned up.{{.C_RESET}}\n'
+      - printf '{{.C_OK}}✓ Kind bootstrap cluster and its OIDC issuer/federation cleaned up (AKS hub persists).{{.C_RESET}}\n'
 
   # ── KIND ──────────────────────────────────────────────────────────────────
+  kind:reconnect:
+    desc: Re-export the Kind kubeconfig for an already-running cluster (fresh checkout)
+    status:
+      - test -f "{{.KUBECONFIG}}" && kubectl --kubeconfig "{{.KUBECONFIG}}" cluster-info >/dev/null 2>&1
+    cmds:
+      - cmd: |
+          if ! kind get clusters 2>/dev/null | grep -q "^{{.KIND_CLUSTER_NAME}}$"; then
+            printf '{{.C_ERR}}✗ Kind cluster {{.KIND_CLUSTER_NAME}} is not running on this host.{{.C_RESET}}\n'
+            printf '{{.C_ERR}}  The bootstrap control plane is persistent — run install on the dedicated\n'
+            printf '{{.C_ERR}}  management runner that created it, or re-run kind:create to rebuild it.{{.C_RESET}}\n'
+            exit 1
+          fi
+          mkdir -p "{{.ROOT_DIR}}/private"
+          kind export kubeconfig --name "{{.KIND_CLUSTER_NAME}}" --kubeconfig "{{.KUBECONFIG}}"
+          printf '{{.C_OK}}✓ Reconnected to persistent Kind cluster {{.KIND_CLUSTER_NAME}}.{{.C_RESET}}\n'
+
   kind:create:
     desc: Create Kind cluster with OIDC issuer configured
+    deps:
+      - workload-identity:keypair
     preconditions:
       - sh: kind get clusters >/dev/null 2>&1
         msg: |
           No container runtime reachable for kind.
           Start Docker, or export KIND_EXPERIMENTAL_PROVIDER for another runtime
           (e.g. KIND_EXPERIMENTAL_PROVIDER=podman), then re-run.
-    status:
-      - kind get clusters 2>/dev/null | grep -q "^{{.KIND_CLUSTER_NAME}}$"
     cmds:
-      - mkdir -p "{{.ROOT_DIR}}/private/oidc"
-      - printf '{{.C_STEP}}▸ Generating SA signing keypair...{{.C_RESET}}\n'
+      # Persistent control plane: if the cluster already exists (e.g. a fresh
+      # checkout on the dedicated runner), just re-export its kubeconfig and keep
+      # the already-resolved OIDC issuer intact. NEVER recreate it — recreating
+      # would mint a new SA signing key and silently break workload-identity.
       - cmd: |
-          if [ ! -f "{{.ROOT_DIR}}/private/oidc/sa.key" ]; then
-            openssl genrsa -out "{{.ROOT_DIR}}/private/oidc/sa.key" 2048 2>/dev/null
-            openssl rsa -in "{{.ROOT_DIR}}/private/oidc/sa.key" \
-              -pubout -out "{{.ROOT_DIR}}/private/oidc/sa.pub" 2>/dev/null
+          if kind get clusters 2>/dev/null | grep -q "^{{.KIND_CLUSTER_NAME}}$"; then
+            printf '{{.C_INFO}}  Kind cluster {{.KIND_CLUSTER_NAME}} already running — reconnecting.{{.C_RESET}}\n'
+            mkdir -p "{{.ROOT_DIR}}/private"
+            kind export kubeconfig --name "{{.KIND_CLUSTER_NAME}}" --kubeconfig "{{.KUBECONFIG}}"
+            exit 0
           fi
-      - printf '{{.C_STEP}}▸ Computing OIDC issuer URL...{{.C_RESET}}\n'
-      - cmd: |
-          # The OIDC issuer URL must match the static website endpoint, not the blob endpoint.
-          # Static website URL format: https://<account>.z<N>.web.core.windows.net
-          # The suffix (z1, z23, etc.) varies by region and cannot be predicted before
-          # the account exists — we must query it after creation in workload-identity:setup.
-          # For kind:create we write a placeholder; workload-identity:setup overwrites it.
-          echo "" > "{{.ROOT_DIR}}/private/oidc/issuer-url"
-          printf '{{.C_INFO}}  OIDC issuer URL will be resolved after storage account creation.{{.C_RESET}}\n'
-      - printf '{{.C_STEP}}▸ Rendering Kind config with OIDC issuer...{{.C_RESET}}\n'
-      - cmd: |
+          mkdir -p "{{.ROOT_DIR}}/private/oidc"
+          printf '{{.C_STEP}}▸ Computing OIDC issuer URL...{{.C_RESET}}\n'
+          # The OIDC issuer URL must match the static website endpoint, not the blob
+          # endpoint. Static website URL format: https://<account>.z<N>.web.core.windows.net
+          # The suffix (z1, z23, ...) varies by region and cannot be predicted before the
+          # account exists. workload-identity:setup resolves and persists the real URL to
+          # private/oidc/issuer-url BEFORE kind:create runs in the install flow. If that
+          # resolved value is already present, reuse it; only fall back to a placeholder
+          # when the issuer has genuinely not been resolved yet.
+          if [ ! -s "{{.ROOT_DIR}}/private/oidc/issuer-url" ]; then
+            : > "{{.ROOT_DIR}}/private/oidc/issuer-url"
+            printf '{{.C_INFO}}  OIDC issuer URL not resolved yet — using placeholder (install order resolves it first).{{.C_RESET}}\n'
+          else
+            printf '{{.C_INFO}}  Reusing resolved OIDC issuer URL (not logged).{{.C_RESET}}\n'
+          fi
+          printf '{{.C_STEP}}▸ Rendering Kind config with OIDC issuer...{{.C_RESET}}\n'
           OIDC_URL=$(cat "{{.ROOT_DIR}}/private/oidc/issuer-url")
           SA_KEY_PATH="{{.ROOT_DIR}}/private/oidc/sa.key"
           SA_PUB_PATH="{{.ROOT_DIR}}/private/oidc/sa.pub"
@@ -294,13 +374,37 @@ tasks:
                   containerPath: /etc/kubernetes/pki/oidc-sa.pub
                   readOnly: true
           KINDEOF
-      - printf '{{.C_STEP}}▸ Creating Kind cluster...{{.C_RESET}}\n'
-      - kind create cluster --name "{{.KIND_CLUSTER_NAME}}" --config "{{.ROOT_DIR}}/private/kind-config.yaml" --kubeconfig "{{.KUBECONFIG}}"
-      - printf '{{.C_OK}}✓ Kind cluster {{.KIND_CLUSTER_NAME}} created.{{.C_RESET}}\n'
+          printf '{{.C_STEP}}▸ Creating Kind cluster...{{.C_RESET}}\n'
+          kind create cluster --name "{{.KIND_CLUSTER_NAME}}" --config "{{.ROOT_DIR}}/private/kind-config.yaml" --kubeconfig "{{.KUBECONFIG}}"
+          printf '{{.C_OK}}✓ Kind cluster {{.KIND_CLUSTER_NAME}} created.{{.C_RESET}}\n'
 
   # ── WORKLOAD IDENTITY ─────────────────────────────────────────────────────
   workload-identity:setup:
-    desc: Setup Azure Workload Identity — publish JWKS, register federated credential, install webhook
+    desc: Full Workload Identity lifecycle (publish pre-Kind, webhook post-Kind)
+    cmds:
+      # Ad-hoc wrapper for re-runs when the Kind cluster already exists. The
+      # install flow calls the phases directly in the correct order
+      # (keypair -> publish -> kind:create -> webhook).
+      - task: workload-identity:publish
+      - task: workload-identity:webhook
+
+  workload-identity:keypair:
+    desc: Generate the Kind SA signing keypair used for the OIDC issuer (idempotent)
+    status:
+      - test -f "{{.ROOT_DIR}}/private/oidc/sa.key" && test -f "{{.ROOT_DIR}}/private/oidc/sa.pub"
+    cmds:
+      - mkdir -p "{{.ROOT_DIR}}/private/oidc"
+      - printf '{{.C_STEP}}▸ Generating SA signing keypair...{{.C_RESET}}\n'
+      - cmd: |
+          set -euo pipefail
+          openssl genrsa -out "{{.ROOT_DIR}}/private/oidc/sa.key" 2048 2>/dev/null
+          openssl rsa -in "{{.ROOT_DIR}}/private/oidc/sa.key" \
+            -pubout -out "{{.ROOT_DIR}}/private/oidc/sa.pub" 2>/dev/null
+
+  workload-identity:publish:
+    desc: Pre-Kind — create OIDC storage, resolve issuer URL, publish JWKS/discovery, register federation
+    deps:
+      - workload-identity:keypair
     cmds:
       - printf '{{.C_STEP}}▸ Creating OIDC storage account...{{.C_RESET}}\n'
       - cmd: |
@@ -321,6 +425,7 @@ tasks:
           - az storage account show --name "{{.OIDC_STORAGE_ACCOUNT}}" --resource-group "{{.AZURE_RG}}" --output none 2>/dev/null
       - printf '{{.C_STEP}}▸ Generating JWKS and OIDC discovery document...{{.C_RESET}}\n'
       - cmd: |
+          set -euo pipefail
           # Fetch real static website endpoint (not blob endpoint — they differ)
           # Format: https://<account>.z<N>.web.core.windows.net
           # Strip trailing slash, then append /oidc as the issuer path
@@ -329,22 +434,25 @@ tasks:
             --resource-group "{{.AZURE_RG}}" \
             --query "primaryEndpoints.web" -o tsv | sed 's|/$||')
           OIDC_URL="${STATIC_URL}/oidc"
+          # Preserve a previously-resolved issuer URL so a re-run never clobbers
+          # the value the running Kind API server was configured with. The
+          # storage account static-website host is stable for the account's
+          # lifetime, so a recomputed value must match; warn loudly if it drifts.
+          PREV=""
+          [ -s "{{.ROOT_DIR}}/private/oidc/issuer-url" ] && PREV=$(cat "{{.ROOT_DIR}}/private/oidc/issuer-url")
+          if [ -n "$PREV" ] && [ "$PREV" != "$OIDC_URL" ]; then
+            printf '{{.C_ERR}}✗ Resolved OIDC issuer URL differs from the previously-stored value.{{.C_RESET}}\n'
+            printf '{{.C_ERR}}  The Kind API server was configured with the old issuer; refusing to overwrite.\n'
+            printf '{{.C_ERR}}  Rebuild the Kind cluster (destroy-kind + install) to adopt a new issuer.{{.C_RESET}}\n'
+            exit 1
+          fi
           echo "$OIDC_URL" > "{{.ROOT_DIR}}/private/oidc/issuer-url"
           printf '{{.C_INFO}}  OIDC issuer URL resolved and stored (not logged).{{.C_RESET}}\n'
-
-          # If Kind cluster already exists with a stale placeholder issuer, warn operator
-          if kind get clusters 2>/dev/null | grep -q "^{{.KIND_CLUSTER_NAME}}$"; then
-            CURRENT=$(cat "{{.ROOT_DIR}}/private/oidc/issuer-url")
-            printf '{{.C_STEP}}  NOTE: Kind cluster already running. Ensure its API server --service-account-issuer\n'
-            printf '{{.C_STEP}}  matches the OIDC URL written above. Re-run kind:create if it was created\n'
-            printf '{{.C_STEP}}  before workload-identity:setup (issuer URL was placeholder).{{.C_RESET}}\n'
-          fi
 
           python3 "{{.ROOT_DIR}}/scripts/azure/generate-oidc-jwks.py" \
             --public-key "{{.ROOT_DIR}}/private/oidc/sa.pub" \
             --output "{{.ROOT_DIR}}/private/oidc/jwks.json"
 
-          OIDC_URL=$(cat "{{.ROOT_DIR}}/private/oidc/issuer-url")
           cat > "{{.ROOT_DIR}}/private/oidc/openid-configuration.json" << OEOF
           {
             "issuer": "${OIDC_URL}",
@@ -356,22 +464,26 @@ tasks:
           OEOF
       - printf '{{.C_STEP}}▸ Uploading OIDC discovery documents...{{.C_RESET}}\n'
       - cmd: |
+          # Discovery lives at <issuer>/.well-known/openid-configuration and the
+          # JWKS at <issuer>/openid/v1/jwks. The issuer path is /oidc, so the
+          # blob names are prefixed with oidc/ to match the uploaded issuer URL.
           az storage blob upload \
             --account-name "{{.OIDC_STORAGE_ACCOUNT}}" \
             --container-name '$web' \
-            --name ".well-known/openid-configuration" \
+            --name "oidc/.well-known/openid-configuration" \
             --file "{{.ROOT_DIR}}/private/oidc/openid-configuration.json" \
             --content-type "application/json" \
             --overwrite --output none
           az storage blob upload \
             --account-name "{{.OIDC_STORAGE_ACCOUNT}}" \
             --container-name '$web' \
-            --name "openid/v1/jwks" \
+            --name "oidc/openid/v1/jwks" \
             --file "{{.ROOT_DIR}}/private/oidc/jwks.json" \
             --content-type "application/json" \
             --overwrite --output none
       - printf '{{.C_STEP}}▸ Registering Kind OIDC federated credential on UAMI...{{.C_RESET}}\n'
       - cmd: |
+          set -euo pipefail
           IDENTITY_NAME=$(az identity list \
             --resource-group "{{.AZURE_RG}}" \
             --query "[?clientId=='{{.AZURE_UAMI_CLIENT_ID}}'].name" \
@@ -397,6 +509,12 @@ tasks:
               --audiences "api://AzureADTokenExchange" \
               --output none
           fi
+      - printf '{{.C_OK}}✓ OIDC issuer published and federation registered.{{.C_RESET}}\n'
+
+  workload-identity:webhook:
+    desc: Post-Kind — install the Azure Workload Identity webhook on the Kind cluster
+    cmds:
+      - task: kind:reconnect
       - printf '{{.C_STEP}}▸ Installing Azure Workload Identity webhook on Kind...{{.C_RESET}}\n'
       - cmd: |
           helm repo add azure-workload-identity \
@@ -410,7 +528,7 @@ tasks:
           --version 1.6.3 \
           --set azureTenantID="{{.AZURE_TENANT_ID}}" \
           --wait --timeout 5m
-      - printf '{{.C_OK}}✓ Workload Identity setup complete.{{.C_RESET}}\n'
+      - printf '{{.C_OK}}✓ Workload Identity webhook installed.{{.C_RESET}}\n'
 
   # ── CROSSPLANE ────────────────────────────────────────────────────────────
   crossplane:setup:

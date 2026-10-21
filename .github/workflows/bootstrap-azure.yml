@@ -4,43 +4,56 @@ name: Bootstrap Azure Platform
 # Trigger → Job matrix
 # ─────────────────────────────────────────────────────────────────────────────
 #
-#  Event                          setup  validate  plan/env  apply/env  destroy/env
-#  ─────────────────────────────  ─────  ────────  ────────  ─────────  ───────────
-#  pull_request (bootstrap/**)     ✓       ✓         ✓         –          –       PR preview
-#  push main (bootstrap/**)        ✓       ✓         ✓         ✓          –       Auto-apply [env gate]
-#  workflow_dispatch action=plan   ✓       ✓         ✓         –          –       Manual preview
-#  workflow_dispatch action=apply  ✓       ✓         ✓         ✓          –       Manual [env gate]
-#  workflow_dispatch action=dest.  ✓       ✓         ✓         –          ✓       Manual [env gate]
-#  schedule (02:00 UTC daily)      ✓       –         ✓         –          –       Drift detection
+#  Event                         setup  validate  pr-check  plan  apply  destroy  drift
+#  ────────────────────────────  ─────  ────────  ────────  ────  ─────  ───────  ─────
+#  pull_request (bootstrap/**)     ✓       ✓          ✓       –      –       –       –
+#  push main (bootstrap/**)        ✓       ✓          –       ✓      ✓       –       –
+#  dispatch action=plan            ✓       ✓          –       ✓      –       –       –
+#  dispatch action=apply           ✓       ✓          –       ✓      ✓       –       –
+#  dispatch action=destroy         ✓       ✓          –       ✓      –       ✓       –
+#  schedule (02:00 UTC daily)      ✓       –          –       –      –       –       ✓
 #
-# Per-env gates (environment:bootstrap-{env}):
-#   dev  → no approval, no wait
-#   test → 2min wait
-#   stg  → required reviewer + 5min wait
-#   prod → required reviewer + 10min wait + prevent self-review
+# SECURITY MODEL
+# ──────────────
+#  * pull_request (incl. forks) runs ONLY credential-less checks: fmt, validate,
+#    lockfile verification, OPA syntax, strict scanners, mock terraform test.
+#    No cloud login, no GitHub App token, no plan artifact, no authenticated
+#    preview comment. A fork PR can never obtain Azure/GitHub credentials.
+#  * Authenticated `terraform plan` runs ONLY on protected `main` (push) or on
+#    `workflow_dispatch` (triggerable only by someone with write access). Each
+#    env's plan runs inside the `bootstrap-plan-{env}` deployment environment,
+#    whose federated READ-ONLY identity (AZURE_CLIENT_ID) is scoped Reader +
+#    state/KV read. The read-only GitHub App token is minted scoped to THIS
+#    repository with contents:read only.
+#  * apply / destroy run inside the `bootstrap-{env}` deployment environment
+#    (reviewer + wait gate) with the WRITE federated identity and a WRITE App
+#    token. They consume ONLY the sealed, env/SHA/mode-bound plan produced in
+#    the SAME run (encrypted at rest with the per-env PLAN_ENCRYPTION_KEY).
+#  * Saved plans are produced with -detailed-exitcode; destroy uses a plan
+#    captured with `plan -destroy`.
+#
+# Per-env deployment environments (configure protections in repo settings):
+#   bootstrap-plan-{env}  — trusted plan identity (Reader + state/KV read)
+#   bootstrap-{env}       — apply/destroy identity (Contributor + UAA); reviewer
+#                           + wait: dev=0 / test=2m / stg=approval+5m / prod=approval+10m
+#
+# Environment credentials contract (set on each deployment environment):
+#   secrets: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
+#            PLAN_ENCRYPTION_KEY, GH_APP_ID, GH_APP_PRIVATE_KEY,
+#            PLATFORM_DOMAIN, INFRACOST_API_KEY (optional)
+#   vars:    AZURE_LOCATION, HUB_RESOURCE_GROUP, HUB_CLUSTER_NAME,
+#            BOOTSTRAP_KV_NAME, ACR_NAME, LOCATION_SHORT,
+#            TF_BACKEND_RESOURCE_GROUP, TF_BACKEND_STORAGE_ACCOUNT
 # ─────────────────────────────────────────────────────────────────────────────
-#
-# Two UAMIs:
-#   AZURE_READONLY_CLIENT_ID   — Reader, federated: pull_request + ref:main
-#   AZURE_BOOTSTRAP_CLIENT_ID  — Contributor + UAA, federated: environment:bootstrap
-#
-# Required secrets:
-#   AZURE_BOOTSTRAP_CLIENT_ID, AZURE_READONLY_CLIENT_ID (optional, fallback to bootstrap)
-#   AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
-#   GH_PAT (read:org + repo for AVM github provider), PLATFORM_DOMAIN
-#   INFRACOST_API_KEY (optional — https://www.infracost.io/docs/#2-get-api-key)
-# Required vars:
-#   AZURE_LOCATION, HUB_RESOURCE_GROUP, HUB_CLUSTER_NAME, BOOTSTRAP_KV_NAME
-#   ACR_NAME, LOCATION_SHORT, TF_BACKEND_RESOURCE_GROUP, TF_BACKEND_STORAGE_ACCOUNT
 
 on:
   pull_request:
     branches: [main]
     paths:
       - "cluster-providers/kind-crossplane-azure/bootstrap/**"
+      - ".github/workflows/bootstrap-azure.yml"
+      - "scripts/ci/terraform_plan_guard.py"
 
-  # push main → validate + plan + apply (per-env gate)
-  # Each env gated by its own environment: dev=auto, test=2min, stg=approval, prod=approval+10min
   push:
     branches: [main]
     paths:
@@ -49,7 +62,7 @@ on:
   workflow_dispatch:
     inputs:
       environments:
-        description: "Environments to run (dev,test,stg,prod or 'all')"
+        description: "Environments to run (comma list of dev,test,stg,prod — or 'all')"
         default: "all"
       action:
         description: "Action"
@@ -60,45 +73,32 @@ on:
   schedule:
     - cron: "0 2 * * *"   # Daily drift detection 02:00 UTC
 
-# Concurrency: per-job (see each job's concurrency block)
-# Plan: cancel-in-progress — new push cancels old plan runs safely
-# Apply/Destroy: cancel-in-progress=false, independent group from plan
-# → apply is NEVER blocked by a running plan; gate = environment only
-
+# Least privilege at the workflow root. Jobs that need more (id-token for OIDC,
+# pull-requests/issues for comments/drift) widen their own permissions block.
 permissions:
-  id-token: write
   contents: read
-  pull-requests: write
-  issues: write
-  security-events: write
 
-# Shared NON-SENSITIVE vars only — available to all jobs
-# Secrets (TF_VAR_subscription_id, tenant_id, platform_domain, GITHUB_TOKEN)
-# are scoped to individual job env: blocks to satisfy CKV_GIT_4
+# Non-sensitive, non-env-specific config only. Per-env resource vars
+# (AZURE_LOCATION, HUB_RESOURCE_GROUP, ...) and all secrets are resolved inside
+# the per-env deployment-environment jobs, never shared globally.
 env:
-  TF_VAR_location: ${{ vars.AZURE_LOCATION }}
-  TF_VAR_hub_resource_group: ${{ vars.HUB_RESOURCE_GROUP }}
-  TF_VAR_hub_cluster_name: ${{ vars.HUB_CLUSTER_NAME }}
-  TF_VAR_bootstrap_keyvault_name: ${{ vars.BOOTSTRAP_KV_NAME }}
-  TF_VAR_acr_name: ${{ vars.ACR_NAME }}
-  TF_VAR_github_org: ${{ github.repository_owner }}
-  TF_VAR_github_repo: ${{ github.event.repository.name }}
-  TF_VAR_resource_name_location_short: ${{ vars.LOCATION_SHORT }}
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+  BOOTSTRAP_DIR: cluster-providers/kind-crossplane-azure/bootstrap
+  TERRAFORM_VERSION: "~1.11"
 
-# ── 1. Setup — detect which environments changed ──────────────────────────────
-# Uses dorny/paths-filter@v4 to detect which env files changed.
-# Rules:
-#   envs/dev.tfvars changed   → matrix: [dev]
-#   main.tf / *.tf changed    → matrix: [dev, test, stg, prod]  (shared code)
-#   workflow_dispatch          → uses inputs.environments
-#   schedule                  → all envs (drift detection)
 jobs:
+  # ── 1. Setup — resolve the environment matrix (credential-less) ─────────────
   setup:
-    name: Detect changed environments
+    name: Resolve environment matrix
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       matrix: ${{ steps.compute.outputs.matrix }}
       has_envs: ${{ steps.compute.outputs.has_envs }}
+      trusted: ${{ steps.compute.outputs.trusted }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -110,7 +110,9 @@ jobs:
           filters: |
             shared:
               - 'cluster-providers/kind-crossplane-azure/bootstrap/*.tf'
+              - 'cluster-providers/kind-crossplane-azure/bootstrap/.terraform.lock.hcl'
               - 'cluster-providers/kind-crossplane-azure/bootstrap/policies/**'
+              - 'cluster-providers/kind-crossplane-azure/bootstrap/tests/**'
             dev:
               - 'cluster-providers/kind-crossplane-azure/bootstrap/envs/dev.tfvars'
             test:
@@ -122,320 +124,564 @@ jobs:
 
       - name: Compute environment matrix
         id: compute
+        # All free-form inputs arrive via env: (never interpolated into the
+        # script body) so a crafted branch/PR title/dispatch value cannot inject
+        # shell. The manual env list is validated against a strict allowlist.
         env:
+          EVENT_NAME: ${{ github.event_name }}
           MANUAL_ENVS: ${{ github.event.inputs.environments || '' }}
           SHARED: ${{ steps.filter.outputs.shared || 'false' }}
-          DEV:    ${{ steps.filter.outputs.dev    || 'false' }}
-          TEST:   ${{ steps.filter.outputs.test   || 'false' }}
-          STG:    ${{ steps.filter.outputs.stg    || 'false' }}
-          PROD:   ${{ steps.filter.outputs.prod   || 'false' }}
+          DEV: ${{ steps.filter.outputs.dev || 'false' }}
+          TEST: ${{ steps.filter.outputs.test || 'false' }}
+          STG: ${{ steps.filter.outputs.stg || 'false' }}
+          PROD: ${{ steps.filter.outputs.prod || 'false' }}
+          # Trusted = can run authenticated plan/apply. Only protected main
+          # pushes and workflow_dispatch (write-access only) are trusted.
+          # pull_request (incl. forks) and schedule drive their own job gates.
+          IS_PUSH_MAIN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          IS_DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
+          set -euo pipefail
+          ALLOWED=(dev test stg prod)
           ALL='["dev","test","stg","prod"]'
 
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            # Drift detection — always all envs
-            ENVS="$ALL"
+          is_allowed() {
+            local candidate="$1" a
+            for a in "${ALLOWED[@]}"; do
+              [ "$candidate" = "$a" ] && return 0
+            done
+            return 1
+          }
 
-          elif [ -n "$MANUAL_ENVS" ]; then
-            # Manual dispatch — explicit env list or "all"
-            if [ "$MANUAL_ENVS" = "all" ]; then
+          ENVS=""
+          case "$EVENT_NAME" in
+            schedule)
               ENVS="$ALL"
-            else
-              ENVS=$(echo "$MANUAL_ENVS" | tr ',' '\n' | jq -R . | jq -sc .)
-            fi
+              ;;
+            workflow_dispatch)
+              if [ -z "$MANUAL_ENVS" ] || [ "$MANUAL_ENVS" = "all" ]; then
+                ENVS="$ALL"
+              else
+                # Split on comma, trim, allowlist-validate each token.
+                SELECTED=()
+                IFS=',' read -r -a RAW <<< "$MANUAL_ENVS"
+                for item in "${RAW[@]}"; do
+                  tok="$(printf '%s' "$item" | tr -d '[:space:]')"
+                  [ -z "$tok" ] && continue
+                  if ! is_allowed "$tok"; then
+                    echo "::error::Unknown environment '$tok' — allowed: ${ALLOWED[*]}"
+                    exit 1
+                  fi
+                  SELECTED+=("$tok")
+                done
+                if [ "${#SELECTED[@]}" -eq 0 ]; then
+                  echo "::error::No valid environments in input '$MANUAL_ENVS'"
+                  exit 1
+                fi
+                ENVS=$(printf '%s\n' "${SELECTED[@]}" | jq -R . | jq -sc .)
+              fi
+              ;;
+            *)
+              # push / pull_request — derive from changed paths.
+              if [ "$SHARED" = "true" ]; then
+                ENVS="$ALL"
+              else
+                DETECTED=()
+                [ "$DEV" = "true" ] && DETECTED+=(dev)
+                [ "$TEST" = "true" ] && DETECTED+=(test)
+                [ "$STG" = "true" ] && DETECTED+=(stg)
+                [ "$PROD" = "true" ] && DETECTED+=(prod)
+                if [ "${#DETECTED[@]}" -eq 0 ]; then
+                  ENVS="[]"
+                else
+                  ENVS=$(printf '%s\n' "${DETECTED[@]}" | jq -R . | jq -sc .)
+                fi
+              fi
+              ;;
+          esac
 
-          elif [ "$SHARED" = "true" ]; then
-            # Shared .tf files changed → all envs
-            echo "Shared Terraform code changed → running all environments"
-            ENVS="$ALL"
-
+          if [ "$IS_PUSH_MAIN" = "true" ] || [ "$IS_DISPATCH" = "true" ]; then
+            TRUSTED="true"
           else
-            # Only specific env tfvars changed → targeted envs only
-            DETECTED=""
-            [ "$DEV"  = "true" ] && DETECTED="$DETECTED dev"
-            [ "$TEST" = "true" ] && DETECTED="$DETECTED test"
-            [ "$STG"  = "true" ] && DETECTED="$DETECTED stg"
-            [ "$PROD" = "true" ] && DETECTED="$DETECTED prod"
-            ENVS=$(echo "$DETECTED" | tr ' ' '\n' | grep -v '^$' | jq -R . | jq -sc .)
-            [ "$ENVS" = "null" ] || [ -z "$ENVS" ] && ENVS="[]"
+            TRUSTED="false"
           fi
 
-          echo "matrix={\"env\":$ENVS}" >> "$GITHUB_OUTPUT"
-          [ "$ENVS" = "[]" ] && echo "has_envs=false" >> "$GITHUB_OUTPUT" \
-                              || echo "has_envs=true"  >> "$GITHUB_OUTPUT"
-          echo "Environments: $ENVS"
+          {
+            echo "matrix={\"env\":$ENVS}"
+            if [ "$ENVS" = "[]" ]; then
+              echo "has_envs=false"
+            else
+              echo "has_envs=true"
+            fi
+            echo "trusted=$TRUSTED"
+          } >> "$GITHUB_OUTPUT"
+          echo "Environments: $ENVS (trusted=$TRUSTED)"
 
-# ── 2. Validate ───────────────────────────────────────────────────────────────
-# Runs AFTER setup — skip if no envs detected (nothing to validate)
+  # ── 2. Validate — credential-less, independent of the deployment matrix ─────
+  # Runs on exactly ONE Terraform init. Never logs into a cloud, never mints an
+  # App token. Enforces: fmt, validate, lockfile presence (readonly), OPA
+  # syntax, strict Checkov/Trivy, and the mock-provider terraform test suite.
   validate:
-    name: Validate
+    name: Validate (credential-less)
     runs-on: ubuntu-latest
     needs: [setup]
-    # Skip if: schedule (drift, no validate needed) OR no envs changed
     if: github.event_name != 'schedule' && needs.setup.outputs.has_envs == 'true'
+    permissions:
+      contents: read
+      security-events: write
     defaults:
       run:
         working-directory: cluster-providers/kind-crossplane-azure/bootstrap
-
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Create Terraform plugin cache dir
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - name: Cache Terraform providers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: ${{ runner.os }}-terraform-providers-${{ hashFiles('cluster-providers/kind-crossplane-azure/bootstrap/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-providers-
+
+      - name: Cache Terraform modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cluster-providers/kind-crossplane-azure/bootstrap/.terraform/modules
+          key: ${{ runner.os }}-terraform-modules-${{ hashFiles('cluster-providers/kind-crossplane-azure/bootstrap/*.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-modules-
+
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          terraform_version: "~1.11"
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false   # we read raw exit codes ourselves
+
+      - name: Verify provider lockfile exists (readonly enforcement)
+        run: |
+          if [ ! -f .terraform.lock.hcl ]; then
+            echo "::error::.terraform.lock.hcl is missing — commit a lockfile" \
+                 "generated from real provider checksums (terraform providers lock)."
+            exit 1
+          fi
+          echo "✓ Provider lockfile present"
 
       - name: terraform fmt
         run: terraform fmt -check -recursive -diff
-        continue-on-error: true   # warn, don't block on fmt
+        continue-on-error: true   # style warning, not a gate
+
+      # Single init for the whole validate job. -backend=false keeps it
+      # credential-less; -lockfile=readonly fails if the lock does not already
+      # satisfy the configured providers (no silent lock baseline fabrication).
+      - name: terraform init (no backend, readonly lock)
+        run: terraform init -backend=false -lockfile=readonly
 
       - name: terraform validate
-        run: |
-          terraform init -backend=false   # init without backend for validation only
-          terraform validate -no-color
+        run: terraform validate -no-color
 
       - name: TFLint
         uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6.3.2
         with:
-          tflint_version: latest
+          tflint_version: v0.59.1
 
-      - run: |
+      - name: Run TFLint
+        run: |
           tflint --init
-          tflint --format compact || true
+          tflint --format compact
 
-      - name: OPA — validate policy syntax
+      - name: Setup OPA
         uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
         with:
-          version: latest
+          version: v1.9.0
 
-      - run: |
+      - name: OPA — validate every policy package (syntax)
+        run: |
           opa check policies/
-          echo "✓ Rego syntax valid"
+          echo "✓ Rego syntax valid for all policy packages"
 
-      - name: Checkov — IaC scan
+      - name: terraform test — unit (mock providers + override_module)
+        run: |
+          set -euo pipefail
+          terraform test -filter=tests/unit.tftest.hcl -no-color
+
+      - name: Checkov — IaC scan (strict)
         uses: bridgecrewio/checkov-action@6f26dc90000b74feb589a906cdfae540f5119895 # v12
         with:
           directory: cluster-providers/kind-crossplane-azure/bootstrap
           framework: terraform
           output_format: cli
-          soft_fail: true
+          soft_fail: false   # strict — a new Checkov violation blocks the PR
 
-      # trivy-action v0.36.0+ — safe post supply chain attack (2026-03-19/2026-04-22)
-      - name: Trivy — filesystem scan
+      - name: Trivy — filesystem scan (SARIF)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        if: always()
         with:
           scan-type: fs
           scan-ref: cluster-providers/kind-crossplane-azure/bootstrap
           format: sarif
-          output: trivy-results.sarif
+          output: cluster-providers/kind-crossplane-azure/bootstrap/trivy-results.sarif
           severity: CRITICAL,HIGH
-          exit-code: 0
+          exit-code: 0   # upload findings; gating happens in the dedicated step
 
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4
-        if: always()
         with:
-          sarif_file: trivy-results.sarif
+          sarif_file: cluster-providers/kind-crossplane-azure/bootstrap/trivy-results.sarif
+          category: trivy-bootstrap-fs
 
-# ── 2. Plan ───────────────────────────────────────────────────────────────────
-# Runs on: PR (read-only UAMI), workflow_dispatch, schedule (drift)
-# No gate — plan is always safe to run
+      - name: Trivy — fail on CRITICAL/HIGH (strict gate)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: cluster-providers/kind-crossplane-azure/bootstrap
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: 1   # strict — block on fixable CRITICAL/HIGH
+
+  # ── 2b. PR speculative check — credential-less, forks-safe, NO cloud plan ───
+  # A PR (including from a fork) gets format/validate/scan via `validate` plus a
+  # credential-less `terraform plan` dry run with -backend=false against mock
+  # providers is NOT possible (plan needs state), so the PR surfaces ONLY the
+  # offline signal. We do NOT run an authenticated plan and do NOT post an
+  # authenticated preview that could mislead reviewers into trusting fork code.
+  pr-check:
+    name: PR speculative check
+    runs-on: ubuntu-latest
+    needs: [setup, validate]
+    if: github.event_name == 'pull_request' && needs.setup.outputs.has_envs == 'true' && needs.validate.result == 'success'
+    permissions:
+      contents: read
+      pull-requests: write   # ONLY to post the offline, non-authenticated summary
+    defaults:
+      run:
+        working-directory: cluster-providers/kind-crossplane-azure/bootstrap
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Post offline PR summary (bot token only)
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            // Uses only the default GITHUB_TOKEN (bot). No Azure/App creds.
+            // The comment states clearly that this is an OFFLINE check and that
+            // the authenticated plan runs only after merge to main.
+            const body = [
+              '## 🧪 Bootstrap Azure — PR checks (offline)',
+              '',
+              'This pull request ran **credential-less** validation only:',
+              '',
+              '- `terraform fmt` / `terraform validate`',
+              '- provider lockfile verification (`-lockfile=readonly`)',
+              '- OPA policy syntax (`opa check`)',
+              '- `terraform test` (mock providers)',
+              '- Checkov + Trivy (strict)',
+              '',
+              '> ℹ️ No cloud credentials are available to pull requests.',
+              '> The **authenticated `terraform plan`** (with OPA deny evaluation',
+              '> against the real plan) runs only after merge to `main`, inside',
+              '> the trusted `bootstrap-plan-{env}` environment.',
+            ].join('\n');
+            const marker = 'Bootstrap Azure — PR checks (offline)';
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                comment_id: existing.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            }
+
+  # ── 3. Plan — TRUSTED only (push main / dispatch). Per-env, authenticated ───
+  # Runs inside bootstrap-plan-{env} with the READ-ONLY identity. Produces a
+  # saved plan (-detailed-exitcode; -destroy when action=destroy), evaluates
+  # EVERY OPA deny package against the exact plan JSON, then binds + seals the
+  # plan so apply/destroy can consume exactly these bytes. For plan-only runs
+  # (action=plan) nothing is uploaded.
   plan:
     name: Plan / ${{ matrix.env }}
     runs-on: ubuntu-latest
     needs: [setup, validate]
     if: |
-      always() &&
+      needs.setup.outputs.trusted == 'true' &&
       needs.setup.outputs.has_envs == 'true' &&
-      (needs.validate.result == 'success' || needs.validate.result == 'skipped')
+      needs.validate.result == 'success'
     strategy:
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
-      fail-fast: false   # all envs plan in parallel
-    # Plan: cancel older runs (read-only, safe) — independent group from apply
+      fail-fast: false
+    # Serialize the whole plan→apply/destroy lifecycle per env on this ref so a
+    # new push can replace a not-yet-applied plan, but see apply/destroy for the
+    # non-cancellable group that actually protects state.
     concurrency:
-      group: plan-${{ matrix.env }}-${{ github.ref }}
-      cancel-in-progress: true
+      group: bootstrap-lifecycle-${{ matrix.env }}-${{ github.ref }}
+      cancel-in-progress: false
+    environment: bootstrap-plan-${{ matrix.env }}
+    permissions:
+      id-token: write   # OIDC federation for the read-only identity
+      contents: read
     defaults:
       run:
         working-directory: cluster-providers/kind-crossplane-azure/bootstrap
     outputs:
       exitcode: ${{ steps.plan.outputs.exitcode }}
       summary: ${{ steps.summary.outputs.text }}
+      mode: ${{ steps.mode.outputs.mode }}
     env:
       ARM_USE_OIDC: "true"
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      # Read-only UAMI for plan — Reader only, safe on untrusted PRs
-      ARM_CLIENT_ID: ${{ secrets.AZURE_READONLY_CLIENT_ID || secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
-      # Secrets scoped to this job only (CKV_GIT_4)
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
-      GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-      # Job-level so env.INFRACOST_API_KEY is available in step if: conditions
+      TF_VAR_location: ${{ vars.AZURE_LOCATION }}
+      TF_VAR_hub_resource_group: ${{ vars.HUB_RESOURCE_GROUP }}
+      TF_VAR_hub_cluster_name: ${{ vars.HUB_CLUSTER_NAME }}
+      TF_VAR_bootstrap_keyvault_name: ${{ vars.BOOTSTRAP_KV_NAME }}
+      TF_VAR_acr_name: ${{ vars.ACR_NAME }}
+      TF_VAR_resource_name_location_short: ${{ vars.LOCATION_SHORT }}
+      TF_VAR_github_org: ${{ github.repository_owner }}
+      TF_VAR_github_repo: ${{ github.event.repository.name }}
       INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
-
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Resolve plan mode
+        id: mode
+        env:
+          ACTION: ${{ github.event.inputs.action || 'plan' }}
+        run: |
+          # destroy dispatch → the saved plan is captured with `plan -destroy`;
+          # every other trusted trigger produces a normal apply-direction plan.
+          if [ "$ACTION" = "destroy" ]; then
+            echo "mode=destroy" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=apply" >> "$GITHUB_OUTPUT"
+          fi
+
+      # READ-ONLY GitHub App token: this repository only, contents:read only.
+      # Enough for the AVM github provider to read repo/env metadata during
+      # plan; it can NOT write secrets/environments.
+      - name: Generate read-only GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: read
+          permission-metadata: read
+
+      - name: Export GitHub token for Terraform
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GITHUB_TOKEN=${APP_TOKEN}" >> "$GITHUB_ENV"
+
+      - name: Create Terraform plugin cache dir
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - name: Cache Terraform providers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: ${{ runner.os }}-terraform-providers-${{ hashFiles('cluster-providers/kind-crossplane-azure/bootstrap/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-providers-
+
+      - name: Cache Terraform modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cluster-providers/kind-crossplane-azure/bootstrap/.terraform/modules
+          key: ${{ runner.os }}-terraform-modules-${{ hashFiles('cluster-providers/kind-crossplane-azure/bootstrap/*.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-modules-
+
       - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
-          client-id: ${{ secrets.AZURE_READONLY_CLIENT_ID || secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          terraform_version: "~1.11"
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
 
       - name: terraform init
+        env:
+          TF_BACKEND_RESOURCE_GROUP: ${{ vars.TF_BACKEND_RESOURCE_GROUP }}
+          TF_BACKEND_STORAGE_ACCOUNT: ${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}
+          STATE_KEY: bootstrap/${{ matrix.env }}/terraform.tfstate
         run: |
           terraform init \
-            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
-            -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
+            -backend-config="resource_group_name=${TF_BACKEND_RESOURCE_GROUP}" \
+            -backend-config="storage_account_name=${TF_BACKEND_STORAGE_ACCOUNT}" \
             -backend-config="container_name=tfstate" \
-            -backend-config="key=bootstrap/${{ matrix.env }}/terraform.tfstate" \
-            -backend-config="use_oidc=true"
+            -backend-config="key=${STATE_KEY}" \
+            -backend-config="use_oidc=true" \
+            -lockfile=readonly
 
       - name: terraform plan
         id: plan
+        env:
+          PLAN_MODE: ${{ steps.mode.outputs.mode }}
+          VAR_FILE: envs/${{ matrix.env }}.tfvars
         run: |
-          set +e   # don't fail immediately — capture exit code ourselves
-          terraform plan -out=tfplan -no-color 2>&1 | tee plan.txt
+          set +e
+          if [ "$PLAN_MODE" = "destroy" ]; then
+            terraform plan -destroy -detailed-exitcode \
+              -var-file="$VAR_FILE" -out=tfplan -no-color 2>&1 | tee plan.txt
+          else
+            terraform plan -detailed-exitcode \
+              -var-file="$VAR_FILE" -out=tfplan -no-color 2>&1 | tee plan.txt
+          fi
           TF_EXIT=${PIPESTATUS[0]}
           echo "exitcode=$TF_EXIT" >> "$GITHUB_OUTPUT"
-          # 0 = no changes, 1 = error, 2 = changes (with -detailed-exitcode)
-          # setup-terraform wrapper may pass through as-is; treat >=2 as warnings
-          if [ "$TF_EXIT" -eq 1 ]; then exit 1; fi
+          # -detailed-exitcode: 0 = no changes, 1 = error, 2 = changes present.
+          if [ "$TF_EXIT" -eq 1 ]; then
+            echo "::error::terraform plan failed"
+            exit 1
+          fi
+          exit 0
 
       - name: Extract plan summary
         id: summary
         run: |
-          summary=$(grep -E "^Plan:|No changes" plan.txt | head -1 || echo "Plan output unavailable")
-          echo "text=$summary" >> "$GITHUB_OUTPUT"
+          summary=$(grep -E "^Plan:|^No changes|will be destroyed" plan.txt | head -1 || true)
+          [ -z "$summary" ] && summary="Plan output unavailable"
+          # Write via env file to avoid interpolating plan text into YAML.
+          {
+            echo "text<<__EOF__"
+            echo "$summary"
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Render plan JSON
+        if: steps.plan.outputs.exitcode != '1'
+        run: terraform show -json tfplan > tfplan.json
+
+      - name: OPA — evaluate every deny package against the exact plan
+        if: steps.plan.outputs.exitcode != '1'
+        run: |
+          python3 "${GITHUB_WORKSPACE}/scripts/ci/terraform_plan_guard.py" opa \
+            --policies policies \
+            --plan-json tfplan.json \
+            --opa-bin opa
 
       - name: Cost estimate (Infracost)
-        if: github.event_name == 'pull_request' && env.INFRACOST_API_KEY != ''
+        if: steps.plan.outputs.exitcode != '1' && env.INFRACOST_API_KEY != ''
         uses: infracost/actions/setup@a5783eb98adc93aa7a0049fce0abb06fdd30770a # v5.0.1
         with:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
 
       - name: Infracost diff
-        if: github.event_name == 'pull_request' && env.INFRACOST_API_KEY != ''
+        if: steps.plan.outputs.exitcode != '1' && env.INFRACOST_API_KEY != ''
         run: |
-          infracost diff \
-            --path=. \
-            --format=json \
-            --out-file=/tmp/infracost.json || true
+          infracost diff --path=. --format=json --out-file=infracost.json || true
 
-      - name: Post PR comment
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const fs = require('fs');
-            const plan = fs.readFileSync(
-              'cluster-providers/kind-crossplane-azure/bootstrap/plan.txt', 'utf8'
-            ).slice(0, 55000);
-            const summary = `${{ steps.summary.outputs.text }}`;
+      # Bind + seal the plan ONLY for lifecycle runs that will apply/destroy in
+      # this same run (push main, or dispatch apply/destroy). Plan-only dispatch
+      # and drift never upload a plan artifact.
+      - name: Install cryptography (for sealing)
+        if: |
+          steps.plan.outputs.exitcode != '1' &&
+          (github.event_name == 'push' ||
+           github.event.inputs.action == 'apply' ||
+           github.event.inputs.action == 'destroy')
+        run: python3 -m pip install --disable-pip-version-check "cryptography==46.0.7"
 
-            // Build cost section if infracost ran
-            let costSection = '';
-            try {
-              const cost = JSON.parse(fs.readFileSync('/tmp/infracost.json', 'utf8'));
-              const diff = cost.diffTotalMonthlyCost || '0';
-              costSection = `\n\n💰 **Estimated monthly cost change:** \`${diff} USD\``;
-            } catch {}
+      - name: Bind + seal plan (encrypt at rest)
+        id: seal
+        if: |
+          steps.plan.outputs.exitcode != '1' &&
+          (github.event_name == 'push' ||
+           github.event.inputs.action == 'apply' ||
+           github.event.inputs.action == 'destroy')
+        env:
+          PLAN_ENCRYPTION_KEY: ${{ secrets.PLAN_ENCRYPTION_KEY }}
+          PLAN_MODE: ${{ steps.mode.outputs.mode }}
+        run: |
+          GUARD="${GITHUB_WORKSPACE}/scripts/ci/terraform_plan_guard.py"
+          python3 "$GUARD" bind \
+            --plan tfplan \
+            --manifest tfplan.binding.json \
+            --environment "${{ matrix.env }}" \
+            --sha "${{ github.sha }}" \
+            --mode "$PLAN_MODE" \
+            --run-id "${{ github.run_id }}" \
+            --run-attempt "${{ github.run_attempt }}"
+          python3 "$GUARD" seal \
+            --plan tfplan \
+            --manifest tfplan.binding.json \
+            --environment "${{ matrix.env }}" \
+            --out tfplan.sealed
 
-            const body = [
-              '## 🔍 Terraform Plan — Bootstrap Azure',
-              '',
-              `| | |`,
-              `|---|---|`,
-              `| **Status** | ${{ steps.plan.outputs.exitcode == '0' && '✅ No changes' || steps.plan.outputs.exitcode == '2' && '⚠️ Changes pending' || '❌ Error' }} |`,
-              `| **Summary** | \`${summary}\` |`,
-              `| **SHA** | \`${{ github.sha }}\` |`,
-              costSection,
-              '',
-              '<details><summary>📋 Full plan output</summary>',
-              '',
-              '```hcl',
-              plan,
-              '```',
-              '</details>',
-              '',
-              '> **Apply:** `gh workflow run bootstrap-azure.yml --field action=apply`',
-              '> Requires approval + 5 min wait (environment: `bootstrap`)'
-            ].join('\n');
-
-            // Delete previous plan comments
-            const { data: comments } = await github.rest.issues.listComments({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
-            for (const c of comments) {
-              if (c.body.includes('Terraform Plan — Bootstrap Azure')) {
-                await github.rest.issues.deleteComment({
-                  comment_id: c.id, owner: context.repo.owner, repo: context.repo.repo
-                });
-              }
-            }
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body
-            });
-
-      - name: Upload plan artifact
+      - name: Upload sealed plan artifact
+        if: steps.seal.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: tfplan-${{ matrix.env }}-${{ github.sha }}
-          path: cluster-providers/kind-crossplane-azure/bootstrap/tfplan
-          retention-days: 7
+          name: tfplan-${{ steps.mode.outputs.mode }}-${{ matrix.env }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: cluster-providers/kind-crossplane-azure/bootstrap/tfplan.sealed
+          retention-days: 1   # short-lived — consumed by apply/destroy in this run
           if-no-files-found: error
 
-      - name: Open drift issue
-        if: github.event_name == 'schedule' && steps.plan.outputs.exitcode == '2'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            await github.rest.issues.create({
-              owner: context.repo.owner, repo: context.repo.repo,
-              title: '⚠️ [Drift] Bootstrap Azure infrastructure out of sync',
-              body: [
-                '### Infrastructure drift detected',
-                '`terraform plan` found uncommitted changes.',
-                '',
-                `**Summary:** ${{ steps.summary.outputs.text }}`,
-                `**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-                '',
-                '**To review:**',
-                '```sh',
-                'gh workflow run bootstrap-azure.yml --field action=plan',
-                '```'
-              ].join('\n'),
-              labels: ['infrastructure', 'drift', 'azure']
-            });
+      - name: Plan summary (Actions summary)
+        if: always()
+        env:
+          PLAN_MODE: ${{ steps.mode.outputs.mode }}
+          EXITCODE: ${{ steps.plan.outputs.exitcode }}
+          SUMMARY: ${{ steps.summary.outputs.text }}
+        run: |
+          {
+            echo "### 🔍 Terraform Plan — ${{ matrix.env }} (${PLAN_MODE})"
+            echo ""
+            case "$EXITCODE" in
+              0) echo "**Status:** ✅ No changes" ;;
+              2) echo "**Status:** ⚠️ Changes pending" ;;
+              *) echo "**Status:** ❌ Error" ;;
+            esac
+            echo ""
+            echo "**Summary:** \`${SUMMARY}\`"
+            echo ""
+            echo "**SHA:** \`${{ github.sha }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-# ── 3. Apply ──────────────────────────────────────────────────────────────────
-# Gated by environment:bootstrap — required reviewer + 5min wait + prevent self-review
-# Downloads exact same tfplan artifact from plan job — no drift possible
+  # ── 4. Apply — gated bootstrap-{env}; consumes ONLY the sealed same-run plan ─
   apply:
     name: Apply / ${{ matrix.env }}
     runs-on: ubuntu-latest
     needs: [setup, plan]
-    if: (github.event_name == 'push' || github.event.inputs.action == 'apply') && needs.plan.result == 'success'
+    if: |
+      needs.plan.result == 'success' &&
+      (github.event_name == 'push' || github.event.inputs.action == 'apply') &&
+      needs.plan.outputs.exitcode == '2'
     strategy:
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
       fail-fast: false
     environment: bootstrap-${{ matrix.env }}
-    # Apply: independent group from plan — NEVER blocked by a running plan
-    # Gate = environment:bootstrap-{env} only (reviewer + wait timer)
+    # Same lifecycle group as plan + non-cancellable: an apply can NEVER be
+    # cancelled by a new plan/push, and apply+destroy for the same env serialize.
     concurrency:
-      group: apply-${{ matrix.env }}
+      group: bootstrap-lifecycle-${{ matrix.env }}-${{ github.ref }}
       cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: read
     defaults:
       run:
         working-directory: cluster-providers/kind-crossplane-azure/bootstrap
@@ -443,81 +689,140 @@ jobs:
       ARM_USE_OIDC: "true"
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_CLIENT_ID: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
-      # Secrets scoped to this job only (CKV_GIT_4)
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
-      GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-
+      TF_VAR_location: ${{ vars.AZURE_LOCATION }}
+      TF_VAR_hub_resource_group: ${{ vars.HUB_RESOURCE_GROUP }}
+      TF_VAR_hub_cluster_name: ${{ vars.HUB_CLUSTER_NAME }}
+      TF_VAR_bootstrap_keyvault_name: ${{ vars.BOOTSTRAP_KV_NAME }}
+      TF_VAR_acr_name: ${{ vars.ACR_NAME }}
+      TF_VAR_resource_name_location_short: ${{ vars.LOCATION_SHORT }}
+      TF_VAR_github_org: ${{ github.repository_owner }}
+      TF_VAR_github_repo: ${{ github.event.repository.name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # WRITE GitHub App token: apply must create env secrets / RBAC via the
+      # github provider, so it needs write scopes (this repo only).
+      - name: Generate write GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Export GitHub token for Terraform
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GITHUB_TOKEN=${APP_TOKEN}" >> "$GITHUB_ENV"
+
+      - name: Create Terraform plugin cache dir
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - name: Cache Terraform providers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: ${{ runner.os }}-terraform-providers-${{ hashFiles('cluster-providers/kind-crossplane-azure/bootstrap/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-providers-
+
+      - name: Cache Terraform modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cluster-providers/kind-crossplane-azure/bootstrap/.terraform/modules
+          key: ${{ runner.os }}-terraform-modules-${{ hashFiles('cluster-providers/kind-crossplane-azure/bootstrap/*.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-modules-
+
       - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
-          client-id: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          terraform_version: "~1.11"
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
 
       - name: terraform init
+        env:
+          TF_BACKEND_RESOURCE_GROUP: ${{ vars.TF_BACKEND_RESOURCE_GROUP }}
+          TF_BACKEND_STORAGE_ACCOUNT: ${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}
+          STATE_KEY: bootstrap/${{ matrix.env }}/terraform.tfstate
         run: |
           terraform init \
-            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
-            -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
+            -backend-config="resource_group_name=${TF_BACKEND_RESOURCE_GROUP}" \
+            -backend-config="storage_account_name=${TF_BACKEND_STORAGE_ACCOUNT}" \
             -backend-config="container_name=tfstate" \
-            -backend-config="key=bootstrap/${{ matrix.env }}/terraform.tfstate" \
-            -backend-config="use_oidc=true"
+            -backend-config="key=${STATE_KEY}" \
+            -backend-config="use_oidc=true" \
+            -lockfile=readonly
 
-      - name: Download plan artifact
+      - name: Download sealed plan artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: tfplan-${{ matrix.env }}-${{ github.sha }}
+          name: tfplan-apply-${{ matrix.env }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: cluster-providers/kind-crossplane-azure/bootstrap
+
+      - name: Install cryptography (for unsealing)
+        run: python3 -m pip install --disable-pip-version-check "cryptography==46.0.7"
+
+      - name: Open + verify sealed plan (env/SHA/mode bound)
+        env:
+          PLAN_ENCRYPTION_KEY: ${{ secrets.PLAN_ENCRYPTION_KEY }}
+        run: |
+          python3 "${GITHUB_WORKSPACE}/scripts/ci/terraform_plan_guard.py" open \
+            --sealed tfplan.sealed \
+            --out tfplan \
+            --environment "${{ matrix.env }}" \
+            --sha "${{ github.sha }}" \
+            --mode apply
 
       - name: terraform apply
         run: terraform apply -auto-approve tfplan
 
-      - name: Apply summary
+      - name: Apply summary (Actions summary)
         if: always()
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const status = '${{ job.status }}';
-            const icon = status === 'success' ? '✅' : '❌';
-            await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner, repo: context.repo.repo,
-              sha: context.sha,
-              state: status === 'success' ? 'success' : 'failure',
-              description: `Bootstrap apply: ${status}`,
-              context: 'bootstrap/apply'
-            });
-            core.summary
-              .addHeading(`${icon} Bootstrap Apply — ${status.toUpperCase()}`)
-              .addTable([
-                [{data: 'Field', header: true}, {data: 'Value', header: true}],
-                ['Plan summary', `${{ needs.plan.outputs.summary }}`],
-                ['SHA', context.sha.substring(0, 7)],
-                ['Actor', context.actor],
-              ])
-              .write();
+        env:
+          STATUS: ${{ job.status }}
+          PLAN_SUMMARY: ${{ needs.plan.outputs.summary }}
+        run: |
+          icon="❌"; [ "$STATUS" = "success" ] && icon="✅"
+          {
+            echo "### ${icon} Bootstrap Apply — ${{ matrix.env }} (${STATUS})"
+            echo ""
+            echo "**Plan summary:** \`${PLAN_SUMMARY}\`"
+            echo ""
+            echo "**SHA:** \`${{ github.sha }}\`"
+            echo ""
+            echo "**Actor:** ${{ github.actor }}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-# ── 4. Destroy ────────────────────────────────────────────────────────────────
+  # ── 5. Destroy — dispatch only; gated bootstrap-{env}; sealed -destroy plan ─
   destroy:
     name: Destroy / ${{ matrix.env }}
     runs-on: ubuntu-latest
     needs: [setup, plan]
-    if: github.event.inputs.action == 'destroy' && needs.plan.result == 'success'
+    if: |
+      needs.plan.result == 'success' &&
+      github.event.inputs.action == 'destroy' &&
+      needs.plan.outputs.exitcode == '2'
     strategy:
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
       fail-fast: false
     environment: bootstrap-${{ matrix.env }}
     concurrency:
-      group: apply-${{ matrix.env }}   # same group as apply — prevent apply+destroy overlap
+      group: bootstrap-lifecycle-${{ matrix.env }}-${{ github.ref }}
       cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: read
     defaults:
       run:
         working-directory: cluster-providers/kind-crossplane-azure/bootstrap
@@ -525,40 +830,292 @@ jobs:
       ARM_USE_OIDC: "true"
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_CLIENT_ID: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
-      # Secrets scoped to this job only (CKV_GIT_4)
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
-      GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-
+      TF_VAR_location: ${{ vars.AZURE_LOCATION }}
+      TF_VAR_hub_resource_group: ${{ vars.HUB_RESOURCE_GROUP }}
+      TF_VAR_hub_cluster_name: ${{ vars.HUB_CLUSTER_NAME }}
+      TF_VAR_bootstrap_keyvault_name: ${{ vars.BOOTSTRAP_KV_NAME }}
+      TF_VAR_acr_name: ${{ vars.ACR_NAME }}
+      TF_VAR_resource_name_location_short: ${{ vars.LOCATION_SHORT }}
+      TF_VAR_github_org: ${{ github.repository_owner }}
+      TF_VAR_github_repo: ${{ github.event.repository.name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Generate write GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Export GitHub token for Terraform
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GITHUB_TOKEN=${APP_TOKEN}" >> "$GITHUB_ENV"
+
+      - name: Create Terraform plugin cache dir
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - name: Cache Terraform providers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: ${{ runner.os }}-terraform-providers-${{ hashFiles('cluster-providers/kind-crossplane-azure/bootstrap/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-providers-
+
+      - name: Cache Terraform modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cluster-providers/kind-crossplane-azure/bootstrap/.terraform/modules
+          key: ${{ runner.os }}-terraform-modules-${{ hashFiles('cluster-providers/kind-crossplane-azure/bootstrap/*.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-modules-
+
       - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
-          client-id: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          terraform_version: "~1.11"
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
 
       - name: terraform init
+        env:
+          TF_BACKEND_RESOURCE_GROUP: ${{ vars.TF_BACKEND_RESOURCE_GROUP }}
+          TF_BACKEND_STORAGE_ACCOUNT: ${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}
+          STATE_KEY: bootstrap/${{ matrix.env }}/terraform.tfstate
         run: |
           terraform init \
-            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
-            -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
+            -backend-config="resource_group_name=${TF_BACKEND_RESOURCE_GROUP}" \
+            -backend-config="storage_account_name=${TF_BACKEND_STORAGE_ACCOUNT}" \
             -backend-config="container_name=tfstate" \
-            -backend-config="key=bootstrap/${{ matrix.env }}/terraform.tfstate" \
-            -backend-config="use_oidc=true"
+            -backend-config="key=${STATE_KEY}" \
+            -backend-config="use_oidc=true" \
+            -lockfile=readonly
 
-      - name: Download plan artifact
+      - name: Download sealed plan artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: tfplan-${{ matrix.env }}-${{ github.sha }}
+          name: tfplan-destroy-${{ matrix.env }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: cluster-providers/kind-crossplane-azure/bootstrap
 
-      - name: terraform destroy
-        run: terraform apply -destroy -auto-approve tfplan
+      - name: Install cryptography (for unsealing)
+        run: python3 -m pip install --disable-pip-version-check "cryptography==46.0.7"
+
+      - name: Open + verify sealed destroy plan (env/SHA/mode bound)
+        env:
+          PLAN_ENCRYPTION_KEY: ${{ secrets.PLAN_ENCRYPTION_KEY }}
+        run: |
+          python3 "${GITHUB_WORKSPACE}/scripts/ci/terraform_plan_guard.py" open \
+            --sealed tfplan.sealed \
+            --out tfplan \
+            --environment "${{ matrix.env }}" \
+            --sha "${{ github.sha }}" \
+            --mode destroy
+
+      # The saved plan was captured with `plan -destroy`; applying it executes
+      # the destroy. No extra -destroy flag is passed to a saved plan file.
+      - name: terraform apply (destroy plan)
+        run: terraform apply -auto-approve tfplan
+
+      - name: Destroy summary (Actions summary)
+        if: always()
+        env:
+          STATUS: ${{ job.status }}
+        run: |
+          icon="❌"; [ "$STATUS" = "success" ] && icon="✅"
+          {
+            echo "### ${icon} Bootstrap Destroy — ${{ matrix.env }} (${STATUS})"
+            echo ""
+            echo "**SHA:** \`${{ github.sha }}\`"
+            echo ""
+            echo "**Actor:** ${{ github.actor }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── 6. Drift detection — schedule only; authenticated plan, no artifact ─────
+  # Runs the read-only plan per env and opens/updates ONE deduplicated issue per
+  # env when drift is found. Never uploads a plan artifact and shares the
+  # non-cancellable lifecycle group so it can never cancel an in-flight apply.
+  drift:
+    name: Drift / ${{ matrix.env }}
+    runs-on: ubuntu-latest
+    needs: [setup]
+    if: github.event_name == 'schedule' && needs.setup.outputs.has_envs == 'true'
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      fail-fast: false
+    environment: bootstrap-plan-${{ matrix.env }}
+    concurrency:
+      group: bootstrap-lifecycle-${{ matrix.env }}-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: read
+      issues: write
+    defaults:
+      run:
+        working-directory: cluster-providers/kind-crossplane-azure/bootstrap
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_platform_domain: ${{ secrets.PLATFORM_DOMAIN }}
+      TF_VAR_location: ${{ vars.AZURE_LOCATION }}
+      TF_VAR_hub_resource_group: ${{ vars.HUB_RESOURCE_GROUP }}
+      TF_VAR_hub_cluster_name: ${{ vars.HUB_CLUSTER_NAME }}
+      TF_VAR_bootstrap_keyvault_name: ${{ vars.BOOTSTRAP_KV_NAME }}
+      TF_VAR_acr_name: ${{ vars.ACR_NAME }}
+      TF_VAR_resource_name_location_short: ${{ vars.LOCATION_SHORT }}
+      TF_VAR_github_org: ${{ github.repository_owner }}
+      TF_VAR_github_repo: ${{ github.event.repository.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Generate read-only GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: read
+          permission-metadata: read
+
+      - name: Export GitHub token for Terraform
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "GITHUB_TOKEN=${APP_TOKEN}" >> "$GITHUB_ENV"
+
+      - name: Create Terraform plugin cache dir
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - name: Cache Terraform providers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: ${{ runner.os }}-terraform-providers-${{ hashFiles('cluster-providers/kind-crossplane-azure/bootstrap/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-providers-
+
+      - name: Cache Terraform modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cluster-providers/kind-crossplane-azure/bootstrap/.terraform/modules
+          key: ${{ runner.os }}-terraform-modules-${{ hashFiles('cluster-providers/kind-crossplane-azure/bootstrap/*.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-modules-
+
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        env:
+          TF_BACKEND_RESOURCE_GROUP: ${{ vars.TF_BACKEND_RESOURCE_GROUP }}
+          TF_BACKEND_STORAGE_ACCOUNT: ${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}
+          STATE_KEY: bootstrap/${{ matrix.env }}/terraform.tfstate
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${TF_BACKEND_RESOURCE_GROUP}" \
+            -backend-config="storage_account_name=${TF_BACKEND_STORAGE_ACCOUNT}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=${STATE_KEY}" \
+            -backend-config="use_oidc=true" \
+            -lockfile=readonly
+
+      - name: terraform plan (drift)
+        id: plan
+        env:
+          VAR_FILE: envs/${{ matrix.env }}.tfvars
+        run: |
+          set +e
+          terraform plan -detailed-exitcode \
+            -var-file="$VAR_FILE" -out=tfplan -no-color 2>&1 | tee plan.txt
+          TF_EXIT=${PIPESTATUS[0]}
+          echo "exitcode=$TF_EXIT" >> "$GITHUB_OUTPUT"
+          if [ "$TF_EXIT" -eq 1 ]; then
+            echo "::error::drift plan failed for ${{ matrix.env }}"
+            exit 1
+          fi
+          summary=$(grep -E "^Plan:|^No changes" plan.txt | head -1 || true)
+          [ -z "$summary" ] && summary="Plan output unavailable"
+          {
+            echo "summary<<__EOF__"
+            echo "$summary"
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Open or update drift issue (deduplicated per env)
+        if: steps.plan.outputs.exitcode == '2'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          ENV_NAME: ${{ matrix.env }}
+          DRIFT_SUMMARY: ${{ steps.plan.outputs.summary }}
+        with:
+          script: |
+            const env = process.env.ENV_NAME;
+            const summary = process.env.DRIFT_SUMMARY || 'Plan output unavailable';
+            const marker = `<!-- drift:bootstrap:${env} -->`;
+            const runUrl =
+              `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
+              `/actions/runs/${context.runId}`;
+            const body = [
+              marker,
+              `### Infrastructure drift detected — \`${env}\``,
+              '`terraform plan` found uncommitted changes against live state.',
+              '',
+              `**Summary:** ${summary}`,
+              `**Run:** ${runUrl}`,
+              '',
+              'Review and reconcile by re-running the trusted plan/apply for this environment.',
+            ].join('\n');
+
+            // Dedup: find an existing OPEN drift issue for THIS env via the marker.
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'drift',
+              per_page: 100,
+            });
+            const match = existing.find(
+              (i) => i.body && i.body.includes(marker),
+            );
+            if (match) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: match.number,
+                body: `Drift still present as of ${new Date().toISOString()}.\n\n${body}`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `⚠️ [Drift] Bootstrap Azure out of sync — ${env}`,
+                body,
+                labels: ['infrastructure', 'drift', 'azure'],
+              });
+            }

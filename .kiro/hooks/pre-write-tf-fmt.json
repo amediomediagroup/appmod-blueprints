@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Pre-write terraform fmt",
+      "trigger": "PreToolUse",
+      "description": "Before writing a .tf or .tfvars file, check terraform fmt. Warns if formatting is needed but does not block.",
+      "matcher": "fs_write|str_replace|fs_append",
+      "action": {
+        "type": "command",
+        "command": "FILE=$(echo \"$KIRO_TOOL_INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('path','') or d.get('file_path',''))\" 2>/dev/null)\nif echo \"$FILE\" | grep -qE '\\.(tf|tfvars)$' && command -v terraform &>/dev/null; then\n  # Write content to temp file and check fmt\n  CONTENT=$(echo \"$KIRO_TOOL_INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('text','') or d.get('newStr',''))\" 2>/dev/null)\n  TMPFILE=$(mktemp /tmp/tfcheck-XXXX.tf)\n  echo \"$CONTENT\" > \"$TMPFILE\"\n  terraform fmt -check \"$TMPFILE\" 2>/dev/null \\\n    && echo \"✓ terraform fmt OK\" \\\n    || echo \"⚠ terraform fmt needed — run: terraform fmt $FILE\"\n  rm -f \"$TMPFILE\"\nfi"
+      }
+    }
+  ]
+}

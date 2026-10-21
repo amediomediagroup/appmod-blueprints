@@ -1,0 +1,156 @@
+name: Helm Mirror — Pull, Push OCI to ACR
+
+# Mirrors Helm charts from public repos to ACR as OCI artifacts.
+#
+# Flow per chart:
+#   helm pull <repo>/<chart>@<version> → helm push oci://<acr>/helm → verify
+#
+# Chart list: .github/images-to-mirror.yaml (helm_charts section)
+# Schedule:   weekly Sunday 01:00 UTC — dev environment only (explicit default;
+#             prod must be triggered manually via workflow_dispatch to prevent
+#             silent publication of untested chart versions to production ACR).
+#
+# Consume from ACR after mirroring:
+#   helm install argocd oci://peeksplatformsea.azurecr.io/helm/argo-cd --version 7.9.1
+#
+# Required secrets (bootstrap identity — same for all envs):
+#   AZURE_BOOTSTRAP_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+# Required vars:
+#   ACR_NAME
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Target environment (dev=schedule default)"
+        type: choice
+        options: [dev, test, stg, prod]
+        required: true
+        default: dev
+      chart_filter:
+        description: "Mirror only charts matching this name (empty = all)"
+        default: ""
+
+  schedule:
+    - cron: "0 1 * * 0"   # Weekly Sunday 01:00 UTC — targets dev only (env default)
+
+permissions:
+  id-token: write
+  contents: read
+
+# One mirror run per env at a time; cancel outdated scheduled runs only.
+concurrency:
+  group: helm-mirror-${{ inputs.env || 'dev' }}
+  cancel-in-progress: ${{ github.event_name == 'schedule' }}
+
+jobs:
+  prepare:
+    name: Prepare chart matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix:     ${{ steps.build.outputs.matrix }}
+      has_charts: ${{ steps.build.outputs.has_charts }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build matrix from images-to-mirror.yaml
+        id: build
+        env:
+          FILTER: ${{ inputs.chart_filter || '' }}
+        run: |
+          # artifact_matrix.py writes matrix= and has_charts= to $GITHUB_OUTPUT via
+          # file append — no shell interpolation of JSON, traversal paths rejected.
+          python3 scripts/ci/artifact_matrix.py charts \
+            --input .github/images-to-mirror.yaml \
+            --filter "$FILTER"
+
+  mirror:
+    name: ${{ matrix.name }} ${{ matrix.version }}
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.has_charts == 'true'
+    strategy:
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      fail-fast: false
+    env:
+      ACR_REGISTRY: ${{ vars.ACR_NAME }}.azurecr.io
+      TARGET_ENV:   ${{ inputs.env || 'dev' }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Helm
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097b9c97ded8c2e # v4.3.2
+        with:
+          # Pin to a specific Helm release — 'latest' is non-deterministic and can
+          # silently introduce OCI push behaviour changes across runs.
+          # Bump deliberately when a new Helm version is validated.
+          version: v3.17.3
+
+      # ── Azure login + ACR ──────────────────────────────────────────────────
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_BOOTSTRAP_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login ACR for Helm OCI
+        run: |
+          TOKEN=$(az acr login --name "${{ vars.ACR_NAME }}" --expose-token --query accessToken -o tsv)
+          echo "${TOKEN}" | helm registry login \
+            "${{ env.ACR_REGISTRY }}" \
+            --username 00000000-0000-0000-0000-000000000000 \
+            --password-stdin
+          echo "✓ Helm logged into ACR OCI registry"
+
+      # ── Pull Helm chart ────────────────────────────────────────────────────
+      - name: Pull chart ${{ matrix.name }} ${{ matrix.version }}
+        run: |
+          mkdir -p /tmp/charts
+          helm pull "${{ matrix.name }}" \
+            --repo "${{ matrix.repo }}" \
+            --version "${{ matrix.version }}" \
+            --destination /tmp/charts
+          CHART_FILE=$(ls /tmp/charts/${{ matrix.name }}-*.tgz)
+          echo "CHART_FILE=${CHART_FILE}" >> "$GITHUB_ENV"
+          echo "✓ Pulled: ${CHART_FILE}"
+
+      # ── Push to ACR OCI ────────────────────────────────────────────────────
+      # Push ONCE to the correct OCI path: oci://<registry>/helm
+      # Helm appends the chart name automatically, so the chart lands at
+      # oci://<registry>/helm/<name>:<version> — no path manipulation needed.
+      #
+      # The previous version pushed twice: first to a buggy
+      # "oci://<registry>/<acr_path>/../.." path (which Helm rejects or
+      # resolves unpredictably) and then to the correct path. The first push is
+      # removed; only the correct single push remains.
+      - name: Push to ACR OCI
+        run: |
+          helm push "${{ env.CHART_FILE }}" \
+            "oci://${{ env.ACR_REGISTRY }}/helm"
+          echo "✓ Pushed: oci://${{ env.ACR_REGISTRY }}/helm/${{ matrix.name }}:${{ matrix.version }}"
+
+      - name: Verify OCI chart in ACR
+        run: |
+          helm show chart \
+            "oci://${{ env.ACR_REGISTRY }}/helm/${{ matrix.name }}" \
+            --version "${{ matrix.version }}" \
+            | grep -E "^(name|version|appVersion):"
+          echo "✓ Chart available in ACR"
+
+      - name: Mirror summary
+        if: always()
+        run: |
+          {
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Chart | \`${{ matrix.name }}\` |"
+            echo "| Version | \`${{ matrix.version }}\` |"
+            echo "| Environment | \`${{ env.TARGET_ENV }}\` |"
+            echo "| OCI path | \`oci://${{ env.ACR_REGISTRY }}/helm/${{ matrix.name }}\` |"
+            echo "| Status | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
