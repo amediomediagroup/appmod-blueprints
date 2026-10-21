@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "GitHub Actions SHA pin guard",
+      "trigger": "PostFileSave",
+      "matcher": "\\.github/workflows/.*\\.ya?ml$",
+      "action": {
+        "type": "agent",
+        "prompt": "Scan the just-saved workflow file for any `uses:` lines that reference a floating tag (e.g. `@v4`, `@main`, `@latest`) instead of a full 40-char SHA. If any floating tags are found, list them and suggest the pinned SHA equivalent. If all actions are already SHA-pinned, say nothing."
+      }
+    }
+  ]
+}

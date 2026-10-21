@@ -1,0 +1,119 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Ship code guard — full pre-commit checks",
+      "trigger": "PreToolUse",
+      "matcher": "execute_bash",
+      "description": "Before git commit/push: tf fmt+validate+test, actionlint, helm lint, kiro validation, gitleaks, conventional commit. Blocks on failure (exit 2).",
+      "action": {
+        "type": "command",
+        "command": "JSONEOF
+# Need to write the command separately due to quoting complexity
+python3 - << 'PYEOF'
+import json, os
+
+cmd = r"""CMD=$(echo "$KIRO_TOOL_INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('command',''))" 2>/dev/null)
+if ! echo "$CMD" | grep -qE 'git (commit|push)'; then exit 0; fi
+echo "🔍 Ship code guard — running pre-commit checks..."
+FAILED=0
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+STAGED=$(git diff --cached --name-only 2>/dev/null || true)
+
+# 1. terraform fmt
+TF_FILES=$(echo "$STAGED" | grep -E '\.(tf|tfvars)$' || true)
+if [ -n "$TF_FILES" ] && command -v terraform &>/dev/null; then
+  echo "\n[1/8] terraform fmt"
+  for f in $TF_FILES; do
+    terraform fmt -check "$ROOT/$f" 2>/dev/null && echo "  ✓ $f" || { echo "  ❌ fmt needed: $f"; FAILED=1; }
+  done
+else echo "[1/8] terraform fmt — skip"; fi
+
+# 2. terraform validate
+TF_DIRS=$(echo "$TF_FILES" | xargs -I{} dirname "$ROOT/{}" 2>/dev/null | sort -u || true)
+if [ -n "$TF_DIRS" ] && command -v terraform &>/dev/null; then
+  echo "\n[2/8] terraform validate"
+  for dir in $TF_DIRS; do
+    terraform init -backend=false -input=false "$dir" -no-color &>/dev/null || true
+    terraform validate -no-color "$dir" 2>&1 && echo "  ✓ $dir" || { echo "  ❌ $dir"; FAILED=1; }
+  done
+else echo "[2/8] terraform validate — skip"; fi
+
+# 3. terraform test (unit)
+if echo "$STAGED" | grep -qE 'bootstrap/.*\.tf' && command -v terraform &>/dev/null; then
+  BSTRAP="$ROOT/cluster-providers/kind-crossplane-azure/bootstrap"
+  if [ -d "$BSTRAP/tests" ]; then
+    echo "\n[3/8] terraform test"
+    cd "$BSTRAP" && terraform test -filter=tests/unit.tftest.hcl -no-color 2>&1 | tail -5
+    [ "${PIPESTATUS[0]}" -eq 0 ] && echo "  ✓ passed" || { echo "  ❌ failed"; FAILED=1; }
+    cd "$ROOT"
+  fi
+else echo "[3/8] terraform test — skip"; fi
+
+# 4. actionlint
+WF=$(echo "$STAGED" | grep -E '\.github/workflows/.*\.ya?ml$' || true)
+if [ -n "$WF" ] && command -v actionlint &>/dev/null; then
+  echo "\n[4/8] actionlint"
+  for f in $WF; do
+    OUT=$(actionlint "$ROOT/$f" 2>&1)
+    [ -z "$OUT" ] && echo "  ✓ $f" || { echo "$OUT"; FAILED=1; }
+  done
+else echo "[4/8] actionlint — skip"; fi
+
+# 5. helm lint
+CHARTS=$(echo "$STAGED" | grep -oE '[^/]+/Chart\.yaml' | sed 's|/Chart.yaml||' | sort -u || true)
+if [ -n "$CHARTS" ] && command -v helm &>/dev/null; then
+  echo "\n[5/8] helm lint"
+  for c in $CHARTS; do
+    helm lint "$ROOT/$c" --quiet && echo "  ✓ $c" || { echo "  ❌ $c"; FAILED=1; }
+  done
+else echo "[5/8] helm lint — skip"; fi
+
+# 6. Kiro config validation
+KIRO=$(echo "$STAGED" | grep -E '^\.kiro/' || true)
+if [ -n "$KIRO" ]; then
+  echo "\n[6/8] Kiro config validation"
+  for f in $KIRO; do
+    case "$f" in
+      *.json) python3 -c "import json; json.load(open('$ROOT/$f'))" 2>&1 && echo "  ✓ JSON: $f" || { echo "  ❌ bad JSON: $f"; FAILED=1; } ;;
+      *.yaml|*.yml) python3 -c "import yaml; yaml.safe_load(open('$ROOT/$f'))" 2>&1 && echo "  ✓ YAML: $f" || { echo "  ❌ bad YAML: $f"; FAILED=1; } ;;
+      *.md) echo "  ✓ md: $f" ;;
+    esac
+  done
+else echo "[6/8] Kiro config — skip"; fi
+
+# 7. gitleaks
+if command -v gitleaks &>/dev/null; then
+  echo "\n[7/8] gitleaks"
+  CFG=""; [ -f "$ROOT/.gitleaks.toml" ] && CFG="--config=$ROOT/.gitleaks.toml"
+  gitleaks protect --staged $CFG --exit-code=1 --redact --no-banner 2>/dev/null && echo "  ✓ clean" || { echo "  ❌ secrets detected"; FAILED=1; }
+else echo "[7/8] gitleaks — skip (brew install gitleaks)"; fi
+
+# 8. Conventional commit
+if echo "$CMD" | grep -q 'git commit'; then
+  MSG=$(echo "$CMD" | grep -oP '(?<=-m )["'"'"'`][^"'"'"'`]+' | tr -d '"'"'"'`' | head -1)
+  echo "\n[8/8] Conventional Commits: \"$MSG\""
+  echo "$MSG" | grep -qE '^(feat|fix|docs|chore|refactor|perf|test|ci|build|revert)(\([a-z0-9._/-]+\))?(!)?: .{1,100}$' \
+    && echo "  ✓ OK" || { echo "  ❌ must be: <type>(<scope>): <desc>"; FAILED=1; }
+fi
+
+echo ""
+if [ "$FAILED" -eq 1 ]; then echo "❌ Ship code guard FAILED."; exit 2
+else echo "✅ All 8 checks passed."; exit 0; fi"""
+
+hook = {
+    "version": "v1",
+    "hooks": [{
+        "name": "Ship code guard — full pre-commit checks",
+        "trigger": "PreToolUse",
+        "matcher": "execute_bash",
+        "description": "Before git commit/push: tf fmt+validate+test, actionlint, helm lint, kiro validation, gitleaks, conventional commit. Blocks on failure (exit 2).",
+        "action": {"type": "command", "command": cmd}
+    }]
+}
+
+path = os.path.expanduser("~/Developer/gh/amediomediagroup/appmod-blueprints/.kiro/hooks/ship-code-guard.json")
+with open(path, "w") as f:
+    json.dump(hook, f, indent=2)
+print(f"Written {len(cmd)} chars to {path}")
+PYEOF

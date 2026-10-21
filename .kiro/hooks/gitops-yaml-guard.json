@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "GitOps YAML guard",
+      "trigger": "PostFileSave",
+      "matcher": "gitops/.*\\.ya?ml$",
+      "action": {
+        "type": "agent",
+        "prompt": "The file just saved is a GitOps manifest. Quickly check: (1) if it is an ArgoCD Application or ApplicationSet, verify `repoURL`, `targetRevision`, and `destination` are set; (2) if it is a Kubernetes resource, verify `apiVersion`, `kind`, `metadata.name` are present; (3) flag any `image: xxx:latest` tags. If everything looks fine, say nothing."
+      }
+    }
+  ]
+}

@@ -1,0 +1,242 @@
+name: Image — Build, Scan, Push, Sign
+
+# Build container image ONCE, scan the exact locally-loaded artifact, push
+# that same image (no rebuild after scan), then sign the remote digest.
+#
+# Flow:
+#   checkout → az login (acr-${env} OIDC) → docker metadata
+#   → buildx build --load (no push, no cache writes)
+#   → trivy scan local daemon image
+#   → [push=true] docker push all tags (no rebuild)
+#   → [push=true] update build cache (separate buildx cache-only step)
+#   → [push=true] cosign sign remote digest (keyless OIDC)
+#   → [push=true] cosign verify exact workflow+main identity
+#
+# Required GitHub environment: acr-${env}
+#   Secrets: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#     — release identity UAMI, NOT the bootstrap identity;
+#       Terraform provisions this identity + AcrPush RBAC after bootstrap.
+#   Vars:    ACR_NAME (e.g. peeksdev)
+#
+# Cosign keyless: identity stamped from GitHub OIDC token.
+# Verify later (images signed from main only):
+#   cosign verify \
+#     --certificate-identity="https://github.com/amediomediagroup/appmod-blueprints/.github/workflows/image-publish.yml@refs/heads/main" \
+#     --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+#     <acr>.azurecr.io/<image>@<digest>
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Target environment"
+        type: choice
+        options: [dev, test, stg, prod]
+        required: true
+        default: dev
+      image_name:
+        description: "Image name (e.g. backend, frontend)"
+        required: true
+      dockerfile:
+        description: "Path to Dockerfile"
+        default: "Dockerfile"
+      context:
+        description: "Build context path"
+        default: "."
+      push:
+        description: "Push and sign after scan?"
+        type: boolean
+        default: true
+
+  workflow_call:
+    inputs:
+      env:
+        # Must be one of: dev | test | stg | prod — validated at runtime below.
+        type: string
+        required: true
+      image_name:
+        type: string
+        required: true
+      dockerfile:
+        type: string
+        default: "Dockerfile"
+      context:
+        type: string
+        default: "."
+      push:
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write   # OIDC for Azure login + Cosign keyless
+  contents: read
+  security-events: write
+  # packages: write is not needed — registry is ACR, not GHCR
+
+jobs:
+  build-scan-push-sign:
+    name: ${{ inputs.image_name }} → ${{ inputs.env }}
+    runs-on: ubuntu-latest
+    # Per-env release environment: holds AZURE_CLIENT_ID for the release
+    # identity (not bootstrap). Terraform creates this identity + AcrPush RBAC
+    # and configures the acr-${env} GitHub environment secret after bootstrap.
+    environment: acr-${{ inputs.env }}
+
+    env:
+      ACR_REGISTRY: ${{ vars.ACR_NAME }}.azurecr.io
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # ── Validate env input (workflow_call has no type: choice) ────────────
+      - name: Validate env input
+        run: |
+          case "${{ inputs.env }}" in
+            dev|test|stg|prod) ;;
+            *) echo "::error::Invalid env '${{ inputs.env }}' — must be one of: dev test stg prod" && exit 1 ;;
+          esac
+
+      # ── Azure login (OIDC) — acr-${env} environment's release identity ────
+      # AZURE_CLIENT_ID here is the ACR release UAMI, NOT the bootstrap identity.
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        run: az acr login --name "${{ vars.ACR_NAME }}"
+
+      # ── Docker metadata (tags + labels) ───────────────────────────────────
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}
+          tags: |
+            type=sha,prefix=,format=long
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      # ── Build ONCE — load into local daemon, no push, no registry cache writes ──
+      # cache-to is intentionally absent: registry cache must NOT be written
+      # during scan-only runs (push=false). Cache is updated separately below,
+      # only after the scan passes and the image is pushed.
+      - name: Build image
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: false
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}:buildcache
+
+      # ── Trivy scan — scan the EXACT locally loaded image ─────────────────
+      # image-ref uses the sha tag produced by metadata-action (type=sha,prefix=,format=long).
+      # This is the identical bytes that will be pushed — no second build anywhere.
+      - name: Trivy scan — CRITICAL/HIGH
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: ${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}:${{ github.sha }}
+          format: sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH
+          exit-code: 1
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image-${{ inputs.image_name }}
+
+      # ── Push — docker push the already-loaded image; NO second build ──────
+      # The image in the Docker daemon (loaded by the Build step above) is pushed
+      # directly. This guarantees the pushed bytes are identical to what Trivy
+      # scanned. The digest comes from the registry response after the first push.
+      - name: Push to ACR
+        id: push
+        if: inputs.push == true
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          SHA_TAG="${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}:${{ github.sha }}"
+
+          # Push every tag; capture digest from docker push output on the sha tag
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            echo "  → pushing $tag"
+            if [ "$tag" = "$SHA_TAG" ]; then
+              # Capture digest from push output for the canonical sha tag
+              PUSH_OUT=$(docker push "$tag" 2>&1)
+              echo "$PUSH_OUT"
+              DIGEST=$(printf '%s\n' "$PUSH_OUT" | grep -oP 'sha256:[a-f0-9]{64}' | head -1 || true)
+            else
+              docker push "$tag"
+            fi
+          done <<< "$TAGS"
+
+          # Fallback: read RepoDigests if push output parsing failed
+          if [ -z "${DIGEST:-}" ]; then
+            DIGEST=$(docker inspect "$SHA_TAG" \
+              --format '{{index .RepoDigests 0}}' 2>/dev/null | cut -d@ -f2 || true)
+          fi
+
+          if [ -z "${DIGEST:-}" ]; then
+            echo "::error::Could not determine pushed image digest" && exit 1
+          fi
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "✓ Pushed all tags; digest: ${DIGEST}"
+
+      # ── Write registry build cache (only after successful scan + push) ────
+      # Separate step so cache writes are NOT mixed with the scan-safe build.
+      # This is a cache-only buildx invocation (no load, no push).
+      - name: Update build cache
+        if: inputs.push == true
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: false
+          load: false
+          cache-from: type=registry,ref=${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}:buildcache
+          cache-to:   type=registry,ref=${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}:buildcache,mode=max
+
+      # ── Cosign keyless sign (GitHub OIDC) ─────────────────────────────────
+      - name: Install Cosign
+        if: inputs.push == true
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign image with Cosign (keyless)
+        if: inputs.push == true
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          IMAGE_REF="${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}@${DIGEST}"
+          echo "Signing: ${IMAGE_REF}"
+          cosign sign --yes "${IMAGE_REF}"
+          echo "✓ Signed: ${IMAGE_REF}"
+
+      - name: Verify signature
+        if: inputs.push == true
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          # Verify with the EXACT workflow+ref identity — not a repository-prefix regexp.
+          # github.workflow_ref resolves to the canonical path, e.g.:
+          #   amediomediagroup/appmod-blueprints/.github/workflows/image-publish.yml@refs/heads/main
+          # Signatures made from non-main refs will not satisfy deploy-time verification,
+          # which pins @refs/heads/main for trusted production images.
+          cosign verify \
+            --certificate-identity="https://github.com/${{ github.workflow_ref }}" \
+            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+            "${{ env.ACR_REGISTRY }}/${{ inputs.image_name }}@${DIGEST}" \
+            | python3 -m json.tool | grep -E '"Issuer"|"Subject"'
+          echo "✓ Signature verified"

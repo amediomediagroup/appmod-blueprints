@@ -1,7 +1,7 @@
 # Azure Image Security — ACR + Cosign
 
 > Provider: `kind-crossplane-azure`
-> Last updated: 2026-10-16
+> Last updated: 2026-10-17
 
 ---
 
@@ -49,12 +49,26 @@ cosign sign \
   --yes \
   <acr-name>.azurecr.io/nginx@sha256:<digest>
 
-# Verify
+# Verify — dùng EXACT workflow identity, KHÔNG dùng regexp prefix.
+# Signer identity là canonical workflow path@ref được lưu trong cert.
+#
+# Mirrored images (image-mirror.yml):
 cosign verify \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity-regexp "^https://github.com/<org>/<repo>" \
-  <acr-name>.azurecr.io/nginx@sha256:<digest>
+  --certificate-identity="https://github.com/amediomediagroup/appmod-blueprints/.github/workflows/image-mirror.yml@refs/heads/main" \
+  --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+  <acr-name>.azurecr.io/<image>@sha256:<digest>
+
+# First-party images (image-publish.yml):
+cosign verify \
+  --certificate-identity="https://github.com/amediomediagroup/appmod-blueprints/.github/workflows/image-publish.yml@refs/heads/main" \
+  --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+  <acr-name>.azurecr.io/<image>@sha256:<digest>
 ```
+
+> **Lưu ý bảo mật:** `--certificate-identity` (exact match) được dùng thay vì
+> `--certificate-identity-regexp` vì regexp chấp nhận bất kỳ workflow nào trong
+> repo (kể cả PR từ fork). Exact identity chỉ tin tưởng đúng workflow file trên
+> `refs/heads/main`.
 
 ---
 
@@ -87,12 +101,29 @@ image: myacr.azurecr.io/nginx:1.25.3@sha256:1a2b3c4d...
 
 ---
 
-## CI — Cosign verify trước deploy
+## CI — Build-once, scan-then-push, cosign verify trước deploy
 
-`deploy-azure-hub.yml` chạy `cosign verify` sau `task install`:
-- Kiểm tra tất cả images trong ACR có signature hợp lệ
-- Warn nếu chưa signed (không block trong giai đoạn rollout)
-- Upgrade lên `exit-code=1` khi toàn bộ images đã được ký
+### image-publish.yml (first-party images)
+- `environment: acr-${env}` — dùng release UAMI (`AZURE_CLIENT_ID`), không phải bootstrap identity.
+- Build một lần duy nhất (`docker/build-push-action push=false load=true`).
+- Trivy scan digest chính xác từ local daemon — không rebuild sau scan.
+- `docker push` trực tiếp image đã scan; cache registry được cập nhật bằng bước riêng sau push.
+- Cosign sign + verify với exact `github.workflow_ref` identity.
+
+### image-mirror.yml (third-party images)
+- Schedule mặc định `env=dev` — không tự động publish lên prod/stg.
+- Trivy scan LUÔN chạy kể cả khi push bị skip do idempotency.
+- Idempotency: so sánh manifest digest trong ACR với source; bỏ qua push+sign nếu không thay đổi.
+- Cosign sign + verify với exact `github.workflow_ref` identity.
+
+### deploy-azure-hub.yml — fail-closed cosign verify
+Trước `task install`, workflow đọc `.github/images-to-mirror.yaml` `.images[].target`
+và verify từng image với trusted signer identities:
+```
+https://github.com/amediomediagroup/appmod-blueprints/.github/workflows/image-mirror.yml@refs/heads/main
+https://github.com/amediomediagroup/appmod-blueprints/.github/workflows/image-publish.yml@refs/heads/main
+```
+Issuer: `https://token.actions.githubusercontent.com`.
 
 ---
 

@@ -1,6 +1,6 @@
 output "platform_uami_client_id" {
   description = "Client ID of the platform UAMI (write identity) used by GitHub Actions and Kind Workload Identity."
-  value       = module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"]
+  value       = try(module.cicd_bootstrap.managed_identity_client_ids[var.github_environment]["write"], null)
   sensitive   = true
 }
 
