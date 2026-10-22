@@ -105,6 +105,12 @@ jobs:
       - name: Detect changed paths
         id: filter
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        # A PR whose branch shares no clean merge-base with the base ref (e.g. a
+        # history-joining merge) makes paths-filter's internal `git merge-base`
+        # fail; its post step then runs `jq` over a null result and the job dies.
+        # Never let change-detection crash the pipeline — on any failure we fall
+        # back to running every environment (safe superset) in the compute step.
+        continue-on-error: true
         if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
         with:
           filters: |
@@ -135,6 +141,10 @@ jobs:
           TEST: ${{ steps.filter.outputs.test || 'false' }}
           STG: ${{ steps.filter.outputs.stg || 'false' }}
           PROD: ${{ steps.filter.outputs.prod || 'false' }}
+          # When paths-filter cannot determine changes (its merge-base lookup
+          # failed and the step was continue-on-error'd), its outputs are empty
+          # and outcome != 'success'. Treat that as "run everything" below.
+          FILTER_OUTCOME: ${{ steps.filter.outcome }}
           # Trusted = can run authenticated plan/apply. Only protected main
           # pushes and workflow_dispatch (write-access only) are trusted.
           # pull_request (incl. forks) and schedule drive their own job gates.
@@ -183,7 +193,13 @@ jobs:
               ;;
             *)
               # push / pull_request — derive from changed paths.
-              if [ "$SHARED" = "true" ]; then
+              # If paths-filter could not determine changes (merge-base lookup
+              # failed, e.g. a history-joining merge PR), run every environment
+              # as a safe superset rather than skipping validation entirely.
+              if [ "$FILTER_OUTCOME" != "success" ]; then
+                echo "paths-filter did not succeed (outcome=$FILTER_OUTCOME) — running all environments"
+                ENVS="$ALL"
+              elif [ "$SHARED" = "true" ]; then
                 ENVS="$ALL"
               else
                 DETECTED=()
