@@ -97,6 +97,22 @@ argo-workflows:
     aws_cluster_name: '{{ .metadata.annotations.azure_cluster_name }}'
     ingress_domain_name: '{{ .metadata.annotations.ingress_domain_name }}'
     insecure: '{{ .metadata.annotations.insecure }}'
+    # Student subscription: free CPU reservations on the user pool without
+    # replacing nodes. Keep memory limits and allow CPU bursting.
+    controller:
+      resources:
+        requests:
+          cpu: 25m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    server:
+      resources:
+        requests:
+          cpu: 25m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
     gateway:
       enabled: true
       name: gateway-01

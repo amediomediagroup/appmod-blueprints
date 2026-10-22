@@ -2,6 +2,19 @@
 
 Release notes for v0.2.8 and later are published with each [GitHub release](https://github.com/aws-samples/appmod-blueprints/releases). This file keeps the notes for v0.1.0-riv25 to v0.2.7.
 
+## Azure student-subscription scheduling recovery (unreleased)
+
+- Azure-only Argo Workflows reservations: controller 200m → 25m and server
+  100m → 25m; memory requests/limits unchanged, CPU bursting retained. This frees
+  250m after rollout, not additional physical CPU. Observed idle CPU was 1m each;
+  reassess requests before running concurrent workflows.
+- Withdraw the system pool `maxPods: 110` change; the existing 30-pod pool is not
+  replaced. Both pools already match the compatibility scheduling label.
+- Correct the CronJob cleanup explanation: terminal Pods do not consume scheduler
+  slots. TTL only bounds retained Job/Pod history.
+- Deployment requires updating the existing Key Vault-backed Git revision.
+  A Git push alone does not update Applications pinned to an older commit.
+
 ## v0.2.7 (2026-05-08)
 
 - Revert kro `omit()` change for tracking-id annotation (caused rendering issues)

@@ -244,10 +244,6 @@ spec:
                   defaultNodePool:
                     name: system
                     vmSize: ""
-                    # Azure CNI defaults to 30 pods per node. With 17 kube-system
-                    # pods plus platform controllers that limit is exhausted long
-                    # before CPU is, so new pods fail with "Too many pods".
-                    maxPods: 110
                     autoScalingEnabled: true
                     minCount: 1
                     maxCount: 1
