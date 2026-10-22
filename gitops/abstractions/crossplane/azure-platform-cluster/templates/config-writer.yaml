@@ -7,8 +7,8 @@ kind: RoleAssignment
 metadata:
   name: {{ $cluster.clusterName }}-config-writer
 spec:
-  deletionPolicy: Orphan
-  managementPolicies: [Observe, Create, Update]
+  deletionPolicy: Delete
+  managementPolicies: [Observe, Create, Update, Delete]
   providerConfigRef:
     name: default
   forProvider:

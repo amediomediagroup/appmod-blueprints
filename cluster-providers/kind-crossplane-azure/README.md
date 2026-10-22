@@ -15,8 +15,15 @@ render a Crossplane RoleAssignment granting Key Vault Secrets Officer only on
 `<vaultId>/secrets/<clusterName>-config`. Keep identity/scope values out of source.
 Bootstrap-seed the rendered managed resource on the management cluster if it has
 no GitOps controller; Crossplane creates and reconciles Azure IAM. This does not
-make the management cluster ArgoCD-managed. The assignment uses Orphan deletion
-policy, so deleting its Kubernetes object does not revoke Azure access.
+make the management cluster ArgoCD-managed. This temporary assignment now uses
+`deletionPolicy: Delete` and permits `Delete` in managementPolicies. Disable its
+opt-in input before removing the managed resource, so bootstrap cannot recreate it.
+For older bootstrap-seeded objects using Orphan, first set their live policy to
+Delete and managementPolicies to `[Observe, Delete]`, then delete the exact object
+with a UID precondition. Crossplane must remove the Azure assignment and release
+its finalizer; never strip the finalizer. Confirm the recorded ARM assignment ID
+returns 404. ESO's separate read grant and Vault secret must remain intact.
+After revocation, future config writes require a newly authorized writer.
 
 Use the authorized federated identity for Vault data-plane updates; preserve all
 config fields and update `metadata`'s `addonsRepoRevision` and `fleetRepoRevision`
