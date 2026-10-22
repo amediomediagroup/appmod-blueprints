@@ -1,0 +1,27 @@
+# Namespaces whose HTTPRoutes must attach to the shared Application Gateway for
+# Containers gateway. The gateway only admits routes from namespaces carrying
+# this label, so the label has to be Git-owned rather than applied by hand.
+#
+# ArgoCD creates these namespaces with CreateNamespace=true; this manifest adds
+# the admission label. Namespaces whose charts already template their own label
+# (keycloak, backstage, grafana) are intentionally absent to keep one owner.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argo
+  labels:
+    platform.gitops.io/ingress: agc
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kargo
+  labels:
+    platform.gitops.io/ingress: agc
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: devlake
+  labels:
+    platform.gitops.io/ingress: agc
