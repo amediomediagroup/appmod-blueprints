@@ -13,7 +13,10 @@ external-secrets:
     topologySpreadConstraints: []
     serviceAccount:
       annotations:
-        azure.workload.identity/client-id: '{{ .metadata.annotations.azure_eso_mi_client_id }}'
+        # Crossplane owns the ESO identity; the bootstrap seed publishes its client
+        # id. index+default keeps the ApplicationSet generating when that
+        # annotation is absent instead of failing the whole app.
+        azure.workload.identity/client-id: '{{ index .metadata.annotations "azure_eso_mi_client_id" | default "" }}'
     podLabels:
       azure.workload.identity/use: "true"
     certController:
