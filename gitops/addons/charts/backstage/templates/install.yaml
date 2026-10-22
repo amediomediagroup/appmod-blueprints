@@ -187,7 +187,9 @@ data:
     auth:
       environment: production
       session:
-        secret: MW2sV-sIPngEl26vAzatV-6VqfsgAx4bPIz7PuE_2Lk=
+        # Never commit a session signing key. Supplied from Key Vault
+        # (<cluster>-secrets -> BACKSTAGE_SESSION_SECRET) via the app-config env.
+        secret: ${BACKSTAGE_SESSION_SECRET}
       signInPage: keycloak-oidc
       providers:
         keycloak-oidc:
@@ -713,6 +715,7 @@ spec:
       mergePolicy: Replace
       data:
         KEYCLOAK_CLIENT_SECRET: "{{ `{{.BACKSTAGE_CLIENT_SECRET}}` }}"
+        BACKSTAGE_SESSION_SECRET: "{{ `{{.BACKSTAGE_SESSION_SECRET}}` }}"
         # ARGOCD_AUTH_TOKEN: "argocd.token={{ `{{.ARGOCD_AUTH_TOKEN}}` }}"
   data:
     # - secretKey: ARGOCD_AUTH_TOKEN
@@ -722,6 +725,14 @@ spec:
     #     key: {{ .Values.global.aws_cluster_name }}/secrets
     #     metadataPolicy: None
     #     property: argocd_auth_token
+    - secretKey: BACKSTAGE_SESSION_SECRET
+      remoteRef:
+        key: {{ .Values.clusterName }}-secrets
+        property: backstage_session_secret
+        conversionStrategy: Default
+        decodingStrategy: None
+        metadataPolicy: None
+        nullBytePolicy: Ignore
     - secretKey: BACKSTAGE_CLIENT_SECRET
       remoteRef:
         conversionStrategy: Default
@@ -791,7 +802,9 @@ stringData:
   ARGO_WORKFLOWS_URL: https://{{ .Values.ingress_domain_name }}/argo-workflows
   KEYCLOAK_NAME_METADATA: https://{{ .Values.ingress_domain_name }}/keycloak/realms/platform/.well-known/openid-configuration
   ARGO_CD_URL: 'https://argocd-server.argocd.svc.cluster.local/api/v1/'
-  BACKEND_SECRET: '{{ .Values.backend_secret | default "supersecret-backstage-backend-token" }}'
+  # Backend-to-backend token: never default to a committed value.
+  # Azure: sourced from Key Vault; AWS: set via values.
+  BACKEND_SECRET: '{{ .Values.backend_secret | default "" }}'
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
