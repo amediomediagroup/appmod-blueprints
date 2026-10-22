@@ -121,11 +121,15 @@ backstage:
     gitlab_domain_name: '{{default "" .metadata.annotations.gitlab_domain_name}}'
     git_username: 'user1'
     working_repo: 'fleet-config'
-    argocd_hostname: '{{default .metadata.annotations.ingress_domain_name .metadata.annotations.aws_argocd_url}}'
-    admin_role_name: '{{default "" .metadata.annotations.admin_role_name}}'
-    model_s3_bucket: '{{.metadata.annotations.resource_prefix}}-ray-models-{{.metadata.annotations.aws_account_id}}'
-    spoke_dev_cluster_name: '{{ or (index .metadata.annotations "spoke_dev_cluster_name") (printf "%s-spoke-dev" .metadata.annotations.resource_prefix) }}'
-    spoke_prod_cluster_name: '{{ or (index .metadata.annotations "spoke_prod_cluster_name") (printf "%s-spoke-prod" .metadata.annotations.resource_prefix) }}'
+    # Every annotation is read with missingkey=error. Use index+default so an
+    # annotation that is irrelevant on Azure (aws_argocd_url, admin_role_name,
+    # spoke names) may be absent instead of failing the whole ApplicationSet.
+    argocd_hostname: '{{ default .metadata.annotations.ingress_domain_name (index .metadata.annotations "aws_argocd_url" | default "") }}'
+    admin_role_name: '{{ index .metadata.annotations "admin_role_name" | default "" }}'
+    # model_s3_bucket is AWS-only; empty on Azure (no S3 model store).
+    model_s3_bucket: '{{ if eq (index .metadata.annotations "cloud" | default "aws") "aws" }}{{ .metadata.annotations.resource_prefix }}-ray-models-{{ .metadata.annotations.aws_account_id }}{{ end }}'
+    spoke_dev_cluster_name: '{{ index .metadata.annotations "spoke_dev_cluster_name" | default (printf "%s-spoke-dev" .metadata.annotations.resource_prefix) }}'
+    spoke_prod_cluster_name: '{{ index .metadata.annotations "spoke_prod_cluster_name" | default (printf "%s-spoke-prod" .metadata.annotations.resource_prefix) }}'
     global:
       aws_cluster_name: '{{.metadata.annotations.aws_cluster_name}}'
       clusterName: '{{.metadata.annotations.aws_cluster_name}}'

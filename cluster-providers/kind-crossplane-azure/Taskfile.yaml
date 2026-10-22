@@ -1055,6 +1055,10 @@ tasks:
   hub:seed-secret:
     desc: Create minimal seed ArgoCD cluster secret on the hub
     vars:
+      ESO_MI_CLIENT_ID:
+        sh: |
+          kubectl get xazureplatformclusters.platform.gitops.io \
+            -o jsonpath='{.items[0].status.esoMiClientId}' 2>/dev/null || echo ""
       ALB_MI_CLIENT_ID:
         sh: |
           kubectl get xazureplatformcluster "{{.HUB_CLUSTER_NAME}}" \
@@ -1107,6 +1111,7 @@ tasks:
               azure_keyvault_name: "{{.AZURE_KV_NAME}}"
               azure_keyvault_url: "{{.KV_URL}}"
               azure_alb_mi_client_id: "{{.ALB_MI_CLIENT_ID}}"
+              azure_eso_mi_client_id: "{{.ESO_MI_CLIENT_ID}}"
               ingress_domain_name: "{{.DOMAIN}}"
               resource_prefix: "{{.RESOURCE_PREFIX}}"
               insecure: "{{.INSECURE}}"
