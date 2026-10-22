@@ -1,0 +1,19 @@
+{{- range $name, $cluster := .Values.clusters }}
+{{- $writer := $cluster.configWriter | default dict }}
+{{- if $writer.enabled }}
+---
+apiVersion: authorization.azure.upbound.io/v1beta1
+kind: RoleAssignment
+metadata:
+  name: {{ $cluster.clusterName }}-config-writer
+spec:
+  deletionPolicy: Orphan
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef:
+    name: default
+  forProvider:
+    principalId: {{ required "configWriter.principalId required" $writer.principalId | quote }}
+    roleDefinitionName: Key Vault Secrets Officer
+    scope: {{ printf "%s/secrets/%s-config" (required "configWriter.vaultId required" $writer.vaultId) $cluster.clusterName | quote }}
+{{- end }}
+{{- end }}
