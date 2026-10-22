@@ -3,6 +3,35 @@
 Provisions an AKS hub cluster in Azure via Kind + Crossplane, with full platform
 bootstrap (ArgoCD, ESO → Azure Key Vault, native AGC, Keycloak, Backstage).
 
+## Existing-cluster config revision recovery
+
+For the Azure student hub, infrastructure changes are Crossplane managed, config
+is authoritative in Key Vault, and addon changes are applied by ArgoCD. Do not
+rerun the legacy install steps below merely to update addon configuration.
+
+The Azure cluster chart supports opt-in `clusters.<key>.configWriter.enabled`,
+`configWriter.principalId` and `configWriter.vaultId` runtime parameters. These
+render a Crossplane RoleAssignment granting Key Vault Secrets Officer only on
+`<vaultId>/secrets/<clusterName>-config`. Keep identity/scope values out of source.
+Bootstrap-seed the rendered managed resource on the management cluster if it has
+no GitOps controller; Crossplane creates and reconciles Azure IAM. This does not
+make the management cluster ArgoCD-managed. The assignment uses Orphan deletion
+policy, so deleting its Kubernetes object does not revoke Azure access.
+
+Use the authorized federated identity for Vault data-plane updates; preserve all
+config fields and update `metadata`'s `addonsRepoRevision` and `fleetRepoRevision`
+to the published commit. `metadata` is a serialized JSON string in this config.
+Also preserve `azure_eso_mi_client_id`, sourced from the Crossplane XR status.
+An empty client ID breaks ESO and prevents revision propagation. If already
+broken, bootstrap only these cluster-Secret annotations from the authoritative
+Vault config once; ArgoCD repairs ESO, then ESO resumes ownership. Do not directly
+patch addon workloads or change their Applications' target revisions.
+
+Recovery verified: Crossplane IAM Ready/Synced, Vault config updated through
+federation, fleet ExternalSecret Ready, ESO Deployment updated and ready, and no
+Pending pods. Workflow CPU reservations are 25m each; memory settings unchanged.
+System pool remains 30 pods; this is not a pool-capacity increase.
+
 ## Prerequisites
 
 1. **AVM module** (`terraform-azure-avm-ptn-alz-application-landing-zone-cicd-bootstrap-github`)
