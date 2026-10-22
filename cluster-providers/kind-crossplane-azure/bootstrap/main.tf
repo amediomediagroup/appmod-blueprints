@@ -22,8 +22,8 @@ data "azurerm_client_config" "current" {}
 # ── 1. AVM: GitHub CI/CD Bootstrap ────────────────────────────────────────────
 # Creates GitHub environment + UAMIs + federated credentials
 
-# checkov:skip=CKV_TF_1:AVM module from Terraform Registry — commit hash not supported, version pinned instead
 module "cicd_bootstrap" {
+  # checkov:skip=CKV_TF_1: AVM module from Terraform Registry — commit hash not supported, version pinned instead
   source  = "Azure/avm-ptn-alz-application-landing-zone-cicd-bootstrap-github/azure"
   version = "0.1.1"
 
@@ -174,10 +174,8 @@ resource "azurerm_key_vault_secret" "platform_config" {
 # ── 5. Azure Container Registry ───────────────────────────────────────────────
 # All platform container images stored here.
 # Platform UAMI gets AcrPull; bootstrap runner gets AcrPush (for image import).
-# checkov:skip=CKV_TF_1:AVM Registry module from Terraform Registry — commit hash not applicable
-
-# checkov:skip=CKV_TF_1:AVM module from Terraform Registry
 module "acr" {
+  # checkov:skip=CKV_TF_1: AVM module from Terraform Registry — commit hash not supported, version pinned instead
   source  = "Azure/avm-res-containerregistry-registry/azurerm"
   version = "0.8.0"
 
