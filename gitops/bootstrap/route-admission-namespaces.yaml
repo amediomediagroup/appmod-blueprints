@@ -2,9 +2,9 @@
 # Containers gateway. The gateway only admits routes from namespaces carrying
 # this label, so the label has to be Git-owned rather than applied by hand.
 #
-# ArgoCD creates these namespaces with CreateNamespace=true; this manifest adds
-# the admission label. Namespaces whose charts already template their own label
-# (keycloak, backstage, grafana) are intentionally absent to keep one owner.
+# This file is the single owner of the admission label. Charts do not template
+# it: two owners (chart + this manifest) made ArgoCD report "unchanged" forever
+# while the live namespace stayed unlabelled.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -23,5 +23,12 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: devlake
+  labels:
+    platform.gitops.io/ingress: agc
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: grafana
   labels:
     platform.gitops.io/ingress: agc
