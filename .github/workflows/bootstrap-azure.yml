@@ -105,6 +105,12 @@ jobs:
       - name: Detect changed paths
         id: filter
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        # A PR whose branch shares no clean merge-base with the base ref (e.g. a
+        # history-joining merge) makes paths-filter's internal `git merge-base`
+        # fail; its post step then runs `jq` over a null result and the job dies.
+        # Never let change-detection crash the pipeline — on any failure we fall
+        # back to running every environment (safe superset) in the compute step.
+        continue-on-error: true
         if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
         with:
           filters: |
