@@ -32,3 +32,17 @@ metadata:
   name: grafana
   labels:
     platform.gitops.io/ingress: agc
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keycloak
+  labels:
+    platform.gitops.io/ingress: agc
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backstage
+  labels:
+    platform.gitops.io/ingress: agc
