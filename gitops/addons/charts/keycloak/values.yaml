@@ -16,3 +16,28 @@ clientProvisioner:
   serviceAccountName: keycloak-client-provisioner
 keycloak:
   resources: {}
+
+# Cloud selector: "aws" (default) or "azure".
+# Main injects cloud: azure via Azure overrides.yaml.
+cloud: aws
+
+# Cluster name used to derive Azure Key Vault secret names (<clusterName>-keycloak etc).
+# Main sets this at runtime; falls back to aws.cluster_name on AWS.
+clusterName: ""
+
+azure:
+  # Workload identity for the keycloak-config Job SA (writes OIDC secrets to AKV).
+  # Main creates the MI, FIC, and Key Vault role assignment.
+  # FIC subject: system:serviceaccount:keycloak:keycloak-config
+  clientId: ""
+  tenantId: ""
+  # Azure Key Vault name where generated OIDC client secrets are pushed.
+  keyVaultName: ""
+  # Storage class for PostgreSQL PVC; managed-csi is the AKS default.
+  storageClass: managed-csi
+
+# Gateway API routing (Azure AGC). Main sets ingress_domain_name to real FQDN.
+gateway:
+  enabled: false
+  name: "gateway-01"
+  namespace: "azure-alb-system"

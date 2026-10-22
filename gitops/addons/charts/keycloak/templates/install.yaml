@@ -3,6 +3,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: keycloak
+{{- if eq (.Values.cloud | default "aws") "azure" }}
+  labels:
+    # Admits HTTPRoutes from this namespace to the shared AGC gateway.
+    platform.gitops.io/ingress: agc
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -51,7 +56,7 @@ metadata:
 spec:
   serviceName: keycloak
   podManagementPolicy: OrderedReady
-  replicas: 2
+  replicas: {{ if eq (.Values.cloud | default "aws") "azure" }}1{{ else }}2{{ end }}
   selector:
     matchLabels:
       app: keycloak
@@ -67,12 +72,15 @@ spec:
         # pods would otherwise pick up the new file.
         checksum/config: {{ include "keycloak.conf" . | sha256sum }}
     spec:
+{{- if ne (.Values.cloud | default "aws") "azure" }}
       nodeSelector:
         karpenter.sh/nodepool: {{ (.Values.global | default dict).systemNodepool | default "system" }}
+{{- end }}
       tolerations:
       - key: "CriticalAddonsOnly"
         operator: "Exists"
         effect: "NoSchedule"
+{{- if ne (.Values.cloud | default "aws") "azure" }}
       # HA scheduling: force the two replicas onto SEPARATE nodes so a single node
       # rollout / EKS Auto Mode consolidation / upgrade can never take both down at once.
       # (Root cause of the intermittent Backstage OIDC 502: both replicas were co-located
@@ -99,6 +107,7 @@ spec:
         labelSelector:
           matchLabels:
             app: keycloak
+{{- end }}
       initContainers:
         - name: keycloak-db-migration
           image: quay.io/keycloak/keycloak:26.3.3
@@ -219,8 +228,10 @@ spec:
       labels:
         app: postgresql
     spec:
+{{- if ne (.Values.cloud | default "aws") "azure" }}
       nodeSelector:
         karpenter.sh/nodepool: {{ (.Values.global | default dict).systemNodepool | default "system" }}
+{{- end }}
       tolerations:
       - key: "CriticalAddonsOnly"
         operator: "Exists"
@@ -261,7 +272,7 @@ spec:
     metadata:
       name: data
     spec:
-      storageClassName: gp3
+      storageClassName: {{ if eq (.Values.cloud | default "aws") "azure" }}{{ .Values.azure.storageClass | default "managed-csi" }}{{ else }}gp3{{ end }}
       accessModes: ["ReadWriteOnce"]
       volumeMode: Filesystem
       resources:

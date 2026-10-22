@@ -1,0 +1,57 @@
+{{- if .Values.nativeAgcProvider.enabled }}
+{{- $identity := .Values.nativeAgcProvider }}
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: azure-agc-identity
+spec:
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata:
+          labels:
+            # This runtime explicitly projects its OIDC token; no webhook injection.
+            azure.workload.identity/use: "false"
+        spec:
+          serviceAccountName: crossplane
+          containers:
+            - name: package-runtime
+              env:
+                - name: AZURE_FEDERATED_TOKEN_FILE
+                  value: /var/run/secrets/azure/tokens/azure-identity-token
+              volumeMounts:
+                - name: azure-identity-token
+                  mountPath: /var/run/secrets/azure/tokens
+                  readOnly: true
+          volumes:
+            - name: azure-identity-token
+              projected:
+                sources:
+                  - serviceAccountToken:
+                      audience: api://AzureADTokenExchange
+                      expirationSeconds: 3600
+                      path: azure-identity-token
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azapi
+spec:
+  package: xpkg.upbound.io/upbound/provider-azapi:v2.2.1
+  runtimeConfigRef:
+    name: azure-agc-identity
+---
+apiVersion: azapi.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: OIDCTokenFile
+  clientID: {{ required "nativeAgcProvider.clientId required" $identity.clientId | quote }}
+  tenantID: {{ required "nativeAgcProvider.tenantId required" $identity.tenantId | quote }}
+  subscriptionID: {{ required "global.subscriptionId required" .Values.global.subscriptionId | quote }}
+  oidcTokenFilePath: /var/run/secrets/azure/tokens/azure-identity-token
+{{- end }}

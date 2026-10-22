@@ -18,28 +18,34 @@ azure_cluster_secret_store:
     azure:
       keyVaultName: '{{default "" (index .metadata.annotations "azure_keyvault_name")}}'
 
-agic:
+agc_gateway:
   namespace: azure-alb-system
-  chartName: alb-controller
-  releaseName: alb-controller
-  # ALB Controller v1.12.2 — latest stable, min K8s v1.32, compatible with AKS 1.37+
-  # OCI chart: oci://mcr.microsoft.com/application-lb/charts/alb-controller
-  # Manages Application Gateway for Containers (AGC) — successor to AGIC (GA 2024)
-  chartRepository: https://azure.github.io/azure-alb-controller/helm
-  defaultVersion: '1.12.2'
+  releaseName: agc-gateway
+  # Custom chart: manages ApplicationLoadBalancer + Gateway CRs only.
+  # The ALB controller and its CRDs are installed by the AKS native AGC addon
+  # (azure.agc.enabled=true in the Azure bootstrap configuration).
+  # Readiness gate: native_agc.py sets agc_native_ready=true on the cluster Secret only
+  # after all of: provider registrations Ready/Synced, UpdateResource Ready/Synced,
+  # GatewayClass azure-alb-external Accepted, subnet delegated, NetworkContributor assigned.
+  # Label absent on failure — this ApplicationSet will not deploy until it is present.
+  path: '{{.metadata.annotations.addonsRepoBasepath}}addons/charts/agc-gateway'
   annotationsAppSet:
     argocd.argoproj.io/sync-wave: '5'
   goTemplateOptions:
     - "missingkey=zero"
   selector:
     matchExpressions:
-      - key: enable_agic
+      - key: enable_agc_gateway
+        operator: In
+        values: ['true']
+      - key: agc_native_ready
         operator: In
         values: ['true']
       - key: cloud
         operator: In
         values: ['azure']
   valuesObject:
-    albController:
-      podIdentity:
-        clientID: '{{default "" (index .metadata.annotations "azure_alb_mi_client_id")}}'
+    alb:
+      # Full ARM subnet resource ID for the AGC-dedicated delegated subnet.
+      # Supplied via the azure_agc_subnet_id cluster annotation (set by bootstrap).
+      subnetId: '{{default "" (index .metadata.annotations "azure_agc_subnet_id")}}'

@@ -1,5 +1,54 @@
+{{- $cloud := .Values.cloud | default "aws" -}}
+{{- $insecure := eq (toString (.Values.global.insecure | default "false")) "true" -}}
+{{- if and (eq $cloud "azure") .Values.gateway.enabled -}}
 {{- /*
-Platform Ingress for the Kargo API.
+Azure: Gateway API HTTPRoute for the Kargo API.
+
+Routes /kargo → kargo-api:80 via the shared AGC Gateway (gateway-01 in
+azure-alb-system). A URLRewrite filter strips the /kargo prefix before forwarding;
+kargo-api serves at root and kargo.api.basePath=/kargo is cosmetic (URL generation
+only).
+
+sectionName pins the route to exactly one listener on the shared gateway to avoid
+auth routes attaching to both listeners simultaneously:
+  insecure=true  → "http"  listener (:80)  — HTTP dev smoke, no cert required
+  insecure=false → "https" listener (:443) — real cert-manager ACME cert issued by Main
+
+The HTTPRoute lives in the kargo namespace (no cross-namespace BackendRef). The
+Gateway's allowedRoutesFrom=All and the namespace label
+platform.gitops.io/ingress=agc (both set by Main) are the admission gates.
+*/ -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: kargo-api
+  namespace: kargo
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  parentRefs:
+    - name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.gateway.namespace }}
+      sectionName: {{ ternary "http" "https" $insecure }}
+  hostnames:
+    - {{ .Values.global.ingress_domain_name | quote }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /kargo
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: kargo-api
+          port: 80
+{{- else -}}
+{{- /*
+AWS (default): ALB Ingress for the Kargo API.
 
 Rendered by this umbrella chart rather than the upstream kargo dependency so the
 ALB listener config can follow the platform `insecure` flag with a block
@@ -8,10 +57,9 @@ upstream chart's own ingress is disabled via kargo.api.ingress.enabled=false.
 
   insecure=true  → HTTP-only (:80), host-less rule; consumer terminates TLS upstream
                    (e.g. CloudFront in front of the ALB). No ACM cert is required.
-  insecure=false → HTTPS (:443) with an HTTP->HTTPS redirect and a host rule; the ALB
+  insecure=false → HTTPS (:443) with an HTTP→HTTPS redirect and a host rule; the ALB
                    auto-discovers the ACM cert by host.
 */ -}}
-{{- $insecure := eq (toString (.Values.global.insecure | default "false")) "true" -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -52,3 +100,4 @@ spec:
                 name: kargo-api
                 port:
                   number: 80
+{{- end }}

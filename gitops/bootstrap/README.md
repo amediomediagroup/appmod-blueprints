@@ -57,3 +57,25 @@ selector:
 ```
 
 This label exists on the hub cluster's ArgoCD secret. It ensures these ApplicationSets only target the hub -- they read the hub's repo annotations and deploy to the hub's ArgoCD namespace. Fleet member clusters get their addons through the addon pipeline, not through these bootstrap ApplicationSets directly.
+
+## Azure provider boundary
+
+An AKS hub with `cloud: azure` uses the shared addon pipeline and
+`hub-fleet-secret-azure.yaml`. The AWS hub-secret ApplicationSet must not select
+that hub. EKS cluster generators, AWS spoke registration/client provisioning,
+and the Crossplane abstraction generator also exclude the Azure hub; they
+otherwise require AWS role ARNs, EKS authentication, Secrets Manager, or
+Crossplane controllers not installed on this AKS hub.
+
+This exclusion does not move infrastructure ownership. For the Kind-to-AKS
+provider, Azure resources remain controlled by Crossplane on Kind until a
+separately verified ownership migration. ArgoCD on AKS does not overwrite the
+Kind Composition merely by syncing its own bootstrap directory.
+
+Installing ArgoCD and ESO is only the one-time bootstrap prerequisite. Full
+addon fan-out additionally requires the hub registration Secret, a Git revision
+containing the Azure configuration, a seeded Key Vault config payload readable
+through `azure-key-vault`, and actual ingress/domain settings for consumers that
+derive public URLs. Do not replace missing deployment inputs with example domains
+or silently grant Key Vault write roles to the operator.
+

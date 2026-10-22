@@ -8,7 +8,14 @@ metadata:
 spec:
   deploymentTemplate:
     spec:
+      # Crossplane generates the real pod selector; the CRD embeds DeploymentSpec
+      # and therefore requires the field to be present.
+      selector: {}
       template:
         metadata:
           labels:
             azure.workload.identity/use: "true"
+        spec:
+          containers: []
+          # Reuse the federated SA without assigning it to a package revision.
+          serviceAccountName: crossplane

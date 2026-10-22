@@ -1,6 +1,6 @@
 externalSecret:
   enabled: true
   labels:
-    environment: control-plane
+    environment: control-plane-azure
     tenant: control-plane
     cloud: azure

@@ -38,8 +38,12 @@ http-enabled=true
 hostname-debug=true
 # .../keycloak/realms/platform/hostname-debug
 
-# Proxy configuration for CloudFront/ALB - use xforwarded for AWS setup
+# Proxy configuration — AGC (Azure) uses RFC-7239 Forwarded; ALB/CloudFront (AWS) uses X-Forwarded
+{{- if eq (.Values.cloud | default "aws") "azure" }}
+proxy-headers=forwarded
+{{- else }}
 proxy-headers=xforwarded
+{{- end }}
 
 # Enable account console and admin features
 features=account,admin

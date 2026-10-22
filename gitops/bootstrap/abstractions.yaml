@@ -21,6 +21,9 @@ spec:
               selector:
                 matchLabels:
                   fleet_member: control-plane
+                # Azure retains infrastructure ownership on Kind, not this AKS hub.
+                matchExpressions:
+                  - {key: cloud, operator: NotIn, values: [azure]}
           - git:
               repoURL: '{{ .metadata.annotations.addonsRepoURL }}'
               revision: '{{ .metadata.annotations.addonsRepoRevision }}'

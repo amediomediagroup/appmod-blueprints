@@ -1,3 +1,6 @@
+{{- $cloud := (.Values.cloud | default "aws") -}}
+{{- $insecure := eq (toString (.Values.insecure | default "false")) "true" -}}
+{{- $urlScheme := ternary "http" "https" (and (eq $cloud "azure") $insecure) -}}
 # This is an auto-generated file. DO NOT EDIT
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -2726,6 +2729,18 @@ rules:
   - secrets
   verbs:
   - get
+- apiGroups:
+  - argoproj.io
+  resources:
+  - workflowtaskresults
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - update
+  - patch
+  - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -3051,14 +3066,14 @@ data:
   config: |-
     sso:
       insecureSkipVerify: true
-      issuer: https://{{ .Values.ingress_domain_name | default .Values.gitlab_domain_name }}/keycloak/realms/platform
+      issuer: {{ $urlScheme }}://{{ .Values.ingress_domain_name | default .Values.gitlab_domain_name }}/keycloak/realms/platform
       clientId:
         name: keycloak-oidc
         key: client-id
       clientSecret:
         name: keycloak-oidc
         key: secret-key
-      redirectUrl: https://{{ .Values.ingress_domain_name | default .Values.gitlab_domain_name }}/argo-workflows/oauth2/callback
+      redirectUrl: {{ $urlScheme }}://{{ .Values.ingress_domain_name | default .Values.gitlab_domain_name }}/argo-workflows/oauth2/callback
       rbac:
         enabled: true
       scopes:

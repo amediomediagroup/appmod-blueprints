@@ -1,0 +1,113 @@
+{{- if eq .Values.cloud "azure" }}
+---
+# In-cluster MySQL for DevLake on Azure.
+# Replaces the AWS ACK/RDS path. Uses managed-csi (Azure default StorageClass).
+# Secret devlake-mysql-auth is populated by the Azure ExternalSecret before this
+# StatefulSet comes up (sync-wave ordering: ES at -2, this StatefulSet at -1).
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: devlake-mysql
+  namespace: {{ .Values.namespace | default "devlake" }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  serviceName: devlake-mysql-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: devlake-mysql
+  template:
+    metadata:
+      labels:
+        app: devlake-mysql
+    spec:
+      securityContext:
+        fsGroup: 999
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        ports:
+        - containerPort: 3306
+          name: mysql
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: devlake-mysql-auth
+              key: MYSQL_ROOT_PASSWORD
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: devlake-mysql-auth
+              key: MYSQL_USER
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: devlake-mysql-auth
+              key: MYSQL_PASSWORD
+        - name: MYSQL_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: devlake-mysql-auth
+              key: MYSQL_DATABASE
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            memory: 1Gi
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql
+        livenessProbe:
+          exec:
+            command: ["mysqladmin", "ping", "-h", "localhost"]
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        readinessProbe:
+          exec:
+            command: ["mysqladmin", "ping", "-h", "localhost"]
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 6
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+            add: ["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE"]
+          seccompProfile:
+            type: RuntimeDefault
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: managed-csi
+      resources:
+        requests:
+          storage: 20Gi
+---
+# ClusterIP Service — named devlake-mysql-service to match all existing references
+# (setup-workflow, devlake-mysql-auth DB_URL, configs/devlake/values.yaml externalServer).
+apiVersion: v1
+kind: Service
+metadata:
+  name: devlake-mysql-service
+  namespace: {{ .Values.namespace | default "devlake" }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  selector:
+    app: devlake-mysql
+  ports:
+  - name: mysql
+    port: 3306
+    targetPort: 3306
+  type: ClusterIP
+{{- end }}

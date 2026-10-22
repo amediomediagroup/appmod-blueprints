@@ -1,0 +1,37 @@
+{{- range $name, $cluster := .Values.clusters }}
+{{- $agc := $cluster.agc | default dict }}
+{{- if $agc.enabled }}
+{{- $subscription := $cluster.subscriptionId | default $.Values.global.subscriptionId | required "azure subscriptionId required" }}
+{{- $resourceGroup := required "azure resourceGroup required" $cluster.resourceGroup }}
+{{- $clusterID := printf "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s" $subscription $resourceGroup $cluster.clusterName }}
+---
+# Updates only fields absent from the typed Azure KubernetesCluster provider.
+# AzAPI merges this body into the existing ARM resource before sending the update.
+apiVersion: resources.azapi.upbound.io/v1beta2
+kind: UpdateResource
+metadata:
+  name: {{ $cluster.clusterName }}-native-agc
+  annotations:
+    crossplane.io/external-name: {{ $clusterID | quote }}
+  labels:
+    platform.gitops.io/cluster: {{ $cluster.clusterName | quote }}
+spec:
+  deletionPolicy: Orphan
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef:
+    name: {{ $agc.providerConfigName | default "default" | quote }}
+  forProvider:
+    type: Microsoft.ContainerService/managedClusters@2025-09-02-preview
+    resourceId: {{ $clusterID | quote }}
+    ignoreMissingProperty: false
+    body:
+      properties:
+        ingressProfile:
+          applicationLoadBalancer:
+            enabled: true
+          gatewayAPI:
+            installation: Standard
+    responseExportValues:
+      - properties.ingressProfile
+{{- end }}
+{{- end }}

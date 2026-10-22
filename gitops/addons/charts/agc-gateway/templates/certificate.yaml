@@ -1,0 +1,36 @@
+{{- if eq (toString .Values.certificate.enabled) "true" }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ .Values.certificate.issuerName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  acme:
+    server: {{ .Values.certificate.acmeServer | quote }}
+    privateKeySecretRef:
+      name: {{ .Values.certificate.issuerName }}-account
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - name: {{ .Values.gateway.name }}
+                namespace: {{ .Release.Namespace }}
+                kind: Gateway
+                sectionName: http
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.gateway.tls.secretName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ .Values.gateway.tls.secretName }}
+  dnsNames:
+    - {{ required "gateway.tls.hostname required for certificate issuance" .Values.gateway.tls.hostname | quote }}
+  issuerRef:
+    name: {{ .Values.certificate.issuerName }}
+    kind: Issuer
+  privateKey:
+    algorithm: RSA
+    size: 2048
+{{- end }}

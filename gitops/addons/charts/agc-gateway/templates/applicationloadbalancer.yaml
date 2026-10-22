@@ -1,0 +1,17 @@
+{{/*
+  ApplicationLoadBalancer CR — instructs the AKS-native ALB controller to
+  provision and manage an Application Gateway for Containers instance in Azure.
+
+  Prerequisites:
+  - AKS native AGC addon enabled on the cluster (GatewayClass azure-alb-external present).
+  - Subnet delegated to Microsoft.ServiceNetworking/trafficControllers.
+  - alb.subnetId value must be the full ARM resource ID of that subnet.
+*/}}
+apiVersion: alb.networking.azure.io/v1
+kind: ApplicationLoadBalancer
+metadata:
+  name: alb
+  namespace: {{ .Release.Namespace }}
+spec:
+  associations:
+    - {{ required "alb.subnetId is required: supply the full ARM resource ID of the AGC-dedicated delegated subnet (e.g. /subscriptions/.../subnets/<name>)" .Values.alb.subnetId | quote }}

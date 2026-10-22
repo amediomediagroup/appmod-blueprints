@@ -5,9 +5,56 @@
   "type": "object",
   "required": [
     "hub",
-    "aws",
     "repo",
     "domain"
+  ],
+  "allOf": [
+    {
+      "description": "AWS fields are required for every provider except the Azure provider.",
+      "if": {
+        "properties": {
+          "clusterProvider": {
+            "not": {
+              "const": "kind-crossplane-azure"
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "aws"
+        ]
+      }
+    },
+    {
+      "description": "The Azure provider requires a complete azure block.",
+      "if": {
+        "properties": {
+          "clusterProvider": {
+            "const": "kind-crossplane-azure"
+          }
+        },
+        "required": [
+          "clusterProvider"
+        ]
+      },
+      "then": {
+        "required": [
+          "azure"
+        ],
+        "properties": {
+          "azure": {
+            "required": [
+              "subscriptionId",
+              "tenantId",
+              "location",
+              "uamiClientId",
+              "resourceGroup"
+            ]
+          }
+        }
+      }
+    }
   ],
   "properties": {
     "clusterProvider": {
@@ -302,6 +349,89 @@
           "maxLength": 24,
           "minLength": 3,
           "description": "Azure Key Vault name (max 24 chars). Defaults to <clusterName[:12]>-kv if omitted."
+        },
+        "kindClusterName": {
+          "type": "string",
+          "description": "Existing Kind bootstrap cluster to adopt. Defaults to <hub.clusterName>-bootstrap. Set this when the cluster is already running under a different name; it is never renamed or recreated."
+        },
+        "oidcIssuerUrl": {
+          "type": "string",
+          "pattern": "^https://",
+          "description": "Issuer already configured on the running Kind API server. When set, publication reuses the cluster's own public JWKS: no storage account is created and no signing key is generated or read."
+        },
+        "oidcStorageAccount": {
+          "type": "string",
+          "pattern": "^[a-z0-9]{3,24}$",
+          "description": "Storage account hosting the public issuer. Defaults to the cluster name with hyphens stripped, truncated to 20 chars."
+        },
+        "oidcStorageContainer": {
+          "type": "string",
+          "description": "Container holding the public issuer documents. Defaults to $web (static website)."
+        },
+        "oidcBlobPrefix": {
+          "type": "string",
+          "description": "Blob prefix under the container, used only when the issuer is derived from the static website endpoint. Defaults to oidc."
+        },
+        "systemNodeSize": {
+          "type": "string",
+          "minLength": 1,
+          "description": "AKS system-pool VM SKU. Must be >=4 vCPU (B-series is not supported) and fit the region's family and total vCPU quotas."
+        },
+        "systemNodeMin": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "AKS minimum system-pool node count."
+        },
+        "systemNodeMax": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "AKS maximum system-pool node count; budget for its full quota requirement."
+        },
+        "oidcStorageResourceGroup": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Resource group of the public OIDC storage account; defaults to azure.resourceGroup."
+        },
+        "bootstrapIdentityResourceGroup": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Resource group of the dedicated bootstrap UAMI; defaults to azure.resourceGroup."
+        },
+        "argocdNodeSelector": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Optional existing node labels for ArgoCD placement; empty preserves chart defaults."
+        },
+        "crossplanePrincipalId": {
+          "type": "string",
+          "description": "Optional UAMI object ID for explicit registration IAM tasks."
+        },
+        "agcIam": {
+          "type": "object",
+          "properties": {
+            "evidencePath": {
+              "type": "string",
+              "description": "Private IAM journal path; reuse original evidence to preserve revoke/import ownership."
+            }
+          }
+        },
+        "agc": {
+          "type": "object",
+          "description": "Native AKS AGC preview, reconciled by Crossplane before the Gateway addon is enabled.",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "subnetCidr": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Nonoverlapping dedicated IPv4 /24 or larger; added as an extra VNet prefix."
+            }
+          },
+          "if": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] },
+          "then": { "required": ["subnetCidr"] }
+        },
+        "vnetCidr": {
+          "type": "string",
+          "description": "VNet CIDR containing the system and user subnets. Must not overlap the AKS service CIDR 10.0.0.0/16."
         }
       }
     }

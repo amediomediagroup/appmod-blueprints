@@ -1,0 +1,56 @@
+{{/*
+  Gateway CR — binds to GatewayClass azure-alb-external (installed by the AKS
+  native AGC addon) and references the ApplicationLoadBalancer instance above.
+
+  Route attachment scope (gateway.allowedRoutesFrom):
+    Same     — only HTTPRoutes in the same namespace (default, safest)
+    All      — HTTPRoutes from any namespace
+    Selector — HTTPRoutes from namespaces matching a label selector
+               (add gateway.allowedRoutesSelector to values for fine-grained policy)
+
+  Cost note: a public HTTP/80 listener begins accruing AGC capacity-unit charges
+  the moment the Gateway is synced. Do not enable this addon in non-production
+  environments unless the cost boundary is understood.
+*/}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ .Values.gateway.name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # Bind this Gateway to the ApplicationLoadBalancer CR created in the same release.
+    alb.networking.azure.io/alb-name: alb
+    alb.networking.azure.io/alb-namespace: {{ .Release.Namespace }}
+spec:
+  gatewayClassName: azure-alb-external
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: {{ .Values.gateway.allowedRoutesFrom }}
+          {{- if eq .Values.gateway.allowedRoutesFrom "Selector" }}
+          selector:
+            matchLabels:
+              {{- required "gateway.allowedRoutesSelector must be nonempty when allowedRoutesFrom=Selector" .Values.gateway.allowedRoutesSelector | toYaml | nindent 14 }}
+          {{- end }}
+    {{- if eq (toString .Values.gateway.tls.enabled) "true" }}
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: {{ required "gateway.tls.hostname required for HTTPS" .Values.gateway.tls.hostname | quote }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: {{ required "gateway.tls.secretName required for HTTPS" .Values.gateway.tls.secretName | quote }}
+      allowedRoutes:
+        namespaces:
+          from: {{ .Values.gateway.allowedRoutesFrom }}
+          {{- if eq .Values.gateway.allowedRoutesFrom "Selector" }}
+          selector:
+            matchLabels:
+              {{- required "gateway.allowedRoutesSelector must be nonempty when allowedRoutesFrom=Selector" .Values.gateway.allowedRoutesSelector | toYaml | nindent 14 }}
+          {{- end }}
+    {{- end }}

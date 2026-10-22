@@ -1,16 +1,36 @@
-# Consumed by this chart's own templates (the API Ingress). The registry overlays
-# these from cluster annotations (ingress_domain_name, insecure).
+# Consumed by this chart's own templates (the API Ingress / HTTPRoute). The registry
+# overlays these from cluster annotations (ingress_domain_name, insecure).
 global:
   ingress_domain_name: ""
-  # insecure=true: ALB serves plain HTTP:80 (consumer terminates TLS upstream, e.g.
-  #   CloudFront in front of the ALB) — no ACM cert required.
-  # insecure=false: ALB serves HTTPS:443 with an HTTP->HTTPS redirect (real domain + cert).
+  # insecure=true: AGC/ALB serves plain HTTP:80 (dev smoke / consumer terminates TLS upstream).
+  # insecure=false: AGC/ALB serves HTTPS:443 with a real cert-manager ACME cert (Azure)
+  #   or ACM cert (AWS).
   insecure: "false"
 
+# Cloud selector: "aws" (default) or "azure".
+# Main injects cloud: azure via Azure overrides.yaml.
+cloud: aws
+
+# Cluster name used to derive Azure Key Vault secret names (<clusterName>-secrets).
+# Main sets this at runtime via overrides.yaml (maps to aws_cluster_name annotation).
+# Not used on AWS — the registry inline extraObjects references the annotation directly.
+clusterName: ""
+
+# Gateway API routing (Azure AGC). Main enables via overrides.yaml when cloud=azure.
+# gateway.name / gateway.namespace must match the shared gateway deployed by agc-gateway.
+gateway:
+  enabled: false
+  name: gateway-01
+  namespace: azure-alb-system
+
 # Passed through to the upstream Kargo chart (dependency name `kargo`). The upstream
-# ingress is disabled here because this chart renders its own insecure-aware Ingress
-# (see templates/ingress.yaml).
+# ingress is disabled here because this chart renders its own cloud-aware
+# Ingress/HTTPRoute (see templates/ingress.yaml).
 kargo:
   api:
     ingress:
       enabled: false
+    # Credentials come from the ExternalSecret rendered by this chart on Azure
+    # (<cluster>-secrets) or the registry inline object on AWS.
+    secret:
+      name: kargo-admin-credentials

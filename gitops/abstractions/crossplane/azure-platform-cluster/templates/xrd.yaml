@@ -1,6 +1,6 @@
 {{- if .Values.xrd.enabled }}
 # XAzurePlatformCluster XRD
-# Creates: ResourceGroup, VNet, Subnets, App Gateway, UAMIs, AKS, Key Vault
+# Creates: ResourceGroup, VNet, Subnets, UAMIs, AKS, Key Vault and role assignments
 apiVersion: apiextensions.crossplane.io/v1
 kind: CompositeResourceDefinition
 metadata:
@@ -44,27 +44,33 @@ spec:
                 vnetCidr:
                   type: string
                   description: VNet address space CIDR
-                  default: "10.0.0.0/8"
+                  default: "10.240.0.0/15"
+                agcSubnetCidr:
+                  type: string
+                  description: Additional dedicated AGC subnet CIDR, also added to VNet address space. Must not overlap existing node subnets.
                 kubernetesVersion:
                   type: string
                   description: Kubernetes version for AKS
                   default: "1.37"
                 systemNodeSize:
                   type: string
-                  description: VM size for system node pool
-                  default: "Standard_D4s_v3"
+                  description: VM size for system node pool. Must be >=4 vCPU; B-series is not supported.
+                  default: "Standard_D4s_v4"
                 systemNodeMin:
                   type: integer
                   description: Minimum system node count
                   default: 1
+                  minimum: 1
                 systemNodeMax:
                   type: integer
                   description: Maximum system node count
-                  default: 5
+                  minimum: 1
+                  default: 1
               required:
                 - location
                 - clusterName
                 - subscriptionId
+                - tenantId
                 - resourceGroup
             status:
               type: object
@@ -84,5 +90,13 @@ spec:
                 albMiClientId:
                   type: string
                 nodepoolSubnetId:
+                  type: string
+                kubeletPrincipalId:
+                  type: string
+                esoPrincipalId:
+                  type: string
+                albPrincipalId:
+                  type: string
+                oidcIssuerUrl:
                   type: string
 {{- end }}

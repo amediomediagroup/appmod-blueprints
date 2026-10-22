@@ -1,0 +1,25 @@
+{{- range $registration := .Values.resourceProviderRegistrations }}
+{{- $subscription := required "registration subscriptionId required" $.Values.global.subscriptionId }}
+{{- $namespace := required "registration namespace required" $registration.namespace }}
+---
+apiVersion: azure.upbound.io/v1beta1
+kind: ResourceProviderRegistration
+metadata:
+  name: {{ printf "%s-%s" $subscription ($namespace | lower | replace "." "-") }}
+  annotations:
+    crossplane.io/external-name: {{ printf "/subscriptions/%s/providers/%s" $subscription $namespace | quote }}
+spec:
+  deletionPolicy: Orphan
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef:
+    name: {{ $registration.providerConfigName | default "default" }}
+  forProvider:
+    name: {{ $namespace | quote }}
+    {{- with $registration.features }}
+    feature:
+      {{- range . }}
+      - name: {{ . | quote }}
+        registered: true
+      {{- end }}
+    {{- end }}
+{{- end }}

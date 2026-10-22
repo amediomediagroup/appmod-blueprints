@@ -36,6 +36,7 @@ spec:
                 transforms:
                   - type: string
                     string:
+                      type: Format
                       fmt: "%s-rg"
 
           # ── 2. Virtual Network ────────────────────────────────────────────
@@ -57,11 +58,17 @@ spec:
                 fromFieldPath: spec.vnetCidr
                 toFieldPath: spec.forProvider.addressSpace[0]
               - type: FromCompositeFieldPath
+                fromFieldPath: spec.agcSubnetCidr
+                toFieldPath: spec.forProvider.addressSpace[1]
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
                 fromFieldPath: spec.clusterName
                 toFieldPath: metadata.annotations["crossplane.io/external-name"]
                 transforms:
                   - type: string
                     string:
+                      type: Format
                       fmt: "%s-vnet"
               - type: ToCompositeFieldPath
                 fromFieldPath: status.atProvider.id
@@ -91,6 +98,7 @@ spec:
                 transforms:
                   - type: string
                     string:
+                      type: Format
                       fmt: "%s-system-snet"
               - type: ToCompositeFieldPath
                 fromFieldPath: status.atProvider.id
@@ -116,10 +124,10 @@ spec:
                 transforms:
                   - type: string
                     string:
+                      type: Format
                       fmt: "%s-user-snet"
 
           # ── 5. UAMI — kubelet identity ────────────────────────────────────
-          # Label role:kubelet-identity required by role-kubelet-network principalIdSelector
           - name: uami-kubelet
             base:
               apiVersion: managedidentity.azure.upbound.io/v1beta1
@@ -138,17 +146,20 @@ spec:
                 toFieldPath: spec.forProvider.location
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.clusterName
-                toFieldPath: metadata.annotations["crossplane.io/external-name"]
+                toFieldPath: spec.forProvider.name
                 transforms:
                   - type: string
                     string:
+                      type: Format
                       fmt: "%s-kubelet-mi"
               - type: ToCompositeFieldPath
                 fromFieldPath: status.atProvider.id
                 toFieldPath: status.kubeletMiId
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.atProvider.principalId
+                toFieldPath: status.kubeletPrincipalId
 
           # ── 6. UAMI — ESO identity ────────────────────────────────────────
-          # Label role:eso-identity required by role-eso-keyvault principalIdSelector
           - name: uami-eso
             base:
               apiVersion: managedidentity.azure.upbound.io/v1beta1
@@ -167,17 +178,20 @@ spec:
                 toFieldPath: spec.forProvider.location
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.clusterName
-                toFieldPath: metadata.annotations["crossplane.io/external-name"]
+                toFieldPath: spec.forProvider.name
                 transforms:
                   - type: string
                     string:
+                      type: Format
                       fmt: "%s-eso-mi"
               - type: ToCompositeFieldPath
                 fromFieldPath: status.atProvider.clientId
                 toFieldPath: status.esoMiClientId
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.atProvider.principalId
+                toFieldPath: status.esoPrincipalId
 
           # ── 7. UAMI — ALB Controller identity ────────────────────────────
-          # Label role:alb-identity required by role-alb-rg principalIdSelector
           # ALB Controller uses Workload Identity to manage Application Gateway for Containers
           - name: uami-alb
             base:
@@ -197,14 +211,18 @@ spec:
                 toFieldPath: spec.forProvider.location
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.clusterName
-                toFieldPath: metadata.annotations["crossplane.io/external-name"]
+                toFieldPath: spec.forProvider.name
                 transforms:
                   - type: string
                     string:
+                      type: Format
                       fmt: "%s-alb-mi"
               - type: ToCompositeFieldPath
                 fromFieldPath: status.atProvider.clientId
                 toFieldPath: status.albMiClientId
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.atProvider.principalId
+                toFieldPath: status.albPrincipalId
 
           # ── 8. AKS Cluster ────────────────────────────────────────────────
           # Note: NO ingressApplicationGateway addon — AGC is managed by ALB Controller
@@ -221,20 +239,31 @@ spec:
                   kubernetesVersion: ""
                   dnsPrefix: ""
                   identity:
-                    - type: UserAssigned
-                      identityIds: []
+                    type: UserAssigned
+                    identityIds: []
                   defaultNodePool:
-                    - name: system
-                      vmSize: ""
-                      enableAutoScaling: true
-                      minCount: 1
-                      maxCount: 5
-                      vnetSubnetIdSelector:
-                        matchLabels:
-                          role: system
+                    name: system
+                    vmSize: ""
+                    autoScalingEnabled: true
+                    minCount: 1
+                    maxCount: 1
+                    # Existing platform charts select this label; Azure pool mode is unchanged.
+                    nodeLabels:
+                      karpenter.sh/nodepool: system
+                    upgradeSettings:
+                      # AKS rejects maxSurge=0 unless maxUnavailable>0, and this
+                      # provider does not expose maxUnavailable. Surge only
+                      # applies during upgrades; creation needs no extra node.
+                      maxSurge: "1"
+                    vnetSubnetIdSelector:
+                      matchControllerRef: true
+                      matchLabels:
+                        role: system
                   networkProfile:
-                    - networkPlugin: azure
-                      networkPolicy: calico
+                    networkPlugin: azure
+                    networkPolicy: calico
+                    serviceCidr: "10.0.0.0/16"
+                    dnsServiceIp: "10.0.0.10"
                   oidcIssuerEnabled: true
                   workloadIdentityEnabled: true
                 writeConnectionSecretToRef:
@@ -248,13 +277,13 @@ spec:
                 toFieldPath: spec.forProvider.kubernetesVersion
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.systemNodeSize
-                toFieldPath: spec.forProvider.defaultNodePool[0].vmSize
+                toFieldPath: spec.forProvider.defaultNodePool.vmSize
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.systemNodeMin
-                toFieldPath: spec.forProvider.defaultNodePool[0].minCount
+                toFieldPath: spec.forProvider.defaultNodePool.minCount
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.systemNodeMax
-                toFieldPath: spec.forProvider.defaultNodePool[0].maxCount
+                toFieldPath: spec.forProvider.defaultNodePool.maxCount
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.clusterName
                 toFieldPath: spec.forProvider.dnsPrefix
@@ -267,15 +296,22 @@ spec:
                 transforms:
                   - type: string
                     string:
+                      type: Format
                       fmt: "%s-kubeconfig"
               - type: FromCompositeFieldPath
                 fromFieldPath: status.kubeletMiId
-                toFieldPath: spec.forProvider.identity[0].identityIds[0]
+                policy:
+                  fromFieldPath: Required
+                toFieldPath: spec.forProvider.identity.identityIds[0]
               - type: ToCompositeFieldPath
                 fromFieldPath: status.atProvider.id
                 toFieldPath: status.aksId
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.atProvider.oidcIssuerUrl
+                toFieldPath: status.oidcIssuerUrl
             connectionDetails:
               - name: kubeconfig
+                type: FromConnectionSecretKey
                 fromConnectionSecretKey: kubeconfig
 
           # ── 9. Key Vault ──────────────────────────────────────────────────
@@ -288,9 +324,9 @@ spec:
                   location: ""
                   resourceGroupNameSelector:
                     matchControllerRef: true
-                  sku: standard
+                  skuName: standard
                   tenantId: ""
-                  enableRbacAuthorization: true
+                  rbacAuthorizationEnabled: true
                   softDeleteRetentionDays: 7
                   purgeProtectionEnabled: false
             patches:
@@ -306,6 +342,7 @@ spec:
                 transforms:
                   - type: string
                     string:
+                      type: Format
                       fmt: "%.12s-kv"
               - type: ToCompositeFieldPath
                 fromFieldPath: status.atProvider.vaultUri
@@ -322,21 +359,19 @@ spec:
               spec:
                 forProvider:
                   roleDefinitionName: "Network Contributor"
-                  principalIdSelector:
-                    matchLabels:
-                      role: kubelet-identity
+                  principalId: ""
                   scope: ""
             patches:
               - type: FromCompositeFieldPath
                 fromFieldPath: status.vnetId
+                policy:
+                  fromFieldPath: Required
                 toFieldPath: spec.forProvider.scope
               - type: FromCompositeFieldPath
-                fromFieldPath: spec.clusterName
-                toFieldPath: metadata.annotations["crossplane.io/external-name"]
-                transforms:
-                  - type: string
-                    string:
-                      fmt: "%s-kubelet-network"
+                fromFieldPath: status.kubeletPrincipalId
+                policy:
+                  fromFieldPath: Required
+                toFieldPath: spec.forProvider.principalId
 
           # ── 11. Role Assignment — ESO → Key Vault Secrets User ────────────
           - name: role-eso-keyvault
@@ -346,21 +381,19 @@ spec:
               spec:
                 forProvider:
                   roleDefinitionName: "Key Vault Secrets User"
-                  principalIdSelector:
-                    matchLabels:
-                      role: eso-identity
+                  principalId: ""
                   scope: ""
             patches:
               - type: FromCompositeFieldPath
                 fromFieldPath: status.keyVaultId
+                policy:
+                  fromFieldPath: Required
                 toFieldPath: spec.forProvider.scope
               - type: FromCompositeFieldPath
-                fromFieldPath: spec.clusterName
-                toFieldPath: metadata.annotations["crossplane.io/external-name"]
-                transforms:
-                  - type: string
-                    string:
-                      fmt: "%s-eso-kv"
+                fromFieldPath: status.esoPrincipalId
+                policy:
+                  fromFieldPath: Required
+                toFieldPath: spec.forProvider.principalId
 
           # ── 12. Role Assignment — ALB → AppGw for Containers Config Manager
           # Grants the ALB Controller identity permission to manage AGC resources
@@ -372,9 +405,7 @@ spec:
               spec:
                 forProvider:
                   roleDefinitionName: "AppGw for Containers Configuration Manager"
-                  principalIdSelector:
-                    matchLabels:
-                      role: alb-identity
+                  principalId: ""
                   scope: ""
             patches:
               - type: CombineFromComposite
@@ -387,9 +418,71 @@ spec:
                     fmt: "/subscriptions/%s/resourceGroups/%s-rg"
                 toFieldPath: spec.forProvider.scope
               - type: FromCompositeFieldPath
+                fromFieldPath: status.albPrincipalId
+                policy:
+                  fromFieldPath: Required
+                toFieldPath: spec.forProvider.principalId
+
+          # ── 13. FIC — ESO workload identity on the AKS issuer ─────────────
+          - name: fic-eso
+            base:
+              apiVersion: managedidentity.azure.upbound.io/v1beta1
+              kind: FederatedIdentityCredential
+              spec:
+                forProvider:
+                  audience:
+                    - api://AzureADTokenExchange
+                  issuer: ""
+                  subject: "system:serviceaccount:external-secrets:external-secrets-sa"
+                  parentIdSelector:
+                    matchControllerRef: true
+                    matchLabels:
+                      role: eso-identity
+                  resourceGroupNameSelector:
+                    matchControllerRef: true
+            patches:
+              - type: FromCompositeFieldPath
+                fromFieldPath: status.oidcIssuerUrl
+                policy:
+                  fromFieldPath: Required
+                toFieldPath: spec.forProvider.issuer
+              - type: FromCompositeFieldPath
                 fromFieldPath: spec.clusterName
                 toFieldPath: metadata.annotations["crossplane.io/external-name"]
                 transforms:
                   - type: string
                     string:
-                      fmt: "%s-alb-rg"
+                      type: Format
+                      fmt: "%s-eso-aks"
+
+          # ── 14. FIC — ALB Controller workload identity on the AKS issuer ──
+          - name: fic-alb
+            base:
+              apiVersion: managedidentity.azure.upbound.io/v1beta1
+              kind: FederatedIdentityCredential
+              spec:
+                forProvider:
+                  audience:
+                    - api://AzureADTokenExchange
+                  issuer: ""
+                  subject: "system:serviceaccount:azure-alb-system:alb-controller-sa"
+                  parentIdSelector:
+                    matchControllerRef: true
+                    matchLabels:
+                      role: alb-identity
+                  resourceGroupNameSelector:
+                    matchControllerRef: true
+            patches:
+              - type: FromCompositeFieldPath
+                fromFieldPath: status.oidcIssuerUrl
+                policy:
+                  fromFieldPath: Required
+                toFieldPath: spec.forProvider.issuer
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.clusterName
+                toFieldPath: metadata.annotations["crossplane.io/external-name"]
+                transforms:
+                  - type: string
+                    string:
+                      type: Format
+                      fmt: "%s-alb-aks"

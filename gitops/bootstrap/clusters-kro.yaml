@@ -30,6 +30,9 @@ spec:
               selector:
                 matchLabels:
                   fleet_member: control-plane
+                # This generator provisions EKS/ACK resources, not Azure clusters.
+                matchExpressions:
+                  - {key: cloud, operator: NotIn, values: [azure]}
           - git:
               # Read per-cluster trigger JSONs from the overlay (fleet-config) where
               # `task spokes:enable-kro` and users declare clusters. One JSON file per

@@ -1,0 +1,45 @@
+{{- if eq .Values.cloud "azure" }}
+{{- if .Values.gateway.enabled }}
+---
+# HTTPRoute for DevLake UI on Azure Application Gateway for Containers.
+# Attaches to the shared gateway-01 in azure-alb-system.
+# sectionName: http when insecure=true (HTTP-only dev smoke),
+#              https when insecure=false (TLS issued by cert-manager ACME).
+# The DevLake nginx UI service is named devlake-ui on port 4000 (upstream chart naming:
+# devlake-ui Service (port 4000) is created by the upstream devlake subchart.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: devlake-ui
+  namespace: {{ .Values.namespace | default "devlake" }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  parentRefs:
+  - name: {{ .Values.gateway.name | default "gateway-01" }}
+    namespace: {{ .Values.gateway.namespace | default "azure-alb-system" }}
+    sectionName: {{ if .Values.insecure }}http{{ else }}https{{ end }}
+  hostnames:
+  - {{ .Values.ingress_domain_name | quote }}
+  rules:
+  # DevLake's UI build emits absolute root paths and its SPA router does not
+  # support a path prefix. Serving it on "/" of the SHARED gateway would capture
+  # every other application's traffic, so this route is intentionally NOT
+  # attached to the shared gateway. Use the dedicated clusterIP service or a
+  # separate hostname when DevLake needs external access.
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /devlake
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
+    backendRefs:
+    - name: devlake-ui
+      port: 4000
+{{- end }}
+{{- end }}

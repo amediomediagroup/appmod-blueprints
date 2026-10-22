@@ -1,5 +1,52 @@
-{{- /* insecure: HTTP-only ingress, no cert (consumer terminates TLS upstream, e.g. CloudFront). */ -}}
+{{- $cloud := .Values.cloud | default "aws" -}}
 {{- $insecure := eq (toString (.Values.insecure | default "false")) "true" -}}
+{{- if and (eq $cloud "azure") .Values.gateway.enabled -}}
+{{- /*
+Azure: Gateway API HTTPRoute for Argo Workflows.
+
+Routes /argo-workflows → argo-server:2746 via the shared AGC Gateway (gateway-01
+in azure-alb-system). A URLRewrite filter strips the /argo-workflows prefix before
+forwarding; argo-server is started with --base-href=/argo-workflows/ so it rebuilds
+all UI links correctly.
+
+sectionName pins the route to one listener on the shared gateway:
+  insecure=true  → http  listener (:80)   — HTTP dev smoke / CloudFront termination
+  insecure=false → https listener (:443)  — real cert-manager ACME cert issued by Main
+
+The HTTPRoute lives in the argo namespace. The Gateway's allowedRoutesFrom=All and
+the namespace label platform.gitops.io/ingress=agc (both set by Main) are the
+admission gates; no cross-namespace BackendRef is used.
+*/ -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argo-workflows
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  parentRefs:
+    - name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.gateway.namespace }}
+      sectionName: {{ ternary "http" "https" $insecure }}
+  hostnames:
+    - {{ .Values.ingress_domain_name | quote }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /argo-workflows
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: argo-server
+          port: 2746
+{{- else -}}
+{{- /* AWS: ALB Ingress (default, unchanged). */ -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -32,3 +79,4 @@ spec:
                 name: argo-server
                 port:
                   name: web
+{{- end }}

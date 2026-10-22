@@ -10,6 +10,13 @@ terraform {
       source  = "integrations/github"
       version = "~> 6.13"
     }
+    # Used by the AVM modules and mocked by tests/unit.tftest.hcl.
+    # Declared here so `terraform test` can resolve the mock; the lock file
+    # already pins azure/azapi.
+    azapi = {
+      source  = "azure/azapi"
+      version = "~> 2.13"
+    }
   }
 
   # State stored in Azure Blob Storage.

@@ -1,0 +1,31 @@
+{{- range $name, $cluster := .Values.clusters }}
+{{- $agc := $cluster.agc | default dict }}
+{{- if $agc.enabled }}
+{{- $resourceGroup := required "azure resourceGroup required" $cluster.resourceGroup }}
+---
+apiVersion: network.azure.upbound.io/v1beta2
+kind: Subnet
+metadata:
+  name: {{ $cluster.clusterName }}-agc
+  annotations:
+    crossplane.io/external-name: {{ printf "%s-agc-snet" $cluster.clusterName | quote }}
+  labels:
+    platform.gitops.io/cluster: {{ $cluster.clusterName | quote }}
+spec:
+  deletionPolicy: Orphan
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef:
+    name: default
+  forProvider:
+    resourceGroupName: {{ $resourceGroup | quote }}
+    virtualNetworkName: {{ printf "%s-vnet" $cluster.clusterName | quote }}
+    addressPrefixes:
+      - {{ required "agc.subnetCidr required for a dedicated AGC subnet" $agc.subnetCidr | quote }}
+    delegation:
+      - name: agc
+        serviceDelegation:
+          name: Microsoft.ServiceNetworking/trafficControllers
+          actions:
+            - Microsoft.Network/virtualNetworks/subnets/join/action
+{{- end }}
+{{- end }}

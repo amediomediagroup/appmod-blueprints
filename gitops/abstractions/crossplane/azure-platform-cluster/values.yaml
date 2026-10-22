@@ -4,6 +4,26 @@ xrd:
 # No clusters provisioned by default.
 # Override per-cluster via Taskfile helm template --set clusters.hub.*
 clusters: {}
+# Per-cluster native AGC is opt-in: agc.enabled=true and agc.subnetCidr=<dedicated /24>.
+# Requires provider-azapi v2.2.1 and an OIDC ProviderConfig in azapi.upbound.io.
+# Subscription registrations must be Ready before applying native-agc.yaml.
+
+# Subscription-scoped; declare once per subscription, not once per cluster.
+# Requires subscription registration permissions on the selected ProviderConfig.
+# Example:
+# resourceProviderRegistrations:
+#   - namespace: Microsoft.ContainerService
+#     features: [ManagedGatewayAPIPreview, ApplicationLoadBalancerPreview]
+#   - namespace: Microsoft.ServiceNetworking
+#   - namespace: Microsoft.NetworkFunction
+#   - namespace: Microsoft.Network
+resourceProviderRegistrations: []
+
+# Bootstrap-only provider installation. Keep false for fleet rendering.
+nativeAgcProvider:
+  enabled: false
+  clientId: ""
+  tenantId: ""
 
 global:
   subscriptionId: ""

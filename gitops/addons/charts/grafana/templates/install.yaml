@@ -154,7 +154,7 @@ metadata:
   name: grafana-storage
   namespace: grafana
 spec:
-  storageClassName: gp3
+  storageClassName: {{ if eq (.Values.cloud | default "aws") "azure" }}{{ .Values.azure.storageClass | default "managed-csi" }}{{ else }}gp3{{ end }}
   accessModes:
     - ReadWriteOnce
   resources:

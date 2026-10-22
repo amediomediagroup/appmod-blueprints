@@ -1,4 +1,75 @@
+{{- if eq .Values.cloud "azure" }}
 ---
+# Azure: Prometheus datasource pointing at Azure Monitor Workspace.
+# sigV4 (AWS-only) is omitted; auth at the Grafana instance level via managed identity
+# or service principal is an external integration dependency (see unresolved deps below).
+# AKV secret grafana-amp-creds provides AMP_ENDPOINT_URL.
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: prometheus-datasource
+  namespace: grafana-operator
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: "external-grafana"
+  datasource:
+    name: Prometheus
+    type: prometheus
+    access: proxy
+    uid: prometheus
+    url: ${AMP_ENDPOINT_URL}
+    isDefault: true
+    jsonData:
+      httpMethod: POST
+      manageAlerts: false
+      timeInterval: "30s"
+  valuesFrom:
+    - targetPath: "url"
+      valueFrom:
+        secretKeyRef:
+          name: "grafana-amp-creds"
+          key: AMP_ENDPOINT_URL
+{{- if and .Values.devlake (eq (toString .Values.devlake.enabled) "true") }}
+---
+# Azure: DevLake MySQL datasource.
+# URL points to in-cluster MySQL; no RDS endpoint resolution needed.
+# Password from grafana-mysql-creds (grafana_mysql_password from AKV <cluster>-devlake-mysql).
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: mysql-datasource
+  namespace: grafana-operator
+spec:
+  valuesFrom:
+    - targetPath: "secureJsonData.password"
+      valueFrom:
+        secretKeyRef:
+          name: "grafana-mysql-creds"
+          key: GRAFANA_MYSQL_PASSWORD
+  instanceSelector:
+    matchLabels:
+      dashboards: "external-grafana"
+  datasource:
+    name: mysql
+    uid: devlake-mysql-api
+    type: mysql
+    url: "devlake-mysql-service:3306"
+    access: proxy
+    user: grafanaReader
+    secureJsonData:
+      password: ${GRAFANA_MYSQL_PASSWORD}
+    jsonData:
+      database: lake
+      maxOpenConns: 100
+      maxIdleConns: 100
+      connMaxLifetime: 14400
+      timeInterval: "1m"
+      tlsSkipVerify: true
+{{- end }}
+{{- else }}
+---
+# AWS: Prometheus datasource with sigV4 auth for Amazon Managed Prometheus.
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDatasource
 metadata:
@@ -34,6 +105,7 @@ spec:
           name: "grafana-amp-creds"
           key: AWS_REGION
 ---
+# AWS: DevLake MySQL datasource. URL resolved from RDS endpoint via PushSecret.
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDatasource
 metadata:
@@ -64,13 +136,14 @@ spec:
     secureJsonData:
       password: ${GRAFANA_MYSQL_PASSWORD}
     jsonData:
-      database: lake 
+      database: lake
       maxOpenConns: 100
       maxIdleConns: 100
       connMaxLifetime: 14400
       timeInterval: "1m"
       tlsSkipVerify: true
 ---
+# AWS: X-Ray datasource (AWS-only; not rendered on Azure).
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDatasource
 metadata:
@@ -94,3 +167,4 @@ spec:
         secretKeyRef:
           name: "grafana-amp-creds"
           key: AWS_REGION
+{{- end }}

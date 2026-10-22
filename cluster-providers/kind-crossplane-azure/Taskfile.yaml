@@ -10,8 +10,8 @@ env:
   AZURE_PAGER: ""
 
 vars:
-  CONFIG_FILE: "{{.ROOT_DIR}}/config.local.yaml"
-  GITOPS_ROOT: "{{.ROOT_DIR}}/gitops"
+  CONFIG_FILE: "{{.TASKFILE_DIR}}/../../config.local.yaml"
+  GITOPS_ROOT: "{{.TASKFILE_DIR}}/../../gitops"
   REQUIRED_CLIS: [az, kubectl, helm, kind, yq, jq, python3]
 
   HUB_CLUSTER_NAME:
@@ -87,7 +87,25 @@ vars:
     sh: printf '\033[0m'
 
   ARGOCD_VERSION:
-    sh: yq '.argocd.defaultVersion' "{{.ROOT_DIR}}/gitops/addons/registry/core.yaml"
+    sh: yq '.argocd.defaultVersion' "{{.GITOPS_ROOT}}/addons/registry/core.yaml"
+
+  # ── REGISTRATION IAM ─────────────────────────────────────────────────────
+  # Crossplane UAMI principal (object ID). Set azure.crossplanePrincipalId in
+  # config.local.yaml, or leave unset for live lookup via AZURE_UAMI_CLIENT_ID.
+  AGC_IAM_PRINCIPAL_ID:
+    sh: |
+      P=$(yq '.azure.crossplanePrincipalId // ""' {{.CONFIG_FILE}})
+      if [ -n "$P" ] && [ "$P" != "null" ]; then echo "$P"; else
+        az identity list \
+          --resource-group "{{.BOOTSTRAP_IDENTITY_RG}}" \
+          --query "[?clientId=='{{.AZURE_UAMI_CLIENT_ID}}'].principalId | [0]" \
+          -o tsv
+      fi
+  # Evidence file path. Set azure.agcIam.evidencePath or defaults to private/.
+  AGC_IAM_EVIDENCE_PATH:
+    sh: |
+      P=$(yq '.azure.agcIam.evidencePath // ""' {{.CONFIG_FILE}})
+      [ -n "$P" ] && [ "$P" != "null" ] && echo "$P" || echo "{{.ROOT_DIR}}/private/registration-iam-evidence.json"
 
 tasks:
   # ── VALIDATE ──────────────────────────────────────────────────────────────
@@ -154,6 +172,7 @@ tasks:
       - task: hub:seed-secret
       - task: hub:install-argocd
       - task: hub:apply-root-appset
+      - task: agc:setup
       - |
         ELAPSED=$(($(date +%s) - {{.INSTALL_START}}))
         printf '\n'
@@ -704,7 +723,129 @@ tasks:
             --set clusters.hub.kubernetesVersion="{{.HUB_K8S_VERSION}}" \
             --show-only templates/claim.yaml | kubectl apply -f -
       - printf '{{.C_OK}}✓ AzurePlatformCluster claim created — AKS provisioning started.{{.C_RESET}}\n'
-      - printf '{{.C_INFO}}  Monitor progress: kubectl get azureplatformclusters -n crossplane-system -w{{.C_RESET}}\n'
+      - |
+        printf '{{.C_INFO}}  Monitor progress: kubectl get azureplatformclusters -n crossplane-system -w{{.C_RESET}}\n'
+
+  # ── NATIVE AGC ────────────────────────────────────────────────────────────
+  agc:setup:
+    desc: Reconcile native AKS AGC through Crossplane and gate the Gateway addon
+    cmds:
+      - cmd: |
+          [ "$(yq '.azure.agc.enabled // false' "{{.CONFIG_FILE}}")" = true ] || exit 0
+          TMP_DIR=$(mktemp -d)
+          trap 'rm -rf "$TMP_DIR"' EXIT
+          VALUES="$TMP_DIR/values.yaml"
+          az aks get-credentials --name "{{.HUB_CLUSTER_NAME}}" \
+            --resource-group "{{.AZURE_RG}}" --file "$TMP_DIR/aks-kubeconfig" --output none
+          export AGC_SUBSCRIPTION="{{.AZURE_SUB_ID}}" AGC_TENANT="{{.AZURE_TENANT_ID}}"
+          export AGC_CLIENT="{{.AZURE_UAMI_CLIENT_ID}}" AGC_CLUSTER="{{.HUB_CLUSTER_NAME}}"
+          export AGC_GROUP="{{.AZURE_RG}}" AGC_LOCATION="{{.AZURE_LOCATION}}"
+          export AGC_CIDR="$(yq '.azure.agc.subnetCidr // ""' "{{.CONFIG_FILE}}")"
+          [ -n "$AGC_CIDR" ] || { echo 'azure.agc.subnetCidr is required'; exit 1; }
+          yq -n '
+            .global.subscriptionId = strenv(AGC_SUBSCRIPTION) |
+            .nativeAgcProvider = {"enabled": true, "clientId": strenv(AGC_CLIENT), "tenantId": strenv(AGC_TENANT)} |
+            .resourceProviderRegistrations = [
+              {"namespace": "Microsoft.ContainerService", "features": ["ManagedGatewayAPIPreview", "ApplicationLoadBalancerPreview"]},
+              {"namespace": "Microsoft.Network"},
+              {"namespace": "Microsoft.NetworkFunction"},
+              {"namespace": "Microsoft.ServiceNetworking"}] |
+            .clusters.hub = {"clusterName": strenv(AGC_CLUSTER), "resourceGroup": strenv(AGC_GROUP),
+              "location": strenv(AGC_LOCATION), "tenantId": strenv(AGC_TENANT),
+              "agc": {"enabled": true, "subnetCidr": strenv(AGC_CIDR)}}' > "$VALUES"
+          python3 "{{.TASKFILE_DIR}}/native_agc.py" --values "$VALUES" \
+            --bootstrap-kubeconfig "{{.ROOT_DIR}}/private/kubeconfig" \
+            --aks-kubeconfig "$TMP_DIR/aks-kubeconfig" \
+            --chart "{{.GITOPS_ROOT}}/abstractions/crossplane/azure-platform-cluster"
+
+  # ── POWER ─────────────────────────────────────────────────────────────────
+  power:status:
+    desc: Show AKS power state and the Crossplane resources that own it
+    cmds:
+      - cmd: |
+          python3 "{{.TASKFILE_DIR}}/aks_power.py" status \
+            --bootstrap-kubeconfig "{{.ROOT_DIR}}/private/kubeconfig" \
+            --subscription "{{.AZURE_SUB_ID}}" \
+            --resource-group "{{.AZURE_RG}}" \
+            --cluster "{{.HUB_CLUSTER_NAME}}"
+
+  power:stop:
+    desc: >-
+      Suspend Crossplane reconciliation, then stop AKS. Requires CONFIRM=yes.
+      Kind must stay running to own desired state and to start the cluster again.
+    cmds:
+      - cmd: |
+          if [ "{{.CONFIRM | default ""}}" != "yes" ]; then
+            printf '{{.C_ERR}}✗ Stop requires explicit confirmation:{{.C_RESET}}\n'
+            printf '{{.C_ERR}}  task kind-crossplane-azure:power:stop CONFIRM=yes{{.C_RESET}}\n'
+            exit 1
+          fi
+          python3 "{{.TASKFILE_DIR}}/aks_power.py" stop \
+            --bootstrap-kubeconfig "{{.ROOT_DIR}}/private/kubeconfig" \
+            --subscription "{{.AZURE_SUB_ID}}" \
+            --resource-group "{{.AZURE_RG}}" \
+            --cluster "{{.HUB_CLUSTER_NAME}}" \
+            --evidence "{{.ROOT_DIR}}/private/aks-power-history.json"
+
+  power:start:
+    desc: Start AKS, then resume Crossplane reconciliation
+    cmds:
+      - cmd: |
+          python3 "{{.TASKFILE_DIR}}/aks_power.py" start \
+            --bootstrap-kubeconfig "{{.ROOT_DIR}}/private/kubeconfig" \
+            --subscription "{{.AZURE_SUB_ID}}" \
+            --resource-group "{{.AZURE_RG}}" \
+            --cluster "{{.HUB_CLUSTER_NAME}}" \
+            --evidence "{{.ROOT_DIR}}/private/aks-power-history.json"
+
+  # ── REGISTRATION IAM ──────────────────────────────────────────────────────
+  # Explicit opt-in only — grant is NEVER called automatically from install.
+  # Helper: registration_iam.py; role template: registration-role.json.
+  # Evidence: AGC_IAM_EVIDENCE_PATH (default: private/registration-iam-evidence.json).
+  # Point the evidence path at an existing journal to adopt a prior owned grant.
+  registration-iam:grant:
+    desc: >-
+      Adopt or create the AGC Registration Operator role and assignment
+      (idempotent). Existing resources are validated, never modified.
+      Writes an ownership journal with Terraform import IDs.
+    cmds:
+      - cmd: |
+          set -euo pipefail
+          if [ -z "{{.AGC_IAM_PRINCIPAL_ID}}" ]; then
+            printf '{{.C_ERR}}✗ Cannot resolve the Crossplane UAMI principal ID.{{.C_RESET}}\n'
+            exit 1
+          fi
+          python3 "{{.TASKFILE_DIR}}/registration_iam.py" grant \
+            --subscription "{{.AZURE_SUB_ID}}" \
+            --principal-id "{{.AGC_IAM_PRINCIPAL_ID}}" \
+            --evidence-path "{{.AGC_IAM_EVIDENCE_PATH}}" \
+            --role-json "{{.TASKFILE_DIR}}/registration-role.json"
+
+  registration-iam:status:
+    desc: Show registration IAM state and Terraform import commands (read-only)
+    cmds:
+      - cmd: |
+          set -euo pipefail
+          python3 "{{.TASKFILE_DIR}}/registration_iam.py" status \
+            --subscription "{{.AZURE_SUB_ID}}" \
+            --evidence-path "{{.AGC_IAM_EVIDENCE_PATH}}"
+
+  registration-iam:revoke:
+    desc: >-
+      Remove only the owned registration IAM; keep a custom role that other
+      assignments still use. Requires CONFIRM=yes.
+    cmds:
+      - cmd: |
+          set -euo pipefail
+          if [ "{{.CONFIRM | default ""}}" != "yes" ]; then
+            printf '{{.C_ERR}}✗ Revoke requires explicit confirmation:{{.C_RESET}}\n'
+            printf '{{.C_ERR}}  task kind-crossplane-azure:registration-iam:revoke CONFIRM=yes{{.C_RESET}}\n'
+            exit 1
+          fi
+          python3 "{{.TASKFILE_DIR}}/registration_iam.py" revoke \
+            --subscription "{{.AZURE_SUB_ID}}" \
+            --evidence-path "{{.AGC_IAM_EVIDENCE_PATH}}" \
+            --confirm yes
 
   # ── HUB ───────────────────────────────────────────────────────────────────
   hub:kubeconfig:
@@ -967,8 +1108,6 @@ tasks:
   # ── ARGOCD ────────────────────────────────────────────────────────────────
   hub:install-argocd:
     desc: Install ArgoCD self-hosted via Helm on AKS hub
-    status:
-      - KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig helm status argocd -n argocd 2>/dev/null | grep -q deployed
     cmds:
       - task: hub:kubeconfig
       - KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig helm repo add argo https://argoproj.github.io/argo-helm --force-update --quiet
@@ -979,6 +1118,7 @@ tasks:
             --create-namespace \
             --version "{{.ARGOCD_VERSION}}" \
             --set "configs.cm.url=https://{{.DOMAIN}}/argocd" \
+            --set-json "global.nodeSelector=$(yq -o=json -I=0 '.azure.argocdNodeSelector // {}' "{{.CONFIG_FILE}}")" \
             --wait --timeout 10m
       - cmd: |
           KUBECONFIG={{.ROOT_DIR}}/private/hub-kubeconfig \

@@ -2,11 +2,18 @@
 # Azure-specific addons are ON; AWS-specific addons are OFF.
 enabledAddons:
   # Azure-specific
-  agic: true
+  # agc_gateway: enabled in registry; actual deployment gated by two cluster labels:
+  #   enable_agc_gateway=true  — set by bootstrap once subscription registrations are done
+  #   agc_native_ready=true    — set by native_agc.py only after GatewayClass Accepted,
+  #                              UpdateResource Ready/Synced, subnet delegated, and
+  #                              NetworkContributor assignment Ready.
+  # Requires cluster annotation azure_agc_subnet_id (full ARM subnet resource ID).
+  agc_gateway: true
   azure_cluster_secret_store: true
 
   # Cloud-agnostic — ON
-  metrics_server: true
+  # AKS already owns metrics-server and v1beta1.metrics.k8s.io; do not deploy a second owner.
+  metrics_server: false
   cert_manager: true
   external_secrets: true
   keycloak: true

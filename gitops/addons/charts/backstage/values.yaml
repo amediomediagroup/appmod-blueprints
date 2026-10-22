@@ -12,3 +12,15 @@ spoke_clusters: []
 global:
   aws_cluster_name: ""
   clusterName: ""
+# Cloud selector: "aws" (default) or "azure".
+cloud: aws
+# Azure Key Vault secret name prefix; defaults to the cluster name.
+clusterName: ""
+azure:
+  # Storage class for the PostgreSQL PVC; managed-csi is the AKS default.
+  storageClass: managed-csi
+# Gateway API routing through the shared AGC gateway on Azure.
+gateway:
+  enabled: false
+  name: gateway-01
+  namespace: azure-alb-system

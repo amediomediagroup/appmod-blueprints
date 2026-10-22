@@ -1,0 +1,21 @@
+{{- range $name, $cluster := .Values.clusters }}
+{{- $agc := $cluster.agc | default dict }}
+{{- if and $agc.enabled $agc.principalId }}
+{{- $subscription := $cluster.subscriptionId | default $.Values.global.subscriptionId | required "azure subscriptionId required" }}
+{{- $resourceGroup := required "azure resourceGroup required" $cluster.resourceGroup }}
+---
+apiVersion: authorization.azure.upbound.io/v1beta1
+kind: RoleAssignment
+metadata:
+  name: {{ $cluster.clusterName }}-native-agc-subnet
+spec:
+  deletionPolicy: Orphan
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef:
+    name: default
+  forProvider:
+    principalId: {{ $agc.principalId | quote }}
+    roleDefinitionName: Network Contributor
+    scope: {{ printf "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s-vnet/subnets/%s-agc-snet" $subscription $resourceGroup $cluster.clusterName $cluster.clusterName | quote }}
+{{- end }}
+{{- end }}

@@ -18,6 +18,9 @@ spec:
               selector:
                 matchLabels:
                   fleet_member: control-plane
+                # The provisioner chart consumes AWS Secrets Manager credentials.
+                matchExpressions:
+                  - {key: cloud, operator: NotIn, values: [azure]}
           # Inner: reads the SAME fleet/members/<cluster>/values.yaml that
           # fleet-secrets.yaml already reads (see that file's git generator).
           # OIDC client provisioning is OPT-IN via the `clients:` key in that one

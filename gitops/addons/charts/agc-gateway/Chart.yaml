@@ -1,0 +1,10 @@
+apiVersion: v2
+name: agc-gateway
+description: |
+  Application Gateway for Containers (AGC) Gateway resources.
+  Manages the ApplicationLoadBalancer CR (instructs the ALB controller to
+  provision a managed AGC instance in Azure) and the Gateway CR (binds to
+  GatewayClass azure-alb-external installed by the AKS native AGC addon).
+  Does NOT install the ALB controller, its CRDs, HTTPRoutes, or sample backends.
+type: application
+version: 0.1.0

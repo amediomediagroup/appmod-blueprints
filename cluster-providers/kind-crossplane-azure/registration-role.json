@@ -1,0 +1,21 @@
+{
+  "Name": "AEGIS AGC Registration Operator",
+  "IsCustom": true,
+  "Description": "Register the four AGC prerequisite resource providers and preview features. No resource creation, delete, unregister or role assignment permission.",
+  "Actions": [
+    "Microsoft.Resources/subscriptions/providers/read",
+    "Microsoft.ContainerService/register/action",
+    "Microsoft.Network/register/action",
+    "Microsoft.NetworkFunction/register/action",
+    "Microsoft.ServiceNetworking/register/action",
+    "Microsoft.Features/features/read",
+    "Microsoft.Features/providers/features/read",
+    "Microsoft.Features/providers/features/register/action"
+  ],
+  "NotActions": [],
+  "DataActions": [],
+  "NotDataActions": [],
+  "AssignableScopes": [
+    "/subscriptions/{{SUBSCRIPTION_ID}}"
+  ]
+}

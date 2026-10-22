@@ -1,0 +1,29 @@
+alb:
+  # Full ARM resource ID of the AGC-dedicated delegated subnet. REQUIRED.
+  # The subnet must be delegated to Microsoft.ServiceNetworking/trafficControllers
+  # and have sufficient IP capacity (Microsoft recommends /24 or larger).
+  # Format:
+  #   /subscriptions/<sub>/resourceGroups/<rg>/providers/
+  #   Microsoft.Network/virtualNetworks/<vnet>/subnets/<name>
+  # Supplied at deploy time via the azure_agc_subnet_id cluster annotation.
+  subnetId: ""
+
+gateway:
+  # Name of the Gateway resource.
+  name: gateway-01
+  # Controls which namespaces may attach HTTPRoutes.
+  # "Same" (default): only HTTPRoutes in the same namespace as the Gateway.
+  # "All": any namespace. Use a labelSelector for fine-grained policies.
+  # See: https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.AllowedRoutes
+  allowedRoutesFrom: Same
+  tls:
+    enabled: false
+    hostname: ""
+    secretName: agc-apps-tls
+
+# Optional cert-manager HTTP01 issuance. Request a certificate while TLS is disabled,
+# then enable the HTTPS listener after Certificate Ready to preserve solver routing.
+certificate:
+  enabled: false
+  issuerName: agc-letsencrypt
+  acmeServer: https://acme-v02.api.letsencrypt.org/directory

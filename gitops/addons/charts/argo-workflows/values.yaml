@@ -4,3 +4,18 @@ controller:
   resources: {}
 server:
   resources: {}
+insecure: "false"
+
+# Cloud selector: "aws" (default) or "azure".
+# Main injects cloud: azure via Azure overrides.yaml.
+cloud: aws
+
+# Cluster name used to derive Azure Key Vault secret names (<clusterName>-keycloak-clients).
+# Main sets this at runtime via overrides.yaml.
+clusterName: ""
+
+# Gateway API routing (Azure AGC). Main enables via overrides.yaml when cloud=azure.
+gateway:
+  enabled: false
+  name: gateway-01
+  namespace: azure-alb-system

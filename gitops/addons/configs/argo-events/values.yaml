@@ -1,11 +1,23 @@
 # Argo Events values to fix NATS DNS resolution issues
+# Argo Events v2.4.21 uses JetStream; NATS Streaming reached end of life.
+# Keep a pinned server version, not a floating tag.
 configs:
-  nats:
-    # Use latest NATS streaming version with better DNS resolution
+  jetstream:
+    # One server is non-clustered, so the stream must not request replicas: 3.
+    streamConfig:
+      maxMsgs: 1000000
+      maxAge: 72h
+      maxBytes: 1GB
+      replicas: 1
+      duplicates: 300s
+      retention: 0
+      discard: 0
     versions:
-      - version: latest
-        natsStreamingImage: nats-streaming:latest
-        metricsExporterImage: natsio/prometheus-nats-exporter:latest
+      - version: 2.10.10
+        natsImage: nats:2.10.10
+        metricsExporterImage: natsio/prometheus-nats-exporter:0.14.0
+        configReloaderImage: natsio/nats-server-config-reloader:0.14.0
+        startCommand: /nats-server
 
 # Override NATS clustering configuration to use full DNS names
 controller:

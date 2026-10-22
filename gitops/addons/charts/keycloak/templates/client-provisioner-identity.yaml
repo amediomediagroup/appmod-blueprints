@@ -20,8 +20,15 @@
 
   The provisioner Job references the ServiceAccount by name via its own
   `serviceAccountName` value, whose default matches the name rendered here.
+
+  On Azure (cloud: azure) the AWS IAM Role and EKS PodIdentityAssociation are
+  not rendered — those are AWS-specific Crossplane resources.
 */}}
-{{- $clusterName := required "aws.cluster_name is required for the client-provisioner identity" .Values.aws.cluster_name -}}
+{{- $isAzure := eq (.Values.cloud | default "aws") "azure" -}}
+{{- $clusterName := .Values.aws.cluster_name -}}
+{{- if and (not $isAzure) (not $clusterName) -}}
+  {{- fail "aws.cluster_name is required on AWS for the client-provisioner identity" -}}
+{{- end -}}
 {{- $saName := .Values.clientProvisioner.serviceAccountName -}}
 apiVersion: v1
 kind: ServiceAccount
@@ -30,6 +37,7 @@ metadata:
   namespace: keycloak
   annotations:
     argocd.argoproj.io/sync-wave: "1"
+{{- if not $isAzure }}
 ---
 apiVersion: iam.aws.upbound.io/v1beta1
 kind: Role
@@ -93,3 +101,4 @@ spec:
     region: {{ required "aws.region is required for the client-provisioner identity" .Values.aws.region }}
   providerConfigRef:
     name: default
+{{- end }}

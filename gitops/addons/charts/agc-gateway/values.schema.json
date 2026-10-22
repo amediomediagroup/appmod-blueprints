@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["alb", "gateway"],
+  "properties": {
+    "alb": {
+      "type": "object",
+      "required": ["subnetId"],
+      "properties": {"subnetId": {"type": "string", "minLength": 1}}
+    },
+    "gateway": {
+      "type": "object",
+      "required": ["name", "allowedRoutesFrom"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "allowedRoutesFrom": {"enum": ["Same", "All", "Selector"]},
+        "allowedRoutesSelector": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"type": "string"}
+        }
+      }
+    }
+  }
+}

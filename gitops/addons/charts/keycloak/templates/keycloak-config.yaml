@@ -1,4 +1,6 @@
 # resources here are used to configure keycloak instance for SSO
+{{- $isAzure := eq (.Values.cloud | default "aws") "azure" -}}
+{{- "" }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -640,6 +642,12 @@ spec:
         - name: config-payloads
           configMap:
             name: config-job
+{{- if $isAzure }}
+        # Pre-seeded client secrets: the single source of truth on Azure.
+        - name: keycloak-clients-preseed
+          secret:
+            secretName: keycloak-clients-preseed
+{{- end }}
       containers:
         - name: kubectl
           image: docker.io/library/ubuntu:22.04
@@ -650,12 +658,18 @@ spec:
             - name: config-payloads
               readOnly: true
               mountPath: "/var/config/"
+{{- if $isAzure }}
+            - name: keycloak-clients-preseed
+              readOnly: true
+              mountPath: "/var/preseed/"
+{{- end }}
           command: ["/bin/bash", "-c"]
           args:
             - |
               #! /bin/bash
 
-              set -ex -o pipefail
+              # Never use -x: this job handles admin/user/client secrets.
+              set -e -o pipefail
 
               # Set non-interactive mode to avoid prompts during package installation
               export DEBIAN_FRONTEND=noninteractive
@@ -733,7 +747,19 @@ spec:
                 local payload_file=$2
                 local client_id_name
                 client_id_name=$(jq -r '.clientId' "${payload_file}")
-                
+{{- if $isAzure }}
+                # Azure: the pre-seeded value in Key Vault is the credential source of
+                # truth. Inject it into ClientRepresentation.secret before upsert so
+                # Keycloak never generates a different value than ESO consumers read.
+                local secret_file="/var/preseed/$(echo "${client_id_name}" | tr '[:lower:]-' '[:upper:]_')_CLIENT_SECRET"
+                if [ -s "${secret_file}" ]; then
+                  jq --rawfile secret "${secret_file}" \
+                    '. + {"secret": ($secret | rtrimstr("\n"))}' \
+                    "${payload_file}" > /tmp/client-payload.json
+                  payload_file=/tmp/client-payload.json
+                fi
+{{- end }}
+
                 # Check if client already exists
                 EXISTING_ID=$(keycloak_get "/admin/realms/${REALM_NAME}/clients" ".[] | select(.clientId == \"${client_id_name}\") | .id" 2>/dev/null) || true
                 if [ -n "${EXISTING_ID}" ]; then
@@ -779,9 +805,15 @@ spec:
               get_client_secret() {
                 local client_id_name=$1
                 local var_name=$2
-                
+{{- if $isAzure }}
+                # Azure: never read Keycloak's generated value; consumers and Keycloak
+                # both use the pre-seeded credential from Key Vault.
+                local preseed_file="/var/preseed/$(echo "${client_id_name}" | tr '[:lower:]-' '[:upper:]_')_CLIENT_SECRET"
+                local secret=$(cat "${preseed_file}")
+{{- else }}
                 CLIENT_ID=$(keycloak_get "/admin/realms/${REALM_NAME}/clients" ".[] | select(.clientId == \"${client_id_name}\") | .id")
                 local secret=$(keycloak_get "/admin/realms/${REALM_NAME}/clients/${CLIENT_ID}" ".secret")
+{{- end }}
                 eval "${var_name}=${secret}"
               }
               
@@ -794,6 +826,20 @@ spec:
               export ADMIN_PASSWORD=$(cat /var/secrets/KC_BOOTSTRAP_ADMIN_PASSWORD)
               export USER1_PASSWORD=$(cat /var/secrets/USER_PASSWORD)
               export ARGOCD_PASSWORD=$USER1_PASSWORD
+              # Wait for Keycloak itself: the Job is a Helm post-install hook and
+              # can start before the StatefulSet finishes booting the database.
+              READY_ATTEMPTS=0
+              until curl -fsS -o /dev/null --max-time 5 \
+                  "${KEYCLOAK_URL}/realms/master"; do
+                READY_ATTEMPTS=$((READY_ATTEMPTS + 1))
+                if [ "$READY_ATTEMPTS" -ge 120 ]; then
+                  echo "Keycloak did not become ready in time"
+                  exit 1
+                fi
+                echo "waiting for Keycloak (${READY_ATTEMPTS}/120)..."
+                sleep 5
+              done
+
               HTTP_STATUS=$(curl -sS -w "%{http_code}" -o /tmp/response.txt -X POST -H "Content-Type: application/x-www-form-urlencoded" \
                 --data-urlencode "username=admin" \
                 --data-urlencode "password=${ADMIN_PASSWORD}" \
@@ -916,13 +962,20 @@ spec:
                 namespace: keycloak
                 annotations:
                   managed-by: keycloak-config-job
+{{- if $isAzure }}
+                  secret-source: 'azure-key-vault-preseed'
+{{- else }}
                   aws-secrets-manager-backup: 'true'
-                  secret-source: 'keycloak-dynamic-generation'
+{{- end }}
                   last-updated: '$(date -u +"%Y-%m-%dT%H:%M:%SZ")'
                 labels:
                   app.kubernetes.io/managed-by: keycloak-config-job
                   secret-type: oidc-client
+{{- if $isAzure }}
+                  credential-source: azure-key-vault
+{{- else }}
                   backup-location: aws-secrets-manager
+{{- end }}
               type: Opaque
               stringData:
                 ARGO_WORKFLOWS_CLIENT_SECRET: ${ARGO_WORKFLOWS_CLIENT_SECRET}
@@ -945,6 +998,7 @@ spec:
 
               ./kubectl apply -f /tmp/secret.yaml
               echo "✓ Kubernetes secret created"
+{{- if not $isAzure }}
               # Push to AWS Secrets Manager (synchronous — no PushSecret race condition)
               echo "Pushing OIDC secrets to AWS Secrets Manager..."
               curl -sS "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
@@ -975,4 +1029,5 @@ spec:
                 aws secretsmanager create-secret --name "$SM_SECRET_NAME" --secret-string "$SM_SECRET_VALUE" --region {{ .Values.aws.region }}
               fi
               echo "✓ AWS Secrets Manager secret created: $SM_SECRET_NAME"
+{{- end }}
               echo "✓ Keycloak configuration completed successfully!"

@@ -4,3 +4,15 @@ aws:
   region: "us-west-2"
 global:
   clusterName: ""
+
+# Cloud selector: "aws" (default) or "azure".
+cloud: aws
+# Azure Key Vault secret prefix (<clusterName>-secrets) and storage class.
+clusterName: ""
+azure:
+  storageClass: managed-csi
+# Gateway API routing through the shared AGC gateway on Azure.
+gateway:
+  enabled: false
+  name: gateway-01
+  namespace: azure-alb-system

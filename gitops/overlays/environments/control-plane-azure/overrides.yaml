@@ -1,3 +1,59 @@
 # Per-addon value overrides for the control-plane-azure environment.
 # Add here when an addon needs Azure-specific configuration beyond what
 # the cluster secret annotations provide.
+
+external-secrets:
+  # Azure has its own ClusterSecretStore addon and workload identity federation.
+  # Do not deploy the AWS Secrets Manager store or EKS credential restart hook.
+  additionalResources: []
+
+  # This hub has one availability zone; do not require a nonexistent second zone.
+  valuesObject:
+    replicaCount: 1
+    topologySpreadConstraints: []
+    serviceAccount:
+      annotations:
+        azure.workload.identity/client-id: '{{ .metadata.annotations.azure_eso_mi_client_id }}'
+    podLabels:
+      azure.workload.identity/use: "true"
+    certController:
+      replicaCount: 1
+      topologySpreadConstraints: []
+    webhook:
+      replicaCount: 1
+      topologySpreadConstraints: []
+
+cert-manager:
+  valuesObject:
+    # Verified against the pinned v1.20.2 controller's actual --help.
+    extraArgs:
+      - --enable-gateway-api
+    replicaCount: 1
+    topologySpreadConstraints: []
+    cainjector:
+      replicaCount: 1
+      topologySpreadConstraints: []
+    webhook:
+      replicaCount: 1
+      topologySpreadConstraints: []
+
+agc_gateway:
+  valuesObject:
+    gateway:
+      allowedRoutesFrom: Selector
+      allowedRoutesSelector:
+        platform.gitops.io/ingress: agc
+
+image-prepuller:
+  valuesObject:
+    # Warm the enabled CPU platform, not disabled GPU/Jupyter workloads.
+    images:
+      - quay.io/keycloak/keycloak:26.3.3
+      - docker.io/library/postgres:17.4-alpine3.21
+      - public.ecr.aws/seb-demo/backstage:cnoe-1.1
+
+argo-rollouts:
+  valuesObject:
+    serviceAccount:
+      annotations:
+        eks.amazonaws.com/role-arn: null

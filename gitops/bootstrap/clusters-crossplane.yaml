@@ -30,6 +30,9 @@ spec:
               selector:
                 matchLabels:
                   fleet_member: control-plane
+                # This generator provisions EKS claims with AWS role ARNs.
+                matchExpressions:
+                  - {key: cloud, operator: NotIn, values: [azure]}
           - git:
               repoURL: '{{ .metadata.annotations.fleetRepoURL }}'
               revision: '{{ .metadata.annotations.fleetRepoRevision }}'

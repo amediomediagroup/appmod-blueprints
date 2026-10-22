@@ -12,6 +12,10 @@ externalSecret:
   creationPolicy: Owner
   secretStoreRefKind: ClusterSecretStore
   secretStoreRefName: aws-secrets-manager
+  # Override the dataFrom.extract remote ref key.
+  # Default (empty): <clusterName>/config — the AWS Secrets Manager convention.
+  # Azure: <clusterName>-config (Key Vault forbids '/' in secret names).
+  remoteRefKey: ""
 
 # Direct mode fields — populated from hub cluster secret annotations
 hub:

@@ -13,12 +13,14 @@ spec:
   subscriptionId: {{ $cluster.subscriptionId | default $.Values.global.subscriptionId | required "azure subscriptionId required" | quote }}
   tenantId: {{ $cluster.tenantId | default $.Values.global.tenantId | required "azure tenantId required" | quote }}
   resourceGroup: {{ $cluster.resourceGroup | required "azure resourceGroup required" }}
-  vnetCidr: {{ $cluster.vnetCidr | default "10.0.0.0/8" | quote }}
+  vnetCidr: {{ $cluster.vnetCidr | default "10.240.0.0/15" | quote }}
+  {{- if dig "agc" "enabled" false $cluster }}
+  agcSubnetCidr: {{ required "agc.subnetCidr required for a dedicated AGC subnet" $cluster.agc.subnetCidr | quote }}
+  {{- end }}
   kubernetesVersion: {{ $cluster.kubernetesVersion | default "1.37" | quote }}
-  systemNodeSize: {{ $cluster.systemNodeSize | default "Standard_D4s_v3" }}
+  systemNodeSize: {{ $cluster.systemNodeSize | default "Standard_D4s_v4" }}
   systemNodeMin: {{ $cluster.systemNodeMin | default 1 }}
-  systemNodeMax: {{ $cluster.systemNodeMax | default 5 }}
+  systemNodeMax: {{ $cluster.systemNodeMax | default 1 }}
   writeConnectionSecretToRef:
     name: {{ $cluster.clusterName }}-kubeconfig
-    namespace: crossplane-system
 {{- end }}
