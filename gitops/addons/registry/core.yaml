@@ -70,6 +70,11 @@ pod_identities:
       - key: provider
         operator: NotIn
         values: ["kro-ack"]
+      # This chart renders AWS IAM/EKS PodIdentityAssociation resources. On Azure
+      # those CRDs do not exist, so the app would sit permanently Degraded.
+      - key: cloud
+        operator: NotIn
+        values: ["azure"]
   valuesObject:
     aws:
       region: '{{.metadata.annotations.aws_region}}'

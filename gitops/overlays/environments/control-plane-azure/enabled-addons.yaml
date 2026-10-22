@@ -24,6 +24,9 @@ enabledAddons:
   kargo: true
   devlake: true
   grafana_operator: true
+  # grafana-dashboards targets a Grafana instance; enable the instance too,
+  # otherwise every dashboard/datasource CR has no matching instance.
+  grafana: true
   grafana_dashboards: true
   kube_state_metrics: true
   prometheus_node_exporter: true

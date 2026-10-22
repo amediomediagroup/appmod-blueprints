@@ -57,3 +57,104 @@ argo-rollouts:
     serviceAccount:
       annotations:
         eks.amazonaws.com/role-arn: null
+
+# ---------------------------------------------------------------------------
+# Azure addon overrides. Values below mirror what was actually deployed and
+# smoke-tested against the live cluster; the cluster secret supplies the real
+# domain, cluster name and gateway identity.
+# ---------------------------------------------------------------------------
+
+keycloak:
+  valuesObject:
+    cloud: azure
+    clusterName: '{{ .metadata.annotations.azure_cluster_name }}'
+    global:
+      ingress_domain_name: '{{ .metadata.annotations.ingress_domain_name }}'
+      insecure: '{{ .metadata.annotations.insecure }}'
+    gateway:
+      enabled: true
+      name: gateway-01
+      namespace: azure-alb-system
+
+backstage:
+  valuesObject:
+    cloud: azure
+    clusterName: '{{ .metadata.annotations.azure_cluster_name }}'
+    ingress_domain_name: '{{ .metadata.annotations.ingress_domain_name }}'
+    insecure: '{{ .metadata.annotations.insecure }}'
+    backstage_image: public.ecr.aws/seb-demo/backstage:cnoe-1.1
+    global:
+      aws_cluster_name: '{{ .metadata.annotations.azure_cluster_name }}'
+      clusterName: '{{ .metadata.annotations.azure_cluster_name }}'
+    gateway:
+      enabled: true
+      name: gateway-01
+      namespace: azure-alb-system
+
+argo-workflows:
+  valuesObject:
+    cloud: azure
+    clusterName: '{{ .metadata.annotations.azure_cluster_name }}'
+    aws_cluster_name: '{{ .metadata.annotations.azure_cluster_name }}'
+    ingress_domain_name: '{{ .metadata.annotations.ingress_domain_name }}'
+    insecure: '{{ .metadata.annotations.insecure }}'
+    gateway:
+      enabled: true
+      name: gateway-01
+      namespace: azure-alb-system
+
+kargo:
+  valuesObject:
+    cloud: azure
+    clusterName: '{{ .metadata.annotations.azure_cluster_name }}'
+    global:
+      ingress_domain_name: '{{ .metadata.annotations.ingress_domain_name }}'
+      insecure: '{{ .metadata.annotations.insecure }}'
+    gateway:
+      enabled: true
+      name: gateway-01
+      namespace: azure-alb-system
+    # The upstream chart injects an AWS Secrets Manager ExternalSecret through
+    # extraObjects; this chart renders the Azure Key Vault one instead.
+    kargo:
+      extraObjects: []
+      api:
+        # AGC terminates TLS; the API serves HTTP behind the gateway.
+        tls:
+          enabled: false
+          terminatedUpstream: true
+
+devlake:
+  valuesObject:
+    cloud: azure
+    clusterName: '{{ .metadata.annotations.azure_cluster_name }}'
+    ingress_domain_name: '{{ .metadata.annotations.ingress_domain_name }}'
+    insecure: '{{ .metadata.annotations.insecure }}'
+    # DevLake's UI emits absolute root asset paths and its SPA cannot run under a
+    # path prefix, so it is intentionally not attached to the shared gateway.
+    gateway:
+      enabled: false
+    devlake:
+      grafana:
+        external:
+          url: http://grafana.grafana.svc.cluster.local:3000
+
+grafana:
+  valuesObject:
+    cloud: azure
+    clusterName: '{{ .metadata.annotations.azure_cluster_name }}'
+    ingress_domain_name: '{{ .metadata.annotations.ingress_domain_name }}'
+    insecure: '{{ .metadata.annotations.insecure }}'
+    global:
+      clusterName: '{{ .metadata.annotations.azure_cluster_name }}'
+    gateway:
+      enabled: true
+      name: gateway-01
+      namespace: azure-alb-system
+
+grafana-dashboards:
+  valuesObject:
+    cloud: azure
+    clusterName: '{{ .metadata.annotations.azure_cluster_name }}'
+    devlake:
+      enabled: true

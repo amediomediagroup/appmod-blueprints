@@ -949,38 +949,43 @@ tasks:
           OVERLAY_BASE=$(echo "$EXISTING" | jq -r '.overlay_repo_basepath // ""')
 
           CONFIG=$(jq -n \
-            --arg addonsRepoURL "{{.REPO_URL}}" \
-            --arg addonsRepoRevision "{{.REPO_REVISION}}" \
-            --arg addonsRepoBasepath "{{.REPO_BASEPATH}}" \
-            --arg fleetRepoURL "{{.FLEET_REPO_URL}}" \
-            --arg fleetRepoRevision "{{.FLEET_REPO_REVISION}}" \
-            --arg fleetRepoBasepath "{{.FLEET_REPO_BASEPATH}}" \
-            --arg azure_location "{{.AZURE_LOCATION}}" \
-            --arg azure_subscription_id "{{.AZURE_SUB_ID}}" \
-            --arg azure_cluster_name "{{.HUB_CLUSTER_NAME}}" \
-            --arg ingress_domain_name "{{.DOMAIN}}" \
-            --arg resource_prefix "{{.RESOURCE_PREFIX}}" \
-            --arg insecure "{{.INSECURE}}" \
-            --arg overlay_repo_url "$OVERLAY_URL" \
-            --arg overlay_repo_revision "$OVERLAY_REV" \
-            --arg overlay_repo_basepath "$OVERLAY_BASE" \
-            '{
-              addonsRepoURL: $addonsRepoURL,
-              addonsRepoRevision: $addonsRepoRevision,
-              addonsRepoBasepath: $addonsRepoBasepath,
-              fleetRepoURL: $fleetRepoURL,
-              fleetRepoRevision: $fleetRepoRevision,
-              fleetRepoBasepath: $fleetRepoBasepath,
-              azure_location: $azure_location,
-              azure_subscription_id: $azure_subscription_id,
-              azure_cluster_name: $azure_cluster_name,
-              ingress_domain_name: $ingress_domain_name,
-              resource_prefix: $resource_prefix,
-              insecure: $insecure,
-              overlay_repo_url: $overlay_repo_url,
-              overlay_repo_revision: $overlay_repo_revision,
-              overlay_repo_basepath: $overlay_repo_basepath
-            }')
+            --arg metadata "$(jq -n \
+              --arg addonsRepoURL "{{.REPO_URL}}" \
+              --arg addonsRepoRevision "{{.REPO_REVISION}}" \
+              --arg addonsRepoBasepath "{{.REPO_BASEPATH}}" \
+              --arg fleetRepoURL "{{.FLEET_REPO_URL}}" \
+              --arg fleetRepoRevision "{{.FLEET_REPO_REVISION}}" \
+              --arg fleetRepoBasepath "{{.FLEET_REPO_BASEPATH}}" \
+              --arg azure_location "{{.AZURE_LOCATION}}" \
+              --arg azure_subscription_id "{{.AZURE_SUB_ID}}" \
+              --arg azure_cluster_name "{{.HUB_CLUSTER_NAME}}" \
+              --arg azure_keyvault_name "{{.AZURE_KV_NAME}}" \
+              --arg ingress_domain_name "{{.DOMAIN}}" \
+              --arg resource_prefix "{{.RESOURCE_PREFIX}}" \
+              --arg insecure "{{.INSECURE}}" \
+              --arg overlay_repo_url "$OVERLAY_URL" \
+              --arg overlay_repo_revision "$OVERLAY_REV" \
+              --arg overlay_repo_basepath "$OVERLAY_BASE" \
+              '{addonsRepoURL: $addonsRepoURL,
+                addonsRepoRevision: $addonsRepoRevision,
+                addonsRepoBasepath: $addonsRepoBasepath,
+                fleetRepoURL: $fleetRepoURL,
+                fleetRepoRevision: $fleetRepoRevision,
+                fleetRepoBasepath: $fleetRepoBasepath,
+                azure_location: $azure_location,
+                azure_subscription_id: $azure_subscription_id,
+                azure_cluster_name: $azure_cluster_name,
+                azure_keyvault_name: $azure_keyvault_name,
+                ingress_domain_name: $ingress_domain_name,
+                resource_prefix: $resource_prefix,
+                insecure: $insecure,
+                overlay_repo_url: $overlay_repo_url,
+                overlay_repo_revision: $overlay_repo_revision,
+                overlay_repo_basepath: $overlay_repo_basepath}')" \
+            --arg config '{"tlsClientConfig":{"insecure":false}}' \
+            --arg server 'https://kubernetes.default.svc' \
+            --arg addons '{"provider":"crossplane-azure"}' \
+            '{metadata: $metadata, config: $config, server: $server, addons: $addons}')
           az keyvault secret set \
             --vault-name "{{.AZURE_KV_NAME}}" \
             --name "$SECRET_KEY" \
@@ -1076,8 +1081,9 @@ tasks:
             namespace: argocd
             labels:
               argocd.argoproj.io/secret-type: cluster
+              # Required by every control-plane ApplicationSet generator.
               fleet_member: control-plane
-              environment: control-plane
+              environment: control-plane-azure
               cloud: azure
               provider: crossplane-azure
             annotations:
@@ -1096,6 +1102,11 @@ tasks:
               ingress_domain_name: "{{.DOMAIN}}"
               resource_prefix: "{{.RESOURCE_PREFIX}}"
               insecure: "{{.INSECURE}}"
+              # ApplicationSets read these with missingkey=error and no default,
+              # so an absent key breaks templating. Empty is valid (no overlay repo).
+              overlay_repo_url: ""
+              overlay_repo_revision: ""
+              overlay_repo_basepath: ""
           stringData:
             name: "{{.HUB_CLUSTER_NAME}}"
             server: "https://kubernetes.default.svc"
