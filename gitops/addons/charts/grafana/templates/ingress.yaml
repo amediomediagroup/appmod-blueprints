@@ -18,12 +18,8 @@ spec:
         - path:
             type: PathPrefix
             value: /grafana
-      filters:
-        - type: URLRewrite
-          urlRewrite:
-            path:
-              type: ReplacePrefixMatch
-              replacePrefixMatch: /
+      # Grafana runs with serve_from_sub_path=true and root_url ending in
+      # /grafana/, so it expects the prefix intact. Stripping it returned 404.
       backendRefs:
         - name: grafana
           port: 3000
