@@ -37,12 +37,8 @@ spec:
         - path:
             type: PathPrefix
             value: /kargo
-      filters:
-        - type: URLRewrite
-          urlRewrite:
-            path:
-              type: ReplacePrefixMatch
-              replacePrefixMatch: /
+      # No prefix rewrite: kargo-api is configured with its own /kargo base
+      # path, so the request path must be forwarded unchanged.
       backendRefs:
         - name: kargo-api
           port: 80

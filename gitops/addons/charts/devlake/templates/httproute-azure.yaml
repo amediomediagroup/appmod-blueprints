@@ -19,7 +19,7 @@ spec:
   parentRefs:
   - name: {{ .Values.gateway.name | default "gateway-01" }}
     namespace: {{ .Values.gateway.namespace | default "azure-alb-system" }}
-    sectionName: {{ if .Values.insecure }}http{{ else }}https{{ end }}
+    sectionName: {{ if eq (toString (.Values.insecure | default "false")) "true" }}http{{ else }}https{{ end }}
   hostnames:
   - {{ .Values.ingress_domain_name | quote }}
   rules:
