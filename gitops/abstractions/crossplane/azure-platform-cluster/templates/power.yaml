@@ -1,0 +1,47 @@
+# AKS power state via Crossplane ResourceAction (no az CLI, no helm).
+#
+# A ResourceAction issues one ARM POST when it is created and is inert
+# afterwards. ArgoCD owns these objects, so power changes are Git changes:
+#
+#   stop  : set power.enabled=true and power.action=stop   -> ArgoCD creates the
+#           action, Crossplane POSTs .../managedClusters/<name>/stop
+#   start : set power.action=start                          -> same path with start
+#
+# The action resource is deleted from Git afterwards so a later reconcile cannot
+# re-fire it. Scheduling is deliberately NOT implemented here: a timer must live
+# outside the cluster being stopped.
+#
+# Prerequisite: the Crossplane KubernetesCluster and KubernetesClusterNodePool
+# management policies must not reconcile while the cluster is stopped. Set them
+# to [Observe] in Git before the stop action (see README "Power management").
+{{- range $name, $cluster := .Values.clusters }}
+{{- $power := $cluster.power | default dict }}
+{{- if and $power.enabled $power.action }}
+{{- $subscription := $cluster.subscriptionId | default $.Values.global.subscriptionId | required "azure subscriptionId required" }}
+{{- $resourceGroup := required "azure resourceGroup required" $cluster.resourceGroup }}
+{{- $clusterID := printf "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s" $subscription $resourceGroup $cluster.clusterName }}
+---
+apiVersion: resources.azapi.upbound.io/v1beta2
+kind: ResourceAction
+metadata:
+  name: {{ printf "%s-power-%s" $cluster.clusterName $power.action }}
+  annotations:
+    # One-shot: never re-apply a completed power transition.
+    argocd.argoproj.io/sync-options: Delete=false
+  labels:
+    platform.gitops.io/cluster: {{ $cluster.clusterName | quote }}
+    platform.gitops.io/power-action: {{ $power.action | quote }}
+spec:
+  deletionPolicy: Orphan
+  managementPolicies: [Observe, Create]
+  providerConfigRef:
+    name: {{ $power.providerConfigName | default "default" | quote }}
+  forProvider:
+    type: Microsoft.ContainerService/managedClusters@2025-09-02-preview
+    resourceId: {{ $clusterID | quote }}
+    action: {{ required "power.action must be start or stop" $power.action | quote }}
+    method: POST
+    responseExportValues:
+      - properties.powerState.code
+{{- end }}
+{{- end }}
