@@ -1095,6 +1095,14 @@ tasks:
               fleetRepoBasepath: "{{.FLEET_REPO_BASEPATH}}"
               azure_cluster_name: "{{.HUB_CLUSTER_NAME}}"
               azure_location: "{{.AZURE_LOCATION}}"
+              # Cloud-neutral aliases consumed by shared addon ApplicationSets.
+              # Those templates index these keys under missingkey=error, so the
+              # key must exist even when the value is unused on Azure.
+              aws_cluster_name: "{{.HUB_CLUSTER_NAME}}"
+              aws_region: "{{.AZURE_LOCATION}}"
+              aws_account_id: ""
+              gitlab_domain_name: ""
+              aws_grafana_url: ""
               azure_subscription_id: "{{.AZURE_SUB_ID}}"
               azure_keyvault_name: "{{.AZURE_KV_NAME}}"
               azure_keyvault_url: "{{.KV_URL}}"

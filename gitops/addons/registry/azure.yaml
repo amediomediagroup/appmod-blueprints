@@ -49,3 +49,16 @@ agc_gateway:
       # Full ARM subnet resource ID for the AGC-dedicated delegated subnet.
       # Supplied via the azure_agc_subnet_id cluster annotation (set by bootstrap).
       subnetId: '{{default "" (index .metadata.annotations "azure_agc_subnet_id")}}'
+    gateway:
+      allowedRoutesFrom: Selector
+      allowedRoutesSelector:
+        platform.gitops.io/ingress: agc
+      tls:
+        enabled: true
+        # cert-manager issues this certificate for the real Azure-assigned hostname.
+        hostname: '{{default "" (index .metadata.annotations "ingress_domain_name")}}'
+        secretName: agc-apps-tls
+    certificate:
+      enabled: true
+      issuerName: agc-letsencrypt
+      acmeServer: https://acme-v02.api.letsencrypt.org/directory

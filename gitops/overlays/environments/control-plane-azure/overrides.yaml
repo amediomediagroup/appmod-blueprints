@@ -37,12 +37,8 @@ cert-manager:
       replicaCount: 1
       topologySpreadConstraints: []
 
-agc_gateway:
-  valuesObject:
-    gateway:
-      allowedRoutesFrom: Selector
-      allowedRoutesSelector:
-        platform.gitops.io/ingress: agc
+# agc_gateway values (subnet, TLS hostname, cert-manager issuance) are owned by
+# the registry entry, which has the cluster annotations in scope.
 
 image-prepuller:
   valuesObject:
